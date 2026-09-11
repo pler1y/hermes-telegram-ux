@@ -1,26 +1,26 @@
 # Hermes Telegram UX
 
-Hermes 的 Telegram 交互增强插件。
+A Telegram interaction plugin for Hermes.
 
-在 Telegram 中查看任务进度，随时补充要求或停止任务，并接收完整的回复和文件。
+Get a quick acknowledgement, follow live task progress, add instructions along the way, and receive complete answers and files in your chat.
 
-[下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [安装指南](docs/INSTALLATION.md) · [反馈问题](https://github.com/pler1y/hermes-telegram-ux/issues)
+[简体中文](README.zh-CN.md) · [Download](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [Installation guide](docs/INSTALLATION.en.md) · [Report an issue](https://github.com/pler1y/hermes-telegram-ux/issues)
 
-## 功能
+## Features
 
-- **任务进度**：在同一条消息中持续更新，减少重复通知。
-- **途中补充**：任务进行时，可以继续添加要求、调整方向。
-- **随时停止**：发送“停一下”，停止当前任务，也支持后台任务。
-- **结果交付**：完整发送回复，将生成的文件直接交付到对话中。
-- **快捷入口**：通过首页菜单和后续按钮，继续操作或调整设置。
+- **Quick feedback** — a short, natural acknowledgement as your message arrives.
+- **Live progress** — updates in one message, with fitting emoji and less notification clutter.
+- **Visible internal work** — see when Hermes is tidying up the conversation context.
+- **Change direction** — add details while a task is running.
+- **Stop naturally** — say “stop the task” to stop current or associated background work.
+- **Complete delivery** — receive full answers, generated files and useful follow-up buttons.
+- **Chinese and English editions** — choose your interface language when installing.
 
-## 安装
+## Install
 
-需要已接入 Telegram 的 Hermes 0.21.0（[支持的核心版本](docs/COMPATIBILITY.md)），并完成模型登录。尚未安装 Hermes，可参考 [从零安装指南](docs/FRESH-INSTALL.md)。
+You'll need Hermes 0.21.0 on the [supported core revision](docs/COMPATIBILITY.md), with a working Telegram bot and model login.
 
-从 [发行页](https://github.com/pler1y/hermes-telegram-ux/releases/latest)下载 ZIP 和校验和文件，校验后解压。
-
-结束正在运行的任务并停止 Gateway。在解压目录中，由 Hermes 所属账号执行以下命令，路径按实际安装位置填写：
+Download the English `-en.zip` or Chinese `-zh.zip` and its checksum from [Releases](https://github.com/pler1y/hermes-telegram-ux/releases/latest). Verify and extract the archive, finish active tasks, and stop your Gateway. Run this from the extracted directory as the account that owns Hermes, adjusting the paths for your installation:
 
 ```bash
 HERMES_HOME="$HOME/.hermes"
@@ -31,27 +31,26 @@ export PYTHONPATH="$HERMES_CORE"
 "$HERMES_PYTHON" install.py install --hermes-home "$HERMES_HOME" --hermes-core "$HERMES_CORE"
 ```
 
-重新启动 Gateway，在 Telegram 发送 `/new`，再发送 `/start`。
+Restart the same Gateway, then send `/new` and `/start` in Telegram. See the [installation guide](docs/INSTALLATION.en.md) for upgrades, language settings and removal.
 
-安装选项、配置预览及服务管理方式见 [安装指南](docs/INSTALLATION.md)。
+## Use it
 
-## 使用
+Send a question, link or file as usual. During a task, keep typing to add a detail or change the request.
 
-照常给 Hermes 发送任务即可。运行期间可以继续补充要求，也可以直接停止：
-
-| 操作 | 示例 |
+| Action | Example |
 |---|---|
-| 补充要求 | “改按 10 天计算，把在途库存也算进去。” |
-| 停止任务 | “停一下” |
-| 打开首页 | `/start` 或“开始使用” |
+| Add a requirement | “Use a 10-day forecast and include incoming stock.” |
+| Stop a task | “Stop the task.” |
+| Open the menu | `/start` or “show menu” |
 
-## 文档
+## Documentation
 
-- [配置说明](docs/CONFIGURATION.md)：显示预设和进度设置
-- [升级与卸载](docs/INSTALLATION.md#升级与卸载) · [故障恢复](docs/RECOVERY.md)
-- [开发与测试](docs/TESTING.md) · [发布构建](docs/RELEASE.md)
-- [安全与隐私](SECURITY.md)
+- [Install, upgrade and uninstall](docs/INSTALLATION.en.md)
+- [中文安装指南](docs/INSTALLATION.md) · [从零安装](docs/FRESH-INSTALL.md)
+- [Configuration](docs/CONFIGURATION.md) · [Compatibility](docs/COMPATIBILITY.md)
+- [Development and testing](docs/TESTING.md) · [Release builds](docs/RELEASE.md)
+- [Security](SECURITY.md)
 
-## 许可证
+## License
 
-[MIT](LICENSE)。依赖与来源说明见 [NOTICE.md](NOTICE.md)。
+[MIT](LICENSE). See [NOTICE.md](NOTICE.md) for dependency and source information.

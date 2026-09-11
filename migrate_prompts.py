@@ -4,11 +4,13 @@ import json
 import os
 from pathlib import Path
 import sqlite3
-from plugin.experience import PROMPT
+from plugin.experience import prompt_for
+from plugin.i18n import package_language
 
 SECTION_ID = 'hermes_interaction.telegram'
 
-def replace_section(prompt):
+def replace_section(prompt, language=None):
+    PROMPT = prompt_for(language or package_language())
     from agent.system_prompt import _restore_plugin_prompt_sections
     from hermes_cli.plugins import format_system_prompt_sections, RenderedPluginSystemPromptSection, PLUGIN_SECTIONS_START
     sections = _restore_plugin_prompt_sections(prompt)

@@ -1,20 +1,24 @@
 """Route exact natural controls before Telegram's text batching and busy-input fast path."""
 import logging
 import re
+from .i18n import tr
 
 logger=logging.getLogger(__name__)
 ALIASES={
     '停一下':'/stop','先停下':'/stop','停止当前任务':'/stop','停止任务':'/stop',
     '查看状态':'/status','查看用量':'/usage','查看正在运行的任务':'/agents',
     '新建会话':'/new','查看历史会话':'/sessions',
+    'stop the task':'/stop','stop this task':'/stop','stop please':'/stop',
+    'show status':'/status','show usage':'/usage','show running tasks':'/agents',
+    'new conversation':'/new','show conversations':'/sessions',
 }
 
 
 def command_for(text):
-    return ALIASES.get((text or '').strip().rstrip('。！!'))
+    return ALIASES.get((text or '').strip().lower().rstrip('。！!.'))
 
 
-def wire(application,adapter):
+def wire(application,adapter,language="zh"):
     from telegram import Message,Update
     from telegram.ext import MessageHandler,filters,ApplicationHandlerStop
 
@@ -36,10 +40,10 @@ def wire(application,adapter):
             await adapter._handle_command(forwarded,context)
         except Exception as exc:
             logger.warning('Natural Telegram control failed (%s)',type(exc).__name__)
-            await msg.reply_text('这次没能确认操作结果，请直接发送 '+command+'。')
+            await msg.reply_text(tr('这次没能确认操作结果，请直接发送 {command}。',language,command=command))
         raise ApplicationHandlerStop
 
-    pattern=r'^\s*(?:'+'|'.join(re.escape(text) for text in ALIASES)+r')[。！!]*\s*$'
+    pattern=r'(?i)^\s*(?:'+'|'.join(re.escape(text) for text in ALIASES)+r')[。！!.]*\s*$'
     handler=MessageHandler(filters.TEXT & filters.Regex(pattern),control)
     application.add_handler(handler,group=-3)
     return lambda: application.remove_handler(handler,group=-3)

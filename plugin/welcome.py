@@ -4,6 +4,7 @@ from collections import OrderedDict
 import logging
 import secrets
 import time
+from .i18n import tr, localize
 
 logger = logging.getLogger(__name__)
 TTL = 30 * 60
@@ -33,11 +34,13 @@ PAGES.update({
 PARENTS = {"advanced": "home","home": None, "search": "home", "read": "home", "write": "home"}
 COMMANDS = frozenset(value for _, _, rows in PAGES.values() for row in rows
                      for _, kind, value in row if kind in {"command", "request"})
+COMMANDS = COMMANDS | frozenset(tr(value, "en") for value in COMMANDS)
 
 
 class WelcomeMenu:
-    def __init__(self, adapter, clock=time.monotonic):
+    def __init__(self, adapter, clock=time.monotonic, language="zh"):
         self.adapter = adapter
+        self.language = language
         self.clock = clock
         self.states = OrderedDict()
 
@@ -56,13 +59,17 @@ class WelcomeMenu:
         actions = {}
 
         def button(label, kind, value=None):
+            label = tr(label, self.language)
+            if kind == "request":
+                value = tr(value, self.language)
             key = str(len(actions))
             actions[key] = (kind, value, label)
             return InlineKeyboardButton(label, callback_data=f"hw:{token}:{key}")
 
         title, detail, layout = PAGES[page]
+        title, detail = tr(title, self.language), tr(detail, self.language)
         if submitted:
-            text = f"{submitted}\n\n也可以直接在下面继续说。"
+            text = submitted + "\n\n" + tr("也可以直接在下面继续说。", self.language)
             rows = [[button("返回", "page", page)]]
         else:
             text = title + "\n\n" + detail
@@ -85,7 +92,7 @@ class WelcomeMenu:
         if not self.adapter._is_user_authorized_from_message(msg):
             return
         if msg.chat.type != "private":
-            await msg.reply_text("请在与机器人的私聊中打开开始页面。")
+            await msg.reply_text(tr("请在与机器人的私聊中打开开始页面。", self.language))
             return
         owner = {"user": msg.from_user.id, "chat": msg.chat_id,
                  "thread": msg.message_thread_id, "message": None}
@@ -114,7 +121,7 @@ class WelcomeMenu:
     async def _answer(self, query, text=None, *, alert=False):
         from telegram.error import TelegramError
         try:
-            await query.answer(text, show_alert=alert)
+            await query.answer(localize(text, self.language), show_alert=alert)
         except TelegramError:
             # An expired callback acknowledgement must not prevent a valid control action.
             logger.debug("Control menu callback acknowledgement unavailable")
@@ -157,7 +164,7 @@ class WelcomeMenu:
         elif kind == "close":
             from telegram.error import TelegramError
             try:
-                await query.edit_message_text("随时直接发消息就行。", reply_markup=None)
+                await query.edit_message_text(tr("随时直接发消息就行。", self.language), reply_markup=None)
             except TelegramError:
                 logger.debug("Control menu close display unavailable")
         elif kind in {"command", "request"}:
@@ -169,7 +176,7 @@ class WelcomeMenu:
                 logger.warning("Control menu native dispatch failed (%s)", type(error).__name__)
                 from telegram.error import TelegramError
                 try:
-                    await query.message.reply_text("操作结果暂时无法确认，请查看 Hermes 回复后再操作。")
+                    await query.message.reply_text(tr("操作结果暂时无法确认，请查看 Hermes 回复后再操作。", self.language))
                 except TelegramError:
                     logger.debug("Control menu failure notice unavailable")
 
@@ -196,9 +203,9 @@ class WelcomeMenu:
             await self.adapter._handle_text_message(forwarded, context)
 
 
-def wire(application, adapter):
+def wire(application, adapter, language="zh"):
     from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler, filters, ApplicationHandlerStop
-    menu = WelcomeMenu(adapter)
+    menu = WelcomeMenu(adapter, language=language)
     async def start(update, context):
         # Existing deep links retain their native handling.
         if getattr(context, "args", None):
@@ -206,7 +213,7 @@ def wire(application, adapter):
         await menu.open(update, context)
         raise ApplicationHandlerStop
     handlers = [CommandHandler(["start", "hello"], start),
-        MessageHandler(filters.TEXT & filters.Regex(r"^(?:开始使用|你能做什么|打开控制菜单)[。！!]*$"), start),
+        MessageHandler(filters.TEXT & filters.Regex(r"(?i)^(?:开始使用|你能做什么|打开控制菜单|show menu|what can you do)[。！!.]*$"), start),
         CallbackQueryHandler(menu.callback, pattern=r"^hw:")]
     for handler in handlers:
         application.add_handler(handler, group=-2)

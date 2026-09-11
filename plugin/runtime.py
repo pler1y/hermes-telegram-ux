@@ -23,6 +23,8 @@ from .status import safe_status_text
 from .progress import TaskProgress
 from .narration import tool_note, SETUP_TOOLS, UI_TOOLS, PROGRESS_FIELD, public_text, with_progress_schema, accepts_null
 from .controls import ALIASES
+from .i18n import package_language, localize, tr
+from .intake import IntakeFeedback
 
 # Tool catalogue and skill loading are implementation setup, not user-facing search/read work.
 _SETUP_TOOLS = SETUP_TOOLS
@@ -39,7 +41,11 @@ def clean_stream_text(text):
 class InteractionRuntime:
     def __init__(self, ctx):
         self.ctx = ctx
+        selected_language = ctx.get_config("language", "package")
+        self.language = selected_language if selected_language in {"zh", "en"} else package_language()
+        self.emoji = bool(ctx.get_config("status_emoji", True))
         self.registry = TurnRegistry()
+        self.intake = IntakeFeedback(self)
         self.actions = ActionStore()
         self.telegram = TelegramActions(ctx, self.actions)
         self.delay = max(0.4, min(float(ctx.get_config("status_delay_seconds", 1.2)), 8.0))
@@ -76,8 +82,9 @@ class InteractionRuntime:
             name=PROGRESS_SCHEMA["name"], toolset="interaction", schema=PROGRESS_SCHEMA,
             handler=progress_handler, is_async=False,
             description=PROGRESS_SCHEMA["description"], emoji="💬")
+        from .experience import prompt_for
         self.ctx.register_system_prompt_section(
-            "hermes_interaction.telegram", PROMPT, position="after_memory", max_chars=4000)
+            "hermes_interaction.telegram", prompt_for(self.language), position="after_memory", max_chars=4000)
         self.ctx.register_platform_handler("telegram", self.wire_telegram)
         self.ctx.register_middleware("llm_request", self.narration_request)
         self.ctx.register_middleware("tool_request", self.narration_arguments)
@@ -110,9 +117,10 @@ class InteractionRuntime:
         self._wire_send(adapter)
         self._control_cleanup.append(self.telegram.wire(application, adapter))
         from .controls import wire as wire_controls
-        self._control_cleanup.append(wire_controls(application,adapter))
+        self._control_cleanup.append(wire_controls(application,adapter,language=self.language))
         from .welcome import wire
-        self._control_cleanup.append(wire(application, adapter))
+        self._control_cleanup.append(wire(application, adapter,language=self.language))
+        self._control_cleanup.append(self.intake.wire(application, adapter))
 
     def _patch_runner(self) -> None:
         from gateway.run import GatewayRunner
@@ -120,6 +128,7 @@ class InteractionRuntime:
         if getattr(GatewayRunner._run_agent_notify_long_running, "_hermes_interaction", False):
             raise RuntimeError("Hermes Interaction is already installed in this process")
         self._runner_cls = GatewayRunner
+        self.intake.patch_gateway(GatewayRunner)
         self._original_notify = GatewayRunner._run_agent_notify_long_running
         self._original_busy_text = GatewayRunner._compose_busy_ack_message
         runtime = self
@@ -142,13 +151,13 @@ class InteractionRuntime:
                     is_redirect_mode=is_redirect_mode, demoted_for_subagents=demoted_for_subagents,
                     demoted_for_compression=demoted_for_compression)
             if is_steer_mode:
-                return "收到，补充已记下。"
+                return tr("收到，补充已记下。", runtime.language)
             if is_queue_mode:
                 reason = "正在整理上下文" if demoted_for_compression else "当前子任务还在运行" if demoted_for_subagents else "当前任务还在运行"
-                return "收到，这条会在当前任务后处理。"
+                return tr("收到，这条会在当前任务后处理。", runtime.language)
             if is_redirect_mode:
-                return "收到，会按你的新要求处理。"
-            return "收到，正在切换到你的新要求。"
+                return tr("收到，会按你的新要求处理。", runtime.language)
+            return tr("收到，正在切换到你的新要求。", runtime.language)
 
         runtime._original_stop = GatewayRunner._busy_stop_command
         runtime._original_idle_stop = GatewayRunner._handle_stop_command
@@ -208,7 +217,7 @@ class InteractionRuntime:
                                 await state.adapter.delete_message(state.source.chat_id,state.status_message_id)
                     runtime.registry.pop(state.session_id,expected=state)
                 from gateway.platforms.base import EphemeralReply
-                return EphemeralReply("好，正在停止后台任务。")
+                return EphemeralReply(tr("好，正在停止后台任务。", runtime.language))
             return result
 
         send_ack._hermes_interaction=True
@@ -244,7 +253,7 @@ class InteractionRuntime:
             elif activity:
                 text += "\n刚才在做：" + activity
             text += "\n之前的操作不会自动撤销。"
-            return type(result)(text) if isinstance(result, str) else result
+            return type(result)(localize(text, runtime.language)) if isinstance(result, str) else result
 
         stop._hermes_interaction = True
         busy_text._hermes_interaction = True
@@ -254,6 +263,7 @@ class InteractionRuntime:
         GatewayRunner._compose_busy_ack_message = busy_text
 
     def uninstall(self) -> None:
+        self.intake.close()
         for cleanup in self._control_cleanup:
             with suppress(Exception):
                 cleanup()
@@ -347,7 +357,7 @@ class InteractionRuntime:
                 "⚠️ Gateway shutting down — Your current task will be interrupted.": "服务暂时离线，恢复后可以继续发消息。",
                 "💾 Self-improvement review: User profile updated": "已更新使用偏好。",
             }
-            content = notices.get(content, content) if isinstance(content, str) else content
+            content = localize(notices[content], runtime.language) if isinstance(content, str) and content in notices else content
             state=runtime._state_for_chat(chat_id,(metadata or {}).get("thread_id"))
             if state and runtime._has_background(state.session_id) and (
                 acknowledgement_only(content) or (state.receipt_text and str(content).strip()==state.receipt_text)):
@@ -457,7 +467,7 @@ class InteractionRuntime:
             return None
         provider = _kwargs.get('provider', '')
         updated = with_progress_schema(request, strict_tools=provider in {'', 'openai', 'openai-codex'},
-            require_note=state.progress.needs_narration())
+            require_note=state.progress.needs_narration(), language=self.language)
         if updated:
             optional_args = {}
             for before,after in zip(request.get('tools', []),updated.get('tools', [])):
@@ -500,6 +510,7 @@ class InteractionRuntime:
         self.registry.model_request(root)
         state=self.registry.get(root)
         if state:
+            state.internal_status = ""
             self._wire_stream(state)
             if state.progress is not None and session_id == root:
                 with self.registry._lock:
@@ -522,6 +533,9 @@ class InteractionRuntime:
             self.registry.update(session_id, ANALYZE)
 
     def api_error(self, session_id="", **_kwargs):
+        state = self.registry.get(self._root(session_id))
+        if state:
+            state.internal_status = ""
         self.registry.update(self._root(session_id), RETRY)
 
     def pre_tool(self, tool_name="", args=None, session_id="", **_kwargs):
@@ -530,6 +544,8 @@ class InteractionRuntime:
         original_session_id=session_id
         session_id=self._root(session_id)
         state=self.registry.get(session_id)
+        if state:
+            state.internal_status = ""
         if state and original_session_id==session_id and tool_name not in {TOOL_SCHEMA['name'],PROGRESS_SCHEMA['name']}:
             state.receipt_turn=(tool_name=='delegate_task' and (args or {}).get('action','spawn') in {'spawn','steer'})
         if tool_name == PROGRESS_SCHEMA["name"]:
@@ -584,6 +600,7 @@ class InteractionRuntime:
     async def _deliver_status(self, state: TurnState, text: str) -> None:
         if state.status_closed:
             return
+        text = localize(text, self.language)
         if not text:
             await self._typing(state)
             return
@@ -656,8 +673,12 @@ class InteractionRuntime:
             cleanup_ids=turn_ctx._cleanup_msg_ids, metadata=turn_ctx._status_thread_metadata,
             loop=asyncio.get_running_loop(), soft_wait=self.soft_wait,
             progress=TaskProgress(),
+            language=self.language, emoji=self.emoji,
         )
+        early = self.intake.take(source)
         previous=self.registry.get(state.session_id)
+        if previous is None or previous.ended:
+            previous = early or previous
         if previous:
             state.send_lock=previous.send_lock
             state.status_message_id=previous.status_message_id
@@ -689,6 +710,9 @@ class InteractionRuntime:
                 self._wire_stream(state)
                 await self._typing(state)
                 text = state.render(now, self.slow_after)
+                if (state.progress and state.progress.stage == "opening" and not state.tool_count
+                        and state.last_shown_text and now - state.created_at < self.slow_after):
+                    text = state.last_shown_text
                 if state.progress is None and agent is not None and getattr(agent, "_pending_steer", None) and not state.ended:
                     text = STEER + ("\n已确认：" + state.finding if state.finding else "")
                 if text != state.last_shown_text and now - (state.status_sent_at or 0) >= self.min_edit:

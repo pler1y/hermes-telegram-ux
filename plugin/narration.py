@@ -9,7 +9,7 @@ PROGRESS_FIELD = "_hermes_progress"
 PROGRESS_DESCRIPTION = (
     "显示给用户的进度，和最终答案分开。用一句日常聊天的短句，说清这一整步在帮用户确认或完成什么，"
     "必要时说一句原因。贴近本次问题的对象和限制；不要像任务标题那样只列动作，不用专业黑话或客服套话，"
-    "不用刻意亲昵、玩笑和表情。首次操作、换方法、遇到问题、读到补充后，写清具体变化。"
+    "可以自然搭配贴合语境的表情，不强行亲昵或随机轮播。首次操作、换方法、遇到问题、读到补充后，写清具体变化。"
     "不要写隐藏推理、工具名、路径、密钥或未经证实的成功。只有界面已经有说明且这一步没有变化时才可以留空。"
     "此字段在执行前移除，不属于实际操作参数。"
 )
@@ -51,12 +51,21 @@ def _nullable(schema):
         schema['enum'].append(None)
 
 
-def with_progress_schema(request, *, strict_tools=True, require_note=False):
+def with_progress_schema(request, *, strict_tools=True, require_note=False, language="zh"):
     """Decorate request-local function schemas; never mutate registered tools or permissions."""
     if not isinstance(request, dict) or not isinstance(request.get("tools"), list):
         return None
     updated = dict(request)
     updated["tools"] = []
+    description = PROGRESS_DESCRIPTION if language == "zh" else (
+        "A brief, natural English action update for the user. Explain the purpose of this step "
+        "and any actual change of approach or constraints. Be specific to the user's task. "
+        "A fitting emoji is welcome; avoid forced intimacy. No hidden reasoning, tool names, "
+        "paths, secrets or unverified success. Empty means an unchanged continuation only. "
+        "This display field is removed before the tool executes."
+    )
+    reminder = REQUEST_REMINDER.replace("one brief Chinese", "one brief " + ("Chinese" if language == "zh" else "English"))
+    reminder += " Use the same interface language for progress, action buttons and default replies. A fitting emoji is welcome; do not fill pauses with random updates."
     changed = False
     for original in request["tools"]:
         tool = deepcopy(original)
@@ -74,10 +83,10 @@ def with_progress_schema(request, *, strict_tools=True, require_note=False):
                 and not any(key in schema for key in ("oneOf", "anyOf", "allOf"))
                 and PROGRESS_FIELD not in schema["properties"]):
             schema["properties"][PROGRESS_FIELD] = {
-                "type": "string", "maxLength": 160, "description": PROGRESS_DESCRIPTION}
+                "type": "string", "maxLength": 160, "description": description}
             if require_note:
                 schema['properties'][PROGRESS_FIELD]['minLength'] = 1
-                schema['properties'][PROGRESS_FIELD]['description'] += '本轮尚无有效说明或需要交代新变化，必须写非空的一句话。'
+                schema['properties'][PROGRESS_FIELD]['description'] += ('本轮尚无有效说明或需要交代新变化，必须写非空的一句话。' if language == 'zh' else ' A concrete nonempty update is required for this new or changed step.')
             schema["required"] = [*schema.get("required", []), PROGRESS_FIELD]
             # Strict schemas prevent a provider from silently omitting the presentation field.
             # Only flat, fully understood schemas are upgraded; complex native schemas retain
@@ -98,15 +107,15 @@ def with_progress_schema(request, *, strict_tools=True, require_note=False):
         return None
     # Keep the delivery contract on each request without adding messages to saved history.
     if isinstance(updated.get("instructions"), str):
-        updated["instructions"] += "\n\n" + REQUEST_REMINDER
+        updated["instructions"] += "\n\n" + reminder
     elif "system" in updated:
         system = updated["system"]
         if isinstance(system, str):
-            updated["system"] = system + "\n\n" + REQUEST_REMINDER
+            updated["system"] = system + "\n\n" + reminder
         elif isinstance(system, list):
-            updated["system"] = [*system, {"type":"text","text":REQUEST_REMINDER}]
+            updated["system"] = [*system, {"type":"text","text":reminder}]
     elif isinstance(updated.get("messages"), list):
-        updated["messages"] = [*updated["messages"], {"role":"system","content":REQUEST_REMINDER}]
+        updated["messages"] = [*updated["messages"], {"role":"system","content":reminder}]
     return updated
 
 
@@ -130,6 +139,8 @@ def public_text(value):
     text = re.sub(r"[*_`#]", "", text)
     text = " ".join(text.split())
     if re.match(r"^(?:结论[：:]|答案[：:]|结果如下|我推荐|推荐[ ：A-Z]|最终结果)", text):
+        return ""
+    if re.match(r"^(?:final (?:answer|result)|(?:the )?(?:answer|conclusion)\s*:|here (?:are|is) (?:the |your )?(?:results?|answer)|I recommend\b)", text, re.I):
         return ""
     # Do not turn a report/partial answer into a prematurely displayed final reply.
     if len(text) > 280 or not text or text == "(empty)":

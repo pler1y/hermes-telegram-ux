@@ -1,8 +1,8 @@
 manifest_version: 2
 name: hermes-interaction
-version: 1.6.0
+version: 1.7.0
 label: Hermes Telegram UX
-description: Hermes Telegram 交互增强：任务进度、途中补充、自然停止与完整结果。
+description: Instant Telegram feedback, live task updates and natural controls for Hermes.
 kind: standalone
 license: MIT
 provides_tools: [interaction_update, interaction_actions]
@@ -12,6 +12,14 @@ python_dependencies:
   - python-telegram-bot>=22,<23
 tags: [telegram, ux, progress]
 config_schema:
+  language:
+    type: string
+    default: package
+    description: Fixed interface language (zh or en); package uses the downloaded edition.
+  status_emoji:
+    type: bool
+    default: true
+    description: Add a fitting emoji when a progress update has none.
   soft_wait:
     type: bool
     default: false
@@ -19,7 +27,7 @@ config_schema:
   status_delay_seconds:
     type: float
     default: 0.6
-    description: Delay before creating the progress bubble.
+    description: Fallback delay for task status when an intake acknowledgement is unavailable.
   status_min_edit_seconds:
     type: float
     default: 2.5

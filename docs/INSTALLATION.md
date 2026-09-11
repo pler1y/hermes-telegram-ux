@@ -4,7 +4,7 @@
 
 使用 [支持的 Hermes 核心版本](COMPATIBILITY.md)，完成模型登录和 Telegram 接入，确认机器人可以正常回复消息。新环境可按 [从零安装指南](FRESH-INSTALL.md)配置。
 
-从 [发行页](https://github.com/pler1y/hermes-telegram-ux/releases/latest)下载 ZIP 和对应的 `.sha256` 文件，校验后解压。以下命令在解压目录运行，由拥有 Hermes 配置的账号执行。
+从 [发行页](https://github.com/pler1y/hermes-telegram-ux/releases/latest)下载 `-zh.zip` 中文版或 `-en.zip` 英文版和对应的 `.sha256` 文件，校验后解压。以下命令在解压目录运行，由拥有 Hermes 配置的账号执行。
 
 ```bash
 HERMES_HOME="$HOME/.hermes"
@@ -76,3 +76,11 @@ Gateway 的启停沿用自己的部署方式。用户级 systemd 服务使用 `s
 任务进度根据工具事件和本轮回复更新。执行中追加要求后，会先显示收到补充的反馈，再由 Hermes 在后续执行中应用。发送“停一下”会请求停止前台或所属后台任务，已完成的外部操作不会自动撤销。
 
 最终回复以完整消息发送，长文仍按 Telegram 的长度限制分条。更详细的接口说明见 [兼容说明](COMPATIBILITY.md)。
+
+## 语言版本
+
+两个安装包使用同一套功能，界面语言固定。中文版使用中文，英文版的接话、菜单、内置状态和模型公开进度提示使用英文。不会检测用户所在地或自动识别消息语言，也没有翻译请求。
+
+切换版本时，结束任务并停止 Gateway，安装另一语言的 ZIP，重启后发送 `/new`。安装器会保留手动修改过的 `plugins.entries.hermes-interaction.settings.language`；若曾手动修改，可把它设为 `zh` 或 `en`。从源码安装默认中文。
+
+消息到达 Telegram 入口后立即发送简短接话，再由同一气泡承接任务进度；不等待模型生成。正常网络延迟仍会影响实际显示时间。

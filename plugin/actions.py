@@ -10,6 +10,7 @@ import secrets
 import threading
 import time
 from typing import Any
+from .i18n import tr, package_language
 
 logger = logging.getLogger(__name__)
 TTL_SECONDS = 30 * 60
@@ -125,6 +126,8 @@ class ActionStore:
 class TelegramActions:
     def __init__(self, ctx, store: ActionStore):
         self.ctx = ctx
+        language = ctx.get_config("language", "package")
+        self.language = language if language in {"zh", "en"} else package_language()
         self.store = store
         self.adapter = None
 
@@ -168,7 +171,7 @@ class TelegramActions:
                 logger.debug("Could not attach actions to final Telegram message", exc_info=True)
         try:
             kwargs = {"chat_id": int(chat_id) if chat_id.lstrip("-").isdigit() else chat_id,
-                      "text": "接下来可以："}
+                      "text": tr("接下来可以：", self.language)}
             if thread is not None:
                 kwargs["message_thread_id"] = int(thread)
             sent = await self.adapter._bot.send_message(**kwargs)
@@ -219,22 +222,22 @@ class TelegramActions:
         try:
             index = int(parts[2])
         except ValueError:
-            await query.answer("选项无效。", show_alert=True)
+            await query.answer(tr("选项无效。", self.language), show_alert=True)
             return
         state = self.store.peek(token)
         if state is None:
-            await query.answer("这组选项已过期、已使用或对话已更新。请直接输入想做的事。", show_alert=True)
+            await query.answer(tr("这组选项已过期、已使用或对话已更新。请直接输入想做的事。", self.language), show_alert=True)
             return
         if not self._authorized(query, state):
-            await query.answer("只能由原会话中的用户操作。", show_alert=True)
+            await query.answer(tr("只能由原会话中的用户操作。", self.language), show_alert=True)
             return
         claimed = self.store.claim(token, index)
         if claimed is None:
-            await query.answer("这组选项已使用。", show_alert=True)
+            await query.answer(tr("这组选项已使用。", self.language), show_alert=True)
             return
         state, action = claimed
         try:
-            await query.answer(f"已选择：{action['label']}，正在提交。")
+            await query.answer(tr("已选择：{label}，正在提交。", self.language, label=action["label"]))
         except Exception:
             logger.debug("Selection acknowledgement failed")
         try:
@@ -244,7 +247,7 @@ class TelegramActions:
         accepted = self.ctx.inject_message(action["prompt"], session_key=state.session_key)
         if not accepted:
             try:
-                await query.message.reply_text("暂时无法继续这个操作，请直接发送一条消息。")
+                await query.message.reply_text(tr("暂时无法继续这个操作，请直接发送一条消息。", self.language))
             except Exception:
                 pass
 
@@ -265,7 +268,7 @@ TOOL_SCHEMA = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "label": {"type": "string", "description": "Short Chinese button label."},
+                        "label": {"type": "string", "description": "Short button label in the selected interface language."},
                         "prompt": {"type": "string", "description": "Concrete follow-up request to Hermes."},
                     },
                     "required": ["label", "prompt"],

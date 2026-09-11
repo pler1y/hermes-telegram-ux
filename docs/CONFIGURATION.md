@@ -8,8 +8,10 @@
 
 | 键 | 初始值 | 用途 |
 |---|---:|---|
+| `language` | 安装包语言 | 固定 `zh` 或 `en`，不做自动识别 |
+| `status_emoji` | true | 进度首行没有表情时添加贴合当前阶段的 emoji |
 | `soft_wait` | false | 模型等待阶段也有简短反馈 |
-| `status_delay_seconds` | 0.6 | 创建状态气泡前等待 |
+| `status_delay_seconds` | 0.6 | 入口接话不可用时，任务阶段创建气泡的回退等待 |
 | `status_min_edit_seconds` | 2.5 | 常规状态最小编辑间隔 |
 | `slow_notice_seconds` | 45 | 长时间无事件的等待提示 |
 | `text_batch_seconds` | 0.8 | 连续文字消息的合并静默窗口 |
@@ -26,3 +28,5 @@
 不删除原有 `status_phrases`，也不替换整个 `runtime_footer` 映射，只修改所需叶子配置。对其他值的语义保持不变；使用 PyYAML 写入后，原有注释和 YAML 排版不会保留，原始字节保存在备份中。
 
 卸载按叶子和插件列表成员恢复。若当前值不同于安装器最后一次写入的值，会将其视为用户的新选择予以保留，并在结果的 `preserved_user_changes` 中列出路径。
+
+接话在 Telegram 消息入口执行，不受 `status_delay_seconds` 或文字合并窗口推迟。内部上下文整理提示来自真实压缩事件，结束、停止和审批状态优先显示。表情不会按计时器轮换；关闭 `status_emoji` 只关闭进度自动装饰，接话和菜单文案仍可包含表情。

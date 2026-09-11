@@ -21,12 +21,13 @@ import tempfile
 
 import yaml
 from plugin.compat import verify_core
+from plugin.i18n import package_language
 
 PLUGIN_ID = "hermes-interaction"  # Stable id preserves upgrades from the private 1.5 release.
 STATE_DIR = "telegram-ux-installer"
 SETTINGS = {"soft_wait": False, "status_delay_seconds": 0.6,
             "status_min_edit_seconds": 2.5, "slow_notice_seconds": 45.0,
-            "text_batch_seconds": 0.8}
+            "text_batch_seconds": 0.8, "language": package_language(), "status_emoji": True}
 DISPLAY = {"streaming": False, "tool_progress": "off", "cleanup_progress": True,
            "interim_assistant_messages": False, "thinking_progress": False,
            "long_running_notifications": True, "busy_ack_enabled": True,

@@ -75,9 +75,10 @@ class NativeNaturalControls(unittest.IsolatedAsyncioTestCase):
         self.adapter.handle_message.assert_not_awaited()
         self.adapter._is_user_authorized_from_message.assert_not_called()
 
-    async def test_unload_removes_control_and_welcome_handlers(self):
+    async def test_unload_removes_every_registered_handler_once(self):
         self.r._runner_cls = None
         self.r.uninstall()
-        self.assertEqual(self.app.remove_handler.call_count, 4)
+        removed = [(call.args[0], call.kwargs.get('group', 0)) for call in self.app.remove_handler.call_args_list]
+        self.assertCountEqual(removed, self.handlers)
         self.r.uninstall()
-        self.assertEqual(self.app.remove_handler.call_count, 4)
+        self.assertEqual(self.app.remove_handler.call_count, len(self.handlers))

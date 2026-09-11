@@ -202,7 +202,8 @@ class RoutingTests(unittest.TestCase):
             from hermes_cli.plugins import format_system_prompt_sections, RenderedPluginSystemPromptSection as S
         except ModuleNotFoundError:self.skipTest('Requires Hermes prompt formatter')
         from migrate_prompts import replace_section
-        from plugin.experience import PROMPT
+        from plugin.experience import prompt_for
+        PROMPT = prompt_for("zh")
         prefix='Original instructions unchanged\n'
         suffix='\n\nConversation started: 2026-09-10'
         sections=[S(id='other.plugin',content='Keep verbatim',position='after_memory',plugin='other'),S(id='hermes_interaction.telegram',content='Old instructions',position='after_memory',plugin='test')]

@@ -33,3 +33,4 @@ jobs:
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/run_tests.py
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_runtime.py
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/build_release.py --check
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_editions.py

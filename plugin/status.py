@@ -10,6 +10,7 @@ import threading
 import time
 from typing import Any
 from .progress import TaskProgress
+from .i18n import localize, decorate
 
 
 INITIAL = "想一下…"
@@ -90,8 +91,17 @@ class TurnState:
     send_lock: Any = field(default_factory=asyncio.Lock)
     status_closed: bool = False
     approval_phase: str | None = None
+    language: str = "zh"
+    emoji: bool = False
+    internal_status: str = ""
 
     def render(self, now: float, slow_after: float = 45.0) -> str:
+        priority = self.ended or self.approval_phase or self.phase == RETRY
+        text = self._render(now, slow_after) if priority else (self.internal_status or self._render(now, slow_after))
+        stage = self.progress.snapshot()["stage"] if self.progress else "opening"
+        return decorate(localize(text, self.language), stage, self.emoji)
+
+    def _render(self, now: float, slow_after: float = 45.0) -> str:
         if self.ended or self.phase.startswith(("等待你确认", "正在检查操作权限")):
             return self.phase
         if self.progress is not None:

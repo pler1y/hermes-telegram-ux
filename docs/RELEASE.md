@@ -1,6 +1,6 @@
 # 发布构建
 
-发行版提供源码 ZIP 和 SHA-256 校验和，可从 [Releases](https://github.com/pler1y/hermes-telegram-ux/releases)下载。
+发行版提供中文 `-zh.zip`、英文 `-en.zip` 两份源码 ZIP 和 SHA-256 校验和，可从 [Releases](https://github.com/pler1y/hermes-telegram-ux/releases)下载。
 
 ## 构建
 
@@ -9,7 +9,11 @@ python scripts/build_release.py
 python scripts/build_release.py --check
 ```
 
-产物输出到 `dist/`。构建脚本按文件清单打包，检查 Python 语法和常见凭据格式，并生成 `release-manifest.json`。相同源码会生成相同的 ZIP 校验和。
+产物输出到 `dist/`。两个版本只更换语言标记，均附中英文文档，每份 ZIP 有独立的完整性清单。
+
+在支持的 Hermes Python 环境中运行 `python scripts/check_editions.py`，会分别验证两份 ZIP 的哈希、安装、重复安装、原生插件注册与卸载恢复。
+
+构建脚本按文件清单打包，检查 Python 语法和常见凭据格式，并生成 `release-manifest.json`。相同源码会生成相同的 ZIP 校验和。
 
 修改项目文件后重新构建，再提交更新后的清单；CI 会检查源码与清单是否一致。配置、凭据、会话及备份文件不属于发行内容。
 

@@ -47,6 +47,7 @@ def main():
     assert metadata == yaml.safe_load((ROOT / "plugin/plugin.yaml").read_text()), "Root/payload metadata differ"
     paths = sources()
     manifest = {"project": "hermes-telegram-ux", "version": metadata["version"],
+                "language": json.loads((ROOT / "plugin/language.json").read_text())["language"],
                 "core_commit": json.loads((ROOT / "plugin/compatibility.json").read_text())["core_commit"],
                 "sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}}
     manifest_path = ROOT / "release-manifest.json"
@@ -55,19 +56,24 @@ def main():
         print(json.dumps({"manifest_matches": True, "files": len(paths), "privacy_scan": "passed"}))
         return
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
-    paths.append(manifest_path)
     args.output.mkdir(parents=True, exist_ok=True)
-    name = "hermes-telegram-ux-" + str(metadata["version"])
-    archive = args.output / (name + ".zip")
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as out:
-        for path in sorted(paths):
-            info = zipfile.ZipInfo(name + "/" + str(path.relative_to(ROOT)), date_time=(2026, 9, 11, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o100644 << 16
-            out.writestr(info, path.read_bytes())
-    checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
-    archive.with_suffix(".zip.sha256").write_text(checksum + "  " + archive.name + "\n")
-    print(json.dumps({"archive": str(archive), "sha256": checksum, "files": len(paths)}, ensure_ascii=False))
+    for language in ("zh", "en"):
+        payload = {str(p.relative_to(ROOT)): p.read_bytes() for p in paths}
+        payload["plugin/language.json"] = (json.dumps({"language": language}) + "\n").encode()
+        edition = dict(manifest, language=language,
+                       sha256={name: hashlib.sha256(data).hexdigest() for name, data in sorted(payload.items())})
+        payload["release-manifest.json"] = (json.dumps(edition, ensure_ascii=False, indent=2) + "\n").encode()
+        name = "hermes-telegram-ux-" + str(metadata["version"]) + "-" + language
+        archive = args.output / (name + ".zip")
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as out:
+            for relative, data in sorted(payload.items()):
+                info = zipfile.ZipInfo(name + "/" + relative, date_time=(2026, 9, 11, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                out.writestr(info, data)
+        checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
+        archive.with_suffix(".zip.sha256").write_text(checksum + "  " + archive.name + "\n")
+        print(json.dumps({"archive": str(archive), "language": language, "sha256": checksum, "files": len(payload)}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

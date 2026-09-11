@@ -25,7 +25,10 @@ def main():
         names = [d["function"]["name"] for d in definitions]
         assert {"interaction_update", "interaction_actions"} <= set(names), names
         sections = render_system_prompt_sections({"platform": "telegram", "session_id": "ux-fixture"})
-        assert any(s.id == "hermes_interaction.telegram" and "先给结论" in s.content for s in sections)
+        from plugin.i18n import package_language
+        language = package_language()
+        expected = "先给结论" if language == "zh" else "Use English"
+        assert any(s.id == "hermes_interaction.telegram" and expected in s.content for s in sections)
         assert has_middleware("llm_request") and has_middleware("tool_request")
         from hermes_cli.middleware import apply_llm_request_middleware
         from agent.codex_responses_adapter import _preflight_codex_api_kwargs
@@ -45,6 +48,7 @@ def main():
             tool = wire.get("tools", wire.get("extra_body", {}).get("tools"))[0]
             assert "_hermes_progress" in tool["parameters"]["required"], provider
             assert "Telegram delivery requirement" in wire["instructions"]
+            assert ("brief Chinese" if language == "zh" else "brief English") in wire["instructions"]
         runtime.uninstall()
         print(json.dumps({"native_discovery": True, "registered_tools": names, "middleware_providers": ["openai-codex", "xai-oauth"]}))
 

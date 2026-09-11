@@ -13,6 +13,9 @@
     "tools/delegate_tool_registry.py": "6b21c74096cb3e9fbddb59eb331a196b1f6b4d1790a31b5abffb4a98e0bfb6de",
     "agent/conversation_loop.py": "86474bf782d9418c4203dd662c46227784698d53090f6664ddb3cdf6119d20df",
     "agent/codex_responses_adapter.py": "7ff51089d085c27e3b556c94ef0d02c7648e42e94105ee1999006daf477f3816",
-    "agent/codex_runtime.py": "16554a7dca13dce49b552196083a9e788f0da18ffd4bbe67f7720c0bcf09e752"
+    "agent/codex_runtime.py": "16554a7dca13dce49b552196083a9e788f0da18ffd4bbe67f7720c0bcf09e752",
+    "gateway/run_turn.py": "6c81766d136810effa0fb793b1c947e8843a1fefb54a8f772eff25751639559b",
+    "gateway/run_turn_runner.py": "c2473f80b43a6af54ce6da3d26bc811d0224991beb4853e7dc14ff6ad73be180",
+    "agent/conversation_compression.py": "b4641046c1975411a2c1b74b8126390f9692f6cc1748b8ea28e077f9eaa19967"
   }
 }
