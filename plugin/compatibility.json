@@ -1,0 +1,18 @@
+{
+  "core_commit": "b499ab11fe8b081470e269f2fb27abae03000da5",
+  "hermes_version": "0.21.0",
+  "files": {
+    "gateway/run.py": "0ac228aa6f766474013565e24aa65d87cea992f5e665e4de2bb5782e5fd3848e",
+    "gateway/platforms/base.py": "d6df3c0134641624d6ca8cf6945e4a5029b0825bf660d2a5a4e70cd37179f20c",
+    "plugins/platforms/telegram/adapter.py": "98422313b2c56e73993ec926a5571061c3743fd0c602054f46a4acbed665f398",
+    "plugins/platforms/telegram/telegram_ids.py": "618a29923ccc05cc49eee7cffdded632d11cecc4484ccbad5c96cc9d0e429459",
+    "hermes_cli/plugins.py": "546c692e3f251bc8ef6920c0c1cfc94a26a892b4076c45aa75616e85dc48680b",
+    "hermes_cli/middleware.py": "62b1c1b6aa2e736c852ffd4dc551b9325ae4d41debafb6ece1169739fb6ce228",
+    "hermes_cli/lifecycle.py": "b421f36d8e68c79da1367da571493892beee763f27d44ea83944233bfd91af75",
+    "tools/async_delegation.py": "8a250bdc7e490722ef1441b9b14ceadc386479a6ddd7c416c88ddda7210a0c81",
+    "tools/delegate_tool_registry.py": "6b21c74096cb3e9fbddb59eb331a196b1f6b4d1790a31b5abffb4a98e0bfb6de",
+    "agent/conversation_loop.py": "86474bf782d9418c4203dd662c46227784698d53090f6664ddb3cdf6119d20df",
+    "agent/codex_responses_adapter.py": "7ff51089d085c27e3b556c94ef0d02c7648e42e94105ee1999006daf477f3816",
+    "agent/codex_runtime.py": "16554a7dca13dce49b552196083a9e788f0da18ffd4bbe67f7720c0bcf09e752"
+  }
+}

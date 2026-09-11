@@ -1,0 +1,35 @@
+name: Tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ux
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: b499ab11fe8b081470e269f2fb27abae03000da5
+          path: hermes-core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install isolated pinned core environment
+        run: |
+          python -m pip install uv
+          cd hermes-core
+          uv sync --frozen --no-dev --no-install-project --python 3.11
+          uv pip install --python .venv/bin/python 'python-telegram-bot==22.8'
+      - name: Full regression and native discovery
+        working-directory: ux
+        run: |
+          export PYTHONPATH="$GITHUB_WORKSPACE/hermes-core"
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/run_tests.py
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_runtime.py
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/build_release.py --check
