@@ -24,6 +24,40 @@ class QuietWaiting(unittest.TestCase):
         self.assertIn('停一下',text)
         self.assertNotIn('/stop',text)
 
+class QuietTaskProgress(unittest.TestCase):
+    def setUp(self):
+        from plugin.progress import TaskProgress
+        from plugin.runtime import InteractionRuntime
+        from types import SimpleNamespace as NS
+        self.runtime = InteractionRuntime(NS(get_config=lambda key, default=None: default))
+        self.state = TurnState('s','k',None,None,1,[None],[],None,None,
+                               soft_wait=True, progress=TaskProgress())
+        self.runtime.registry.bind(self.state)
+
+    def test_real_progress_is_quiet_until_a_substantive_event(self):
+        self.runtime.pre_api('s', user_message='Read a file', api_request_id='r')
+        self.assertEqual(self.state.render(self.state.created_at + 1), '')
+        self.runtime.pre_tool('read_file', {}, 's', tool_call_id='read')
+        self.assertIn('正在阅读', self.state.render(self.state.created_at + 2))
+
+    def test_quiet_mode_keeps_explicit_updates_receipts_and_long_wait_visible(self):
+        self.assertIn('还在想', self.state.render(self.state.created_at + 60))
+        self.runtime.registry.receipt('s')
+        self.assertIn('补充已记下', self.state.render(self.state.created_at + 1))
+        self.runtime.registry.progress('s', '正在核对库存数量。')
+        self.assertIn('正在核对库存', self.state.render(self.state.created_at + 1))
+
+    def test_quiet_mode_cannot_hide_compression_approval_or_failure(self):
+        self.state.internal_status = '正在整理前面的聊天。'
+        self.assertIn('整理前面的聊天', self.state.render(self.state.created_at + 1))
+        self.runtime.approval_wait('k')
+        self.assertIn('等待你确认', self.state.render(self.state.created_at + 1))
+        self.runtime.approval_done('k')
+        self.runtime.api_error('s')
+        self.assertIn('请求没有成功', self.state.render(self.state.created_at + 1))
+        self.runtime.session_end('s', interrupted=True)
+        self.assertIn('已中断', self.state.render(self.state.created_at + 1))
+
 class WelcomeSecurity(unittest.IsolatedAsyncioTestCase):
     async def test_other_user_and_double_click_cannot_submit(self):
         from plugin.welcome import WelcomeMenu

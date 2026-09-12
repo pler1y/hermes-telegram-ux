@@ -1,6 +1,6 @@
 manifest_version: 2
 name: hermes-interaction
-version: 1.7.0
+version: 1.7.1
 label: Hermes Telegram UX
 description: Instant Telegram feedback, live task updates and natural controls for Hermes.
 kind: standalone
@@ -23,7 +23,7 @@ config_schema:
   soft_wait:
     type: bool
     default: false
-    description: Delay visible status until there is a substantive tool event.
+    description: Omit early acknowledgements and ordinary model waiting; show substantive work, important updates and long waits.
   status_delay_seconds:
     type: float
     default: 0.6

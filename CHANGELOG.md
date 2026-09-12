@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.1 — 2026-09-12
+
+- Respect Telegram's retry delay across status bubbles on the same bot; progressively back off after transport failures and resume with the latest status.
+- Preserve native queue, steer and redirect receipts in the progress bubble. Early busy feedback only acknowledges receipt while routing is pending.
+- Apply `soft_wait` to the active task progress and intake paths, while keeping substantive work, important notices and long waits visible.
+- Add bilingual conversation examples and a read-only compatibility check to the README installation flow.
+
 ## 1.7.0
 
 - Telegram 收到消息后立即接话，再在同一条气泡中更新任务进度。问候、致谢和任务请求使用自然的短回应。

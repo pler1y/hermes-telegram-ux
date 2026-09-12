@@ -48,6 +48,24 @@ class IntakeTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.intake.begin(self.source, "And shipping", self.adapter)
         self.assertEqual(len(self.adapter.events), 1)
 
+    async def test_quiet_intake_waits_for_a_real_event_and_can_show_compression(self):
+        self.runtime.soft_wait = True
+        await self.runtime.intake.begin(self.source, 'hello', self.adapter)
+        self.assertEqual(self.adapter.events, [])
+        await self.runtime.intake.internal(self.source, '🧠 正在整理前面的聊天，稍等一下。')
+        self.assertEqual(self.adapter.events[0][0], 'send')
+        self.assertIn('Tidying up', self.adapter.events[0][2])
+
+    async def test_busy_intake_only_claims_receipt_before_native_routing(self):
+        from plugin.progress import TaskProgress
+        from plugin.status import TurnState
+        state = TurnState('s', 'k', self.source, self.adapter, 1, [None], [], None, None,
+                          progress=TaskProgress(), language='en')
+        self.runtime.registry.bind(state)
+        await self.runtime.intake.begin(self.source, 'A separate task', self.adapter)
+        self.assertIn('Got your message.', self.adapter.events[0][2])
+        self.assertNotIn('added', self.adapter.events[0][2])
+
     async def test_normal_turn_adopts_early_bubble_and_native_cleanup_id(self):
         await self.runtime.intake.begin(self.source, "Check a file", self.adapter)
         turn = NS(source=self.source, session_id="s", session_key="k", run_generation=1,

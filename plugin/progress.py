@@ -165,9 +165,9 @@ class TaskProgress:
         self.requests = dict(list(self.requests.items())[-64:])
 
     @locked
-    def received(self, text=""):
+    def received(self, text="", *, message="收到，补充已记下。"):
         self.revision += 1
-        self.receipt = "收到，补充已记下。"
+        self.receipt = message
         self.activity = ""
         self.next_step = ""
         self.changed_at = time.monotonic()
@@ -348,7 +348,7 @@ class TaskProgress:
             "source": "narrative" if note else "fallback", "stage": stage}
 
     @locked
-    def render(self, now, slow_after):
+    def render(self, now, slow_after, *, soft_wait=False):
         stage, note, count, running = self._view()
         line = note["text"] if note else self._current(stage)
         slow = now - self.changed_at >= slow_after
@@ -357,6 +357,8 @@ class TaskProgress:
         if count > 1:
             line += f"（还有 {count-1} 步同时进行）"
         lines = [line]
+        if soft_wait and stage == "opening" and not note and not slow:
+            lines = []
         if self.receipt:
             lines = [self.receipt, self._current(stage)]
         detail = self.completed_note or self.finding

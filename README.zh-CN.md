@@ -1,10 +1,28 @@
 # Hermes Telegram UX
 
-Hermes 的 Telegram 交互增强插件。
+让 Hermes 在 Telegram 里及时回应、清楚汇报、随时接受新要求。
 
-在 Telegram 中查看任务进度，随时补充要求或停止任务，并接收完整的回复和文件。
+消息到达即接话，任务进度在同一条消息中更新；执行途中可以补充要求或请求停止，完成后直接收到答案和文件。
 
 [English](README.md) · [下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [安装指南](docs/INSTALLATION.md) · [反馈问题](https://github.com/pler1y/hermes-telegram-ux/issues)
+
+## 用起来是什么样
+
+下面是交互流程示例；进度行会更新同一个气泡。模型生成的具体措辞随任务而变化。
+
+| 时刻 | Telegram 中的对话 |
+|---|---|
+| 你发送任务 | 帮我按未来 7 天的需求生成补货表。 |
+| 立即接话 | 好，我看一下 👀 |
+| 开始处理 | 📄 我先核对库存和日均用量，找出需要补货的商品。 |
+| 你补充要求 | 改为 10 天，把在途库存也算进去。 |
+| 收到补充 | 收到，补充已记下。 |
+| 实际调整 | 🧮 接下来按 10 天计算，同时扣除在途库存。 |
+| 完成交付 | 完整回复和生成的补货 CSV 文件。 |
+
+如果新消息需要排队，回执会说明“这条会在当前任务后处理”。发送“停一下”可以请求停止；已完成的操作不会自动撤销。
+
+通过 `/start` 打开首页，可以选择查资料、读链接或文件、写几句话；任务、历史对话和用量入口放在“更多设置”中。[1.7.0 实机验收记录](docs/ACCEPTANCE-1.7.0.md)包含已验证的场景和测试边界。
 
 ## 功能
 
@@ -19,11 +37,11 @@ Hermes 的 Telegram 交互增强插件。
 
 ## 安装
 
-需要已接入 Telegram 的 Hermes 0.21.0（[支持的核心版本](docs/COMPATIBILITY.md)），并完成模型登录。尚未安装 Hermes，可参考 [从零安装指南](docs/FRESH-INSTALL.md)。
+需要已接入 Telegram、完成模型登录的 Hermes **0.21.0，核心提交 `b499ab11fe8b`**。相同版本号下的其他提交也需要验证，详见[兼容边界](docs/COMPATIBILITY.md)。尚未安装 Hermes，可参考 [从零安装指南](docs/FRESH-INSTALL.md)。
 
 从 [发行页](https://github.com/pler1y/hermes-telegram-ux/releases/latest)下载 `-zh.zip` 中文版和对应校验和文件，校验后解压。
 
-结束正在运行的任务并停止 Gateway。在解压目录中，由 Hermes 所属账号执行以下命令，路径按实际安装位置填写：
+在解压目录中，由 Hermes 所属账号先执行只读兼容检查，路径按实际安装位置填写：
 
 ```bash
 HERMES_HOME="$HOME/.hermes"
@@ -31,6 +49,12 @@ HERMES_CORE="$HERMES_HOME/hermes-agent"
 HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
 export PYTHONPATH="$HERMES_CORE"
 
+"$HERMES_PYTHON" install.py check --hermes-core "$HERMES_CORE"
+```
+
+检查通过后，结束正在运行的任务并停止 Gateway，再安装：
+
+```bash
 "$HERMES_PYTHON" install.py install --hermes-home "$HERMES_HOME" --hermes-core "$HERMES_CORE"
 ```
 

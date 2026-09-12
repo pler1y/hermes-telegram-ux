@@ -6,8 +6,8 @@ Use Hermes 0.21.0 at commit `b499ab11fe8b081470e269f2fb27abae03000da5`. Confirm 
 
 Download an edition and its matching `.zip.sha256` from [Releases](https://github.com/pler1y/hermes-telegram-ux/releases/latest):
 
-- `hermes-telegram-ux-1.7.0-en.zip` for English.
-- `hermes-telegram-ux-1.7.0-zh.zip` for Chinese.
+- `hermes-telegram-ux-1.7.1-en.zip` for English.
+- `hermes-telegram-ux-1.7.1-zh.zip` for Chinese.
 
 On Linux, verify with `sha256sum -c <archive>.sha256`; on macOS, use `shasum -a 256 -c <archive>.sha256`. Extract the ZIP and open its directory. Run the following as the account that owns your Hermes installation, adjusting the paths:
 
@@ -52,7 +52,9 @@ plugins:
 
 This is a fragment to merge into your existing configuration. `status_emoji` controls automatic decoration of progress text; the edition's greeting and menu copy can still contain emoji. The source checkout defaults to Chinese.
 
-Immediate acknowledgement happens at Telegram intake. `status_delay_seconds` only controls fallback bubble creation if intake feedback was unavailable; it does not postpone the acknowledgement. Ordinary progress edits remain rate limited.
+By default, immediate acknowledgement happens at Telegram intake. `status_delay_seconds` only controls fallback bubble creation if intake feedback was unavailable; it does not postpone the acknowledgement. Set `soft_wait: true` in the plugin settings to omit that acknowledgement and ordinary model-waiting text. Substantive tool activity, explicit progress, message receipts, long waits, compression, approvals and terminal states can still appear.
+
+Ordinary progress edits remain rate limited. Failed sends and edits progressively back off. When Telegram requests a wait, status bubbles, intake acknowledgements and typing indicators on the same bot honor it; the next successful edit shows the latest status.
 
 ## Upgrade or remove
 

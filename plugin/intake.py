@@ -34,7 +34,7 @@ class IntakeFeedback:
         if current and not current.ended:
             # Native busy dispatch still decides steer/queue/redirect. This only acknowledges receipt.
             if source_key(current.source) == key:
-                self.runtime.registry.receipt(current.session_id, text)
+                self.runtime.registry.receipt(current.session_id, text, message="收到这条消息了。")
                 await self.runtime._send_status(current, current.render(time.monotonic(), self.runtime.slow_after))
             return
         state = self.pending.get(key)
@@ -49,9 +49,10 @@ class IntakeFeedback:
             self.expiry[key] = asyncio.create_task(self._expire(key, state))
         # Consecutive Telegram chunks share one acknowledgement, even before native batching.
         async with state.send_lock:
-            if not state.status_message_id:
+            if not state.status_message_id and not self.runtime.soft_wait:
                 await self.runtime._deliver_status(state, greeting(text, self.runtime.language))
-                logger.info("Hermes Interaction: intake acknowledgement age=%.3fs", time.monotonic() - state.created_at)
+                if state.status_message_id:
+                    logger.info("Hermes Interaction: intake acknowledgement age=%.3fs", time.monotonic() - state.created_at)
 
     def take(self, source):
         key = source_key(source)

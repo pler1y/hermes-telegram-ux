@@ -15,6 +15,7 @@ def package_language():
 
 
 EN = {
+    "收到这条消息了。": "Got your message.",
     "暂时无法继续这个操作，请直接发送一条消息。": "I couldn't continue that action. Please send a message directly.",
     "想一下…": "Let me think 🤔",
     "我看一下…": "Let me take a look 👀",

@@ -70,6 +70,8 @@ class TurnState:
     tool_count: int = 0
     status_message_id: str | None = None
     status_sent_at: float | None = None
+    status_retry_at: float = 0.0
+    status_failures: int = 0
     failed: bool = False
     interrupted: bool = False
     completed: bool = False
@@ -107,7 +109,7 @@ class TurnState:
         if self.progress is not None:
             if self.phase == RETRY:
                 return "这次请求没有成功，还没有拿到结果。"
-            return self.progress.render(now, slow_after)
+            return self.progress.render(now, slow_after, soft_wait=self.soft_wait)
         if self.soft_wait:
             if self.phase == RETRY:
                 return "这次请求没有成功，还没有拿到结果。"
@@ -205,12 +207,12 @@ class TurnRegistry:
             state.last_event_at = time.monotonic()
             state.phase_version += 1
 
-    def receipt(self, session_id, text=""):
+    def receipt(self, session_id, text="", *, message=STEER):
         with self._lock:
             state = self._states.get(session_id)
             if state and not state.ended:
                 if state.progress is not None:
-                    state.progress.received(text)
+                    state.progress.received(text, message=message)
                 state.last_event_at = time.monotonic()
 
     def tool_started(self, session_id, owner, call_id, name, args):

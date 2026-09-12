@@ -107,6 +107,35 @@ class NativeCompatibilityTests(unittest.IsolatedAsyncioTestCase):
             self.skipTest('Requires isolated Hermes runtime')
         self.Runner=GatewayRunner
         self.runtime=InteractionRuntime(Context())
+    async def test_native_busy_receipt_preserves_queue_steer_and_redirect_in_both_languages(self):
+        from plugin.progress import TaskProgress
+        from plugin.i18n import tr
+        self.runtime._patch_runner()
+        try:
+            source = SimpleNamespace(chat_id='123', user_id='u', thread_id=None, platform='telegram')
+            event = SimpleNamespace(source=source, text='Another request')
+            for language in ('zh', 'en'):
+                self.runtime.language = language
+                for mode, expected in (
+                    ('queue', '收到，这条会在当前任务后处理。'),
+                    ('steer', '收到，补充已记下。'),
+                    ('redirect', '收到，会按你的新要求处理。'),
+                ):
+                    with self.subTest(language=language, mode=mode):
+                        state = TurnState('s', 'k', source, None, 1, [None], [], None, None,
+                                          progress=TaskProgress(), language=language)
+                        self.runtime.registry.bind(state)
+                        self.runtime._send_status = AsyncMock()
+                        message = self.Runner._compose_busy_ack_message(
+                            object(), event, 0, None, None, is_steer_mode=mode == 'steer',
+                            is_queue_mode=mode == 'queue', is_redirect_mode=mode == 'redirect',
+                            demoted_for_subagents=False, demoted_for_compression=False)
+                        await self.Runner._send_busy_ack_reply(object(), event, None, message)
+                        shown = self.runtime._send_status.call_args.args[1]
+                        self.assertIn(tr(expected, language), shown)
+                        self.assertIn(tr(expected, language), state.render(state.created_at + 3))
+        finally:
+            self.runtime.uninstall()
     async def test_stop_preserves_native_control_and_reports_verified_progress(self):
         original=self.Runner._busy_stop_command
         calls=[]

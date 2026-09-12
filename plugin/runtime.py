@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 import logging
+import math
 import time
 import threading
 import re
@@ -61,6 +62,7 @@ class InteractionRuntime:
         self._cancelled_delegations=state_store.get('cancelled_delegations',{}) if state_store else {}
         if not isinstance(self._cancelled_delegations,dict):self._cancelled_delegations={}
         self._raw_sends = {}
+        self._status_cooldowns = {}
         self._stream_overrides = weakref.WeakKeyDictionary()
         self._child_roots = {}
         self._children = {}
@@ -153,7 +155,6 @@ class InteractionRuntime:
             if is_steer_mode:
                 return tr("收到，补充已记下。", runtime.language)
             if is_queue_mode:
-                reason = "正在整理上下文" if demoted_for_compression else "当前子任务还在运行" if demoted_for_subagents else "当前任务还在运行"
                 return tr("收到，这条会在当前任务后处理。", runtime.language)
             if is_redirect_mode:
                 return tr("收到，会按你的新要求处理。", runtime.language)
@@ -193,7 +194,7 @@ class InteractionRuntime:
                 return await runtime._original_send_ack(runner,event,adapter,message)
             state=runtime._state_for_source(event.source)
             if state:
-                runtime.registry.receipt(state.session_id, getattr(event, "text", ""))
+                runtime.registry.receipt(state.session_id, getattr(event, "text", ""), message=message)
                 state.activity=message
                 await runtime._send_status(state,state.render(time.monotonic(),runtime.slow_after) if state.progress else message)
             else:
@@ -284,6 +285,7 @@ class InteractionRuntime:
         for adapter, original in self._raw_sends.items():
             adapter.send=original
         self._raw_sends.clear()
+        self._status_cooldowns.clear()
         for consumer, original in list(self._stream_overrides.items()):
             consumer._clean_for_display = original
         self._stream_overrides.clear()
@@ -600,35 +602,59 @@ class InteractionRuntime:
     async def _deliver_status(self, state: TurnState, text: str) -> None:
         if state.status_closed:
             return
+        now = time.monotonic()
+        if now < max(state.status_retry_at, self._status_cooldowns.get(state.adapter, 0)):
+            return
         text = localize(text, self.language)
         if not text:
             await self._typing(state)
             return
-        from gateway.run import _interim_metadata, _non_conversational_metadata
-        metadata = _interim_metadata(_non_conversational_metadata(
-            state.metadata, platform=getattr(state.source, "platform", None)))
-        if state.status_message_id:
-            if text==state.last_shown_text:
-                return
-            try:
+        if state.status_message_id and text == state.last_shown_text:
+            return
+        action = "edit" if state.status_message_id else "send"
+        try:
+            if state.status_message_id:
                 result = await state.adapter.edit_message(
                     state.source.chat_id, state.status_message_id, text)
-                if getattr(result, "success", False):
-                    state.status_sent_at = time.monotonic()
-                    state.last_shown_text = text
-                    self._record_delivery(state, "edit", text)
-            except Exception:
-                logger.debug("Interaction status edit failed; preserving the existing bubble")
+            else:
+                from gateway.run import _interim_metadata, _non_conversational_metadata
+                metadata = _interim_metadata(_non_conversational_metadata(
+                    state.metadata, platform=getattr(state.source, "platform", None)))
+                sender = self._raw_sends.get(state.adapter, state.adapter.send)
+                result = await sender(state.source.chat_id, text, metadata=metadata)
+        except Exception as error:
+            self._defer_status(state, error)
+            logger.debug("Interaction status %s unavailable (%s)", action, type(error).__name__)
             return
-        sender=self._raw_sends.get(state.adapter,state.adapter.send)
-        result = await sender(state.source.chat_id, text, metadata=metadata)
-        if getattr(result, "success", False) and getattr(result, "message_id", None):
+        if not getattr(result, "success", False) or (
+                action == "send" and not getattr(result, "message_id", None)):
+            self._defer_status(state, result)
+            return
+        if action == "send":
             state.status_message_id = str(result.message_id)
-            state.status_sent_at = time.monotonic()
-            state.last_shown_text = text
-            self._record_delivery(state, "send", text)
             if state.status_message_id not in state.cleanup_ids:
                 state.cleanup_ids.append(state.status_message_id)
+        state.status_failures = 0
+        state.status_retry_at = 0.0
+        state.status_sent_at = time.monotonic()
+        state.last_shown_text = text
+        self._record_delivery(state, action, text)
+
+    def _defer_status(self, state, result):
+        state.status_failures += 1
+        delay = min(60.0, self.min_edit * 2 ** min(state.status_failures - 1, 8))
+        retry_after = getattr(result, "retry_after", None)
+        try:
+            retry_after = float(retry_after.total_seconds() if hasattr(retry_after, "total_seconds") else retry_after)
+        except (TypeError, ValueError, OverflowError):
+            retry_after = 0.0
+        now = time.monotonic()
+        if math.isfinite(retry_after) and retry_after > 0:
+            delay = max(delay, retry_after)
+            # Flood control applies to the bot, including other turns and early acknowledgements.
+            self._status_cooldowns[state.adapter] = max(
+                self._status_cooldowns.get(state.adapter, 0), now + retry_after)
+        state.status_retry_at = now + delay
 
     @staticmethod
     def _record_delivery(state, action, text):
@@ -638,8 +664,12 @@ class InteractionRuntime:
             time.monotonic()-state.created_at, hashlib.sha256(text.encode()).hexdigest()[:12])
 
     async def _typing(self, state):
+        if not hasattr(state.adapter, "send_typing"):
+            return
         now = time.monotonic()
-        if now - state.last_typing_at >= 4 and hasattr(state.adapter, "send_typing"):
+        if now < self._status_cooldowns.get(state.adapter, 0):
+            return
+        if now - state.last_typing_at >= 4:
             state.last_typing_at = now
             with suppress(Exception):
                 await state.adapter.send_typing(state.source.chat_id, metadata=state.metadata)
@@ -683,6 +713,8 @@ class InteractionRuntime:
             state.send_lock=previous.send_lock
             state.status_message_id=previous.status_message_id
             state.status_sent_at=previous.status_sent_at
+            state.status_retry_at=previous.status_retry_at
+            state.status_failures=previous.status_failures
             state.last_shown_text=previous.last_shown_text
             state.finding=previous.finding
             if self._has_background(state.session_id):
