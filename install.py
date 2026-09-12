@@ -200,6 +200,18 @@ def plan_restore(config, records):
     return changed, conflicts
 
 
+def changed_record_paths(config, changed, records, previous):
+    paths = {tuple(r["path"]) for r in records + (previous or {}).get("records", [])}
+    result = []
+    for path in sorted(paths):
+        try:
+            if get_value(config, path) != get_value(changed, path):
+                result.append(".".join(path))
+        except ValueError:
+            pass  # An unchanged user-owned parent may no longer be a mapping.
+    return result
+
+
 def copy_plugin(source, destination):
     # Do not follow symlinks into credentials or files outside a reviewed release.
     if source.is_symlink() or any(p.is_symlink() for p in source.rglob("*")):
@@ -332,8 +344,8 @@ def install(home, source=None, *, core=None, preset="recommended", dry_run=False
         selected = previous["preset"] if previous else preset
         changed, records = plan_install(config, previous, selected)
         result = {"action": "install", "version": manifest["version"], "preset": selected,
-                  "compatibility": compatibility, "changed_paths": [".".join(r["path"]) for r in records
-                    if get_value(config, r["path"]) != get_value(changed, r["path"])]}
+                  "compatibility": compatibility,
+                  "changed_paths": changed_record_paths(config, changed, records, previous)}
         if dry_run:
             result["dry_run"] = True
             return result
@@ -367,8 +379,7 @@ def configure(home, *, core=None, preset="recommended", language=None, dry_run=F
         changed, records = plan_install(config, previous, selected, language)
         result = {"action": "configure", "version": manifest["version"], "preset": selected,
                   "compatibility": compatibility, "management": "config-only",
-                  "changed_paths": [".".join(r["path"]) for r in records
-                                    if get_value(config, r["path"]) != get_value(changed, r["path"])]}
+                  "changed_paths": changed_record_paths(config, changed, records, previous)}
         if dry_run:
             return dict(result, dry_run=True)
         state = dict(previous or {}, schema=1, management="config-only", version=manifest["version"],

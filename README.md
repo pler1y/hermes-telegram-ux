@@ -38,7 +38,7 @@ Send `/start` to find information, read a link or file, or write something. Runn
 
 ## Install
 
-You'll need a working Telegram bot and model login. This release checks the interfaces of **Hermes 0.21.0 (`b499ab11fe8b`) or 0.21.2 (`a84a2223f82c`, `436ec489854b`)**. Other commits are accepted only when all guarded files match one baseline by bytes or complete Python syntax; see [compatibility](docs/COMPATIBILITY.md). For installation through `hermes plugins install`, follow [native installation](docs/NATIVE-INSTALL.md).
+You'll need a working Telegram bot and model login. This release checks the interfaces of **Hermes 0.21.0 (`b499ab11fe8b`) or 0.21.2 (`a84a2223f82c`, `436ec489854b`, `044a77b3b6af`)**. Other commits are accepted only when all guarded files match one baseline by bytes or complete Python syntax; see [compatibility](docs/COMPATIBILITY.md). For installation through `hermes plugins install`, follow [native installation](docs/NATIVE-INSTALL.md).
 
 For ZIP installation, choose the English `-en.zip` or Chinese `-zh.zip` and its checksum from the matching [release](https://github.com/pler1y/hermes-telegram-ux/releases). Verify and extract the archive. Run this read-only compatibility check from the extracted directory as the account that owns Hermes, adjusting the paths for your installation:
 

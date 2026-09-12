@@ -10,8 +10,8 @@ The plugin remains maintained by pler1y; inclusion does not bundle or enable it 
 
 - Native Git installation, configuration/recovery, enable, discovery, Telegram handler wiring and removal.
 - Complete declarations of two tools, thirteen hooks and two middleware handlers.
-- Three guarded core baselines: Hermes 0.21.0 `b499ab11fe8b` and 0.21.2
-  `a84a2223f82c` / `436ec489854b`. All 23 guarded files must match one baseline by raw bytes or complete Python syntax.
+- Four guarded core baselines: Hermes 0.21.0 `b499ab11fe8b` and 0.21.2
+  `a84a2223f82c` / `436ec489854b` / `044a77b3b6af`. All 23 guarded files must match one baseline by raw bytes or complete Python syntax.
 - Regression coverage for a new turn arriving while an old turn stops or finishes:
   progress, cleanup and follow-up actions stay with the owning turn.
 - Bot-specific button delivery/authorization, rollback after partial handler failure and idempotent wiring.
@@ -57,7 +57,7 @@ python scripts/check_editions.py
 
 The old 0.21.0 baseline predates `plugins validate`; omit `--require-validator` there.
 All checks use disposable homes and do not call a model or send Telegram messages.
-CI covers all three baselines and checks current upstream main on push, pull
+CI covers all four baselines and checks current upstream main on push, pull
 request and manual dispatch, including Python 3.11/3.12 syntax-fingerprint checks.
 
 The examined 0.21.2 native installer accepts `manifest_version: 1`. The optional

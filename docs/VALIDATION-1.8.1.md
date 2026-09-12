@@ -1,13 +1,14 @@
 # Version 1.8.1 validation — 2026-09-12
 
-Seven additional regression cases bring the plugin suite to **163 tests, zero
+Eight additional regression cases bring the plugin suite to **164 tests, zero
 failures/errors/skips**, on each supported environment:
 
 | Environment | Plugin suite | Native lifecycle | Admission validator | English/Chinese ZIP lifecycle |
 |---|---|---|---|---|
-| 0.21.0 `b499ab11fe8b` | 163 passed | Passed | Not available in this core | Passed |
-| 0.21.2 `a84a2223f82c` | 163 passed | Passed | Passed | Passed |
-| 0.21.2 `bf867d3c7451`, matching baseline `436ec489854b` | 163 passed | Passed | Passed | Passed |
+| 0.21.0 `b499ab11fe8b` | 164 passed | Passed | Not available in this core | Passed |
+| 0.21.2 `a84a2223f82c` | 164 passed | Passed | Passed | Passed |
+| 0.21.2 `436ec489854b` | 164 passed | Passed | Passed | Passed |
+| 0.21.2 `044a77b3b6af` | 164 passed | Passed | Passed | Passed |
 
 Before the fixes, tests reproduced wrong-bot button delivery, handlers left behind
 after partial wiring, replacement of a later plugin wrapper during unload,
@@ -15,7 +16,7 @@ formatting-only core rejection and global notification settings being overwritte
 Additional coverage checks unloaded wrappers forwarding to native behavior,
 re-wiring without duplicate handlers, stream consumer collection, cross-bot
 callback rejection without consuming the valid menu, and retiring older settings
-without overwriting a user's later edits.
+without overwriting a user's later edits. Upgrade dry-runs list those restored paths before any write.
 
 The real-core compatibility check copies guarded files into a disposable directory:
 comment-only changes pass; adding executable syntax fails. The full Python syntax

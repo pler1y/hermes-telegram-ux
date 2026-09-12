@@ -40,6 +40,23 @@ class _LifecycleFixture(unittest.TestCase):
 
 
 class LifecycleTests(_LifecycleFixture):
+    def test_upgrade_preview_reports_restored_global_settings_without_writing(self):
+        self.original["agent"] = {"gateway_notify_interval": 180}
+        self.save(self.original)
+        desired = lifecycle.desired_values
+        def old_defaults(preset, language=None):
+            values = desired(preset, language)
+            values[("agent", "gateway_notify_interval")] = 1
+            return values
+        with patch.object(lifecycle, "desired_values", side_effect=old_defaults):
+            self.install()
+        before = self.path.read_bytes()
+        preview = self.install(dry_run=True)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertIn("agent.gateway_notify_interval", preview["changed_paths"])
+        self.install()
+        self.assertEqual(self.config()["agent"]["gateway_notify_interval"], 180)
+
     def test_fresh_install_and_uninstall_restore_semantic_baseline(self):
         result = self.install()
         self.assertFalse(self.config()["display"]["platforms"]["telegram"]["streaming"])

@@ -39,7 +39,7 @@
 
 ## 安装
 
-需要已接入 Telegram、完成模型登录的 Hermes。本版本验证了 **0.21.0（`b499ab11fe8b`）和 0.21.2（`a84a2223f82c`、`436ec489854b`）** 三套核心；其他提交只有在受保护的接口文件完整匹配某套基线时才允许加载，详见[兼容边界](docs/COMPATIBILITY.md)。通过 Hermes 管理插件代码请看[原生安装](docs/NATIVE-INSTALL.md)。
+需要已接入 Telegram、完成模型登录的 Hermes。本版本验证了 **0.21.0（`b499ab11fe8b`）和 0.21.2（`a84a2223f82c`、`436ec489854b`、`044a77b3b6af`）** 四套核心；其他提交只有在受保护的接口文件完整匹配某套基线时才允许加载，详见[兼容边界](docs/COMPATIBILITY.md)。通过 Hermes 管理插件代码请看[原生安装](docs/NATIVE-INSTALL.md)。
 
 ZIP 安装从[全部发行版](https://github.com/pler1y/hermes-telegram-ux/releases)选择对应版本的 `-zh.zip` 中文版及校验和文件，校验后解压。
 

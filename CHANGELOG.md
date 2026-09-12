@@ -7,7 +7,8 @@
 - Bind follow-up buttons and callback authorization to the originating Telegram adapter; scope background send lookup to that adapter.
 - Release completed stream consumers and avoid overwriting later stream wrappers on unload.
 - Stop changing global notification intervals/acknowledgement toggles. Retire older installer-owned values on upgrade while preserving user edits.
-- Add seven regression cases and real-core formatting/rejection checks on Python 3.11/3.12. Internal gateway dependencies and fresh new-core live acceptance remain disclosed limits.
+- Review Hermes `044a77b3b6af` failed-turn persistence changes and add that tested baseline. Upgrade previews include retired settings.
+- Add eight regression cases and real-core formatting/rejection checks on Python 3.11/3.12. Internal gateway dependencies and fresh new-core live acceptance remain disclosed limits.
 
 ## 1.8.0 — 2026-09-12
 
