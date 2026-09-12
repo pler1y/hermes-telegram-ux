@@ -12,6 +12,8 @@ jobs:
             validator: ''
           - core: a84a2223f82c3d9906fd4a9d778a188774e7a08e
             validator: '--require-validator'
+          - core: 436ec489854b7110b4c5506b1f52c514fa4c3ace
+            validator: '--require-validator'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0 — 2026-09-12
+
+- Ship native Git installation and configuration from the catalog candidate.
+- Fix displaced progress loops and finalizers: old turns cannot consume successor actions or reuse bubbles still owned by native cleanup.
+- Retire foreground/background stop state before native stop yields, preserving a successor admitted during cleanup.
+- Add the reviewed Hermes 0.21.2 `436ec489854b` baseline and guard 23 integration files, including session state and turn leases. Test all three supported baselines.
+- Track the actual official catalog PR #108887. Catalog acceptance and its two-week release maturity requirement remain external; fresh full Telegram/model acceptance on the new core is not claimed.
+
 ## 1.8.0-rc.1 — Catalog preparation candidate
 
 - Add native Git installation, configuration and configuration-only recovery that preserve Hermes-managed source and provenance metadata.

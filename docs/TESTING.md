@@ -44,7 +44,7 @@ CI 执行自动回归和原生注册检查，不使用任何模型或 Telegram �
 
 ## 官方目录准备检查
 
-1.8.0-rc.1 的 CI 对两套固定核心分别执行完整回归、ZIP 生命周期及 `scripts/check_native_install.py`。后者将候选源码放入临时 Git 仓库，通过真实 `hermes plugins install --ref` 安装，再验证配置、原生启用、发现、实际 Telegram adapter 接线及恢复、配置还原和原生移除；全部使用临时配置和合成数据，不连接 Telegram。
+1.8.0 的 CI 对三套固定核心分别执行完整回归、ZIP 生命周期及 `scripts/check_native_install.py`。后者将候选源码放入临时 Git 仓库，通过真实 `hermes plugins install --ref` 安装，再验证配置、原生启用、发现、实际 Telegram adapter 接线及恢复、配置还原和原生移除；全部使用临时配置和合成数据，不连接 Telegram。
 
 当前 0.21.2 基线运行 `scripts/check_native_install.py --require-validator`，要求官方 `plugins validate` 实际成功，不能因缺少验证器静默跳过。旧 0.21.0 没有该命令，其余原生路径仍必须成功。另一个 CI job 检查每次运行时的 main 是否仍匹配受保护接口。
 
@@ -65,3 +65,7 @@ CI 执行自动回归和原生注册检查，不使用任何模型或 Telegram �
 `test_delivery.py` 使用真实状态发送入口、受控时钟和模拟 Telegram 返回，验证服务器等待时间、同机器人多任务共享冷却、网络失败退避、恢复后发送最新状态，以及关闭后的气泡不会因重试复活。这些测试不调用 Telegram 网络。
 
 原生忙碌回执测试分别检查中英文的排队、补充和切换要求；安静模式测试使用实际的 `TaskProgress` 与入口接话，确认普通等待不会发气泡，真实操作、上下文整理、审批和失败仍然可见。它们随 `scripts/run_tests.py` 一起运行。
+
+## 1.8.0 任务替换回归
+
+`test_turn_ownership.py` 通过真实状态生命周期和原生停止入口验证：旧轮询退出、不取走新任务按钮、不复用仍由旧任务清理的气泡，前台及后台停止收尾不关闭新任务。这些是受控异步交错测试，不冒充 Telegram 实机验收。

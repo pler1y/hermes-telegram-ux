@@ -6,7 +6,7 @@
 
 [English](README.md) · [下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [安装指南](docs/INSTALLATION.md) · [反馈问题](https://github.com/pler1y/hermes-telegram-ux/issues)
 
-**官方目录准备候选版：1.8.0-rc.1。** 本分支补充原生安装和新核心验证，尚未被官方目录收录。[原生安装](docs/NATIVE-INSTALL.md) · [收录准备状态](docs/CATALOG.md)。默认下载链接仍指向稳定版。
+**1.8.0 已补齐原生安装与新版核心兼容，并修复停止、替换任务时的进度和按钮归属问题。** [官方目录 PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) 已提交，仍需维护者审查及版本成熟期。[原生安装](docs/NATIVE-INSTALL.md) · [收录状态](docs/CATALOG.md)。
 
 ## 用起来是什么样
 
@@ -39,9 +39,9 @@
 
 ## 安装
 
-需要已接入 Telegram、完成模型登录的 Hermes。本候选版验证了 **0.21.0（`b499ab11fe8b`）和 0.21.2（`a84a2223f82c`）** 两套核心；其他提交只有在受保护的接口文件完整匹配某套基线时才允许加载，详见[兼容边界](docs/COMPATIBILITY.md)。通过 Hermes 管理插件代码请看[原生安装](docs/NATIVE-INSTALL.md)。
+需要已接入 Telegram、完成模型登录的 Hermes。本版本验证了 **0.21.0（`b499ab11fe8b`）和 0.21.2（`a84a2223f82c`、`436ec489854b`）** 三套核心；其他提交只有在受保护的接口文件完整匹配某套基线时才允许加载，详见[兼容边界](docs/COMPATIBILITY.md)。通过 Hermes 管理插件代码请看[原生安装](docs/NATIVE-INSTALL.md)。
 
-ZIP 安装从[全部发行版](https://github.com/pler1y/hermes-telegram-ux/releases)选择对应版本的 `-zh.zip` 中文版及校验和文件，校验后解压；本候选版标记为预发行。
+ZIP 安装从[全部发行版](https://github.com/pler1y/hermes-telegram-ux/releases)选择对应版本的 `-zh.zip` 中文版及校验和文件，校验后解压。
 
 在解压目录中，由 Hermes 所属账号先执行只读兼容检查，路径按实际安装位置填写：
 

@@ -209,8 +209,11 @@ class InteractionRuntime:
                 return await runtime._original_idle_stop(runner,event)
             entry=await runner.async_session_store.get_or_create_session(event.source)
             stopped=runtime._stop_owned_children(entry.session_id)
-            result=await runtime._original_idle_stop(runner,event)
             state=runtime.registry.by_key(entry.session_key)
+            if stopped and state:
+                state.status_closed=True
+                runtime.registry.finish(state.session_id, failed=False, interrupted=True, completed=False)
+            result=await runtime._original_idle_stop(runner,event)
             if stopped:
                 if state:
                     state.ended=True;state.interrupted=True
@@ -240,9 +243,12 @@ class InteractionRuntime:
                 finding, activity = snapshot["finding"], snapshot["activity"]
             if state:
                 runtime._stop_owned_children(state.session_id)
+                # Capture and retire this turn before native stop yields. A successor
+                # admitted during platform cleanup must keep its own state and bubble.
+                state.status_closed=True
+                runtime.registry.finish(state.session_id, failed=False, interrupted=True, completed=False)
             result = await runtime._original_stop(runner, event, quick_key, source)
             if state:
-                runtime.registry.finish(state.session_id, failed=False, interrupted=True, completed=False)
                 async with state.send_lock:
                     state.status_closed=True
                     if state.status_message_id:
@@ -602,7 +608,8 @@ class InteractionRuntime:
             return await self._deliver_status(state, text)
 
     async def _deliver_status(self, state: TurnState, text: str) -> None:
-        if state.status_closed:
+        current = self.registry.get(state.session_id) if state.session_id else None
+        if state.status_closed or (current is not None and current is not state):
             return
         now = time.monotonic()
         if now < max(state.status_retry_at, self._status_cooldowns.get(state.adapter, 0)):
@@ -677,7 +684,8 @@ class InteractionRuntime:
                 await state.adapter.send_typing(state.source.chat_id, metadata=state.metadata)
 
     def _register_action_callback(self, state: TurnState) -> None:
-        if state.callback_registered or state.failed or state.interrupted:
+        if (self.registry.get(state.session_id) is not state or state.status_closed
+                or state.callback_registered or state.failed or state.interrupted):
             return
         actions = self.actions.take_pending(state.session_id)
         if not actions or not hasattr(state.adapter, "register_post_delivery_callback"):
@@ -709,6 +717,12 @@ class InteractionRuntime:
         )
         early = self.intake.take(source)
         previous=self.registry.get(state.session_id)
+        if previous and (previous.status_closed or (
+                previous.foreground_active and previous.generation != state.generation
+                and not self._has_background(state.session_id))):
+            # Native cleanup still owns this foreground message. Reusing it lets an
+            # old finalizer delete the successor's progress after /stop or eviction.
+            previous = None
         if previous is None or previous.ended:
             previous = early or previous
         if previous:
@@ -736,6 +750,8 @@ class InteractionRuntime:
         try:
             await asyncio.sleep(self.delay)
             while True:
+                if self.registry.get(state.session_id) is not state or state.status_closed:
+                    break
                 worker = executor_holder[0]
                 if worker is not None and getattr(worker, "done", lambda: False)():
                     break
@@ -757,21 +773,22 @@ class InteractionRuntime:
         except Exception:
             logger.debug("Interaction status lifecycle failed", exc_info=True)
         finally:
-            if state.status_message_id and (state.failed or state.interrupted):
-                with suppress(Exception):
-                    await self._send_status(state, state.phase)
-            if self._has_background(state.session_id) and not state.failed and not state.interrupted:
-                if state.status_message_id in state.cleanup_ids:
-                    state.cleanup_ids.remove(state.status_message_id)
-                if self.registry.get(state.session_id) is state:
-                    state.ended=False
-                    state.foreground_active=False
-                    self._ensure_background_watch(state)
-            else:
-                self._register_action_callback(state)
-                removed=self.registry.pop(state.session_id, expected=state)
-                if removed is state:
-                    with self._background_lock:
-                        for child,root in list(self._child_roots.items()):
-                            if root==state.session_id:self._child_roots.pop(child,None)
-                        self._children.pop(state.session_id,None)
+            if self.registry.get(state.session_id) is state:
+                if state.status_message_id and (state.failed or state.interrupted):
+                    with suppress(Exception):
+                        await self._send_status(state, state.phase)
+                if self._has_background(state.session_id) and not state.failed and not state.interrupted:
+                    if state.status_message_id in state.cleanup_ids:
+                        state.cleanup_ids.remove(state.status_message_id)
+                    if self.registry.get(state.session_id) is state:
+                        state.ended=False
+                        state.foreground_active=False
+                        self._ensure_background_watch(state)
+                else:
+                    self._register_action_callback(state)
+                    removed=self.registry.pop(state.session_id, expected=state)
+                    if removed is state:
+                        with self._background_lock:
+                            for child,root in list(self._child_roots.items()):
+                                if root==state.session_id:self._child_roots.pop(child,None)
+                            self._children.pop(state.session_id,None)

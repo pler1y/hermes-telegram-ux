@@ -1,12 +1,12 @@
 # Native Hermes installation · 原生安装
 
-This is the **1.8.0-rc.1 catalog preparation candidate**, not an accepted catalog entry.
+**Version 1.8.0** is available for direct installation. Its official catalog PR is still awaiting acceptance.
 Use an isolated test bot first. The supported core interfaces are listed in
 [COMPATIBILITY.md](COMPATIBILITY.md); a version number alone is insufficient.
 Linux and macOS are supported by the setup helper. Have a working Telegram adapter
 and model login before installing. Use the Python environment that runs Hermes.
 
-这是官方目录准备候选版，尚未收录。请先在独立测试环境验证；版本及接口边界见上面的兼容文档。
+1.8.0 可直接安装，官方目录申请尚未获准收录。请先在独立测试环境验证；版本及接口边界见上面的兼容文档。
 原生安装由 Hermes 管理代码和固定版本，本项目的 `configure` 只管理交互配置及其备份。
 已经通过 ZIP 安装的实例继续使用对应的安装器；迁移前先卸载受管理的 ZIP 版本，并确认没有恢复出的旧插件占用同名目录。
 
@@ -21,13 +21,11 @@ HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
 export PYTHONPATH="$HERMES_CORE"
 ```
 
-Copy the candidate's **full 40-character commit SHA** from its GitHub release into
-`UX_COMMIT` below. `--ref` accepts an exact SHA, not a tag. The candidate is under
-[all releases](https://github.com/pler1y/hermes-telegram-ux/releases); the stable
-`releases/latest` link continues to point to the stable version.
+Copy the release's **full 40-character commit SHA** from its GitHub release into
+`UX_COMMIT` below. `--ref` accepts an exact SHA, not a tag. Find it under [releases](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.0).
 
 ```bash
-UX_COMMIT=REPLACE_WITH_FULL_40_CHARACTER_CANDIDATE_SHA
+UX_COMMIT=REPLACE_WITH_FULL_40_CHARACTER_RELEASE_SHA
 "$HERMES_PYTHON" -m hermes_cli.main plugins install \
   https://github.com/pler1y/hermes-telegram-ux --ref "$UX_COMMIT" --no-enable
 UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
@@ -60,7 +58,7 @@ progress updates, a mid-task instruction, and stop behavior before wider use.
 
 ## Upgrade and remove
 
-For upgrades, stop the idle Gateway, review the new candidate and use the same
+For upgrades, stop the idle Gateway, review the new release and use the same
 install command with `--force --ref NEW_FULL_SHA`. Rerun `configure` from the updated
 checkout. It preserves settings changed after the first configuration and leaves
 Git/catalog/install metadata under Hermes' ownership. Pinned installs do not follow
@@ -81,4 +79,4 @@ run `"$HERMES_PYTHON" "$UX_DIR/install.py" recover`. Configuration-only recovery
 the current native checkout even if Hermes updated it after the interruption.
 
 卸载顺序是：恢复配置 → 原生禁用 → 原生移除 → 重启。不要对原生安装运行 ZIP 的 `install` 或 `uninstall`。
-候选版尚不能使用 `hermes plugins install hermes-telegram-ux` 这种目录短名称；收录后才会提供。
+目前尚不能使用 `hermes plugins install hermes-telegram-ux` 这种目录短名称；收录后才会提供。

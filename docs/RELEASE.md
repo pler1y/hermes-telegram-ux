@@ -25,8 +25,8 @@ python scripts/build_release.py --check
 
 新增核心版本支持时，更新 `plugin/compatibility.json` 并完成兼容与实际使用验证。依赖来源和许可证见 [NOTICE.md](../NOTICE.md)。
 
-## 官方目录候选版
+## 官方目录发行版
 
-`1.8.0-rc.1` 使用独立准备分支及 pre-release 标签，稳定发行版保持原样。构建清单中的 `tested_core_commits` 列出所有受支持基线，替代此前单一的 `core_commit` 字段。
+`1.8.0` 是发布到主分支的正式版本。构建清单中的 `tested_core_commits` 列出三套受支持基线，替代此前单一的 `core_commit` 字段。
 
-候选版需通过两套核心的回归、原生安装及当前核心官方验证，再发布源码包。新核心上的 Telegram 实机验收结果单独记录，不以自动检查代替。根据 GitHub 实际发布时间运行 `scripts/prepare_catalog.py` 生成精确 SHA 目录条目、英文 PR 草稿及两周成熟时间；这些产物不是已提交或已收录的证明，详见 [CATALOG.md](CATALOG.md)。
+发布前运行三套核心的回归、原生安装及当前核心官方验证，再发布中英文源码包。新核心上的 Telegram 实机验收结果单独记录，不以自动检查代替。根据 GitHub 实际发布时间运行 `scripts/prepare_catalog.py` 生成精确 SHA 目录条目及两周成熟时间，再更新已提交的官方 PR。可审查、已合并及已上架是不同状态，详见 [CATALOG.md](CATALOG.md)。

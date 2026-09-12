@@ -1,51 +1,48 @@
-# Official catalog preparation
+# Official catalog submission
 
-Status: **candidate preparation; not submitted or accepted**. Target: the `community`
-tier in NousResearch/hermes-agent's [Plugin Catalog](https://hermes-agent.nousresearch.com/docs/user-guide/features/plugin-catalog).
-The plugin remains maintained by pler1y in this repository. Catalog inclusion would
-not bundle it into Hermes or enable it by default.
+[PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) requests a
+**community** entry for Hermes Telegram UX. Version **1.8.0** supplies the completed
+native installation work, current-core compatibility and task ownership fixes.
+The entry is not accepted until a Hermes maintainer reviews and merges it.
+The plugin remains maintained by pler1y; inclusion does not bundle or enable it by default.
 
-## Candidate scope
+## What is ready
 
-1.8.0-rc.1 preserves the existing interaction design while adding:
+- Native Git installation, configuration/recovery, enable, discovery, Telegram handler wiring and removal.
+- Complete declarations of two tools, thirteen hooks and two middleware handlers.
+- Three guarded core baselines: Hermes 0.21.0 `b499ab11fe8b` and 0.21.2
+  `a84a2223f82c` / `436ec489854b`. All 23 guarded files must match one baseline.
+- Regression coverage for a new turn arriving while an old turn stops or finishes:
+  progress, cleanup and follow-up actions stay with the owning turn.
+- Chinese/English packages and reproducible isolated checks.
 
-- Complete tool/hook/middleware declarations and compatibility with the native Git installer.
-- Two guarded core baselines, without rejecting unrelated commits whose guarded files match.
-- Native configuration/recovery that preserves the installed checkout and provenance metadata.
-- Official admission validation, native install/enable/discovery/wiring/removal, and regression CI.
+The integration uses internal gateway interfaces as well as public plugin APIs.
+It does not modify core source files, but unrelated future changes to guarded
+files require review and another tested baseline. The guard is not disabled to
+make validation pass. See [compatibility](COMPATIBILITY.md).
 
-The product covers the entire Telegram flow: intake acknowledgement, editable task progress,
-mid-task requirement receipts, compression notices, foreground/background stop handling,
-final file delivery, follow-up buttons, and Chinese/English interface text. Existing related
-work does not by itself establish equivalent behavior or equivalent usability.
+## What the official process still requires
 
-[PR #80262](https://github.com/NousResearch/hermes-agent/pull/80262) was still open on
-2026-09-12; its latest commit was 2026-08-24. [Issue #69885](https://github.com/NousResearch/hermes-agent/issues/69885)
-was still open and last updated 2026-07-23. The latter is an interface proposal, not
-a released competing plugin. These dates describe public activity, not abandonment or
-a quality ranking. This submission path does not request core changes or replacement of either proposal.
+The [official admission policy](https://github.com/NousResearch/hermes-agent/blob/main/plugin-catalog/README.md)
+requires maintainer review, a complete commit SHA and a release at least two weeks
+old at pin time. A PR being ready for review does not waive this maturity condition
+or promise acceptance. A new release/pin starts its own window; the PR description
+records the verified release timestamp and earliest maturity date.
 
-## Current upstream constraints
+The repository contains historical Telegram/model acceptance for 1.7.0. Version
+1.8.0 has automated integration evidence; a fresh full Telegram/model acceptance
+run on the new core has not been recorded. Reviewers can request further evidence.
+Automatic validation is not presented as live platform acceptance.
 
-The examined upstream is `a84a2223f82c3d9906fd4a9d778a188774e7a08e`:
+Users can install the published release directly today using
+[NATIVE-INSTALL.md](NATIVE-INSTALL.md). After the upstream entry is merged and its
+catalog is published/refreshed, users can discover and install it by catalog name.
+Future catalog pin updates require another reviewed PR.
 
-- `plugins_cmd.py` only accepts `manifest_version: 1`. The manifest's existing fields
-  are additive and supported by the v1 loader, so the candidate uses that format.
-- `plugin_validate.py` imports the version parser from its old location when a
-  manifest declares `requires_hermes`; that import raises in this upstream checkout.
-  The optional field is therefore omitted from the plugin manifest. The actual
-  19-file runtime compatibility gate remains mandatory. The catalog entry has an
-  outer `>=0.21.0,<0.22.0` boundary and explicitly documents the additional hash gate.
-- The validator supplies a registration-only context; optional state is used only
-  when the host supplies a real get/set facade. No validator-specific core bypass exists.
-- The official security scan classifies documented service commands and subprocess
-  checks as caution. Native CI keeps scanning on and explicitly trusts its own local
-  fixture. Users review any native installer confirmation; no scan-disable preset is supplied.
+## Reproduce the technical checks
 
-## Reproduce checks
-
-Use each supported core's isolated locked environment with its Telegram dependency,
-set `PYTHONPATH` to that checkout, then run the project's checks:
+In each supported core's locked Python environment with the Telegram dependency,
+set `PYTHONPATH` to that checkout, then run:
 
 ```bash
 python scripts/run_tests.py
@@ -56,41 +53,26 @@ python scripts/check_editions.py
 ```
 
 The old 0.21.0 baseline predates `plugins validate`; omit `--require-validator` there.
-All checks use disposable homes. They do not call a model or send Telegram messages.
-CI tests both exact baselines and separately checks the current upstream main interfaces
-on push, pull request or manual dispatch. A green admission check is not a live acceptance result.
+All checks use disposable homes and do not call a model or send Telegram messages.
+CI covers all three baselines and checks current upstream main on push, pull
+request and manual dispatch.
 
-## Prepare the upstream PR
+The examined 0.21.2 native installer accepts `manifest_version: 1`. The optional
+`requires_hermes` manifest field triggers an upstream validator import error, so
+it is omitted; the catalog has an outer `>=0.21.0,<0.22.0` range and the mandatory
+23-file gate provides the actual boundary. Optional durable state is used only
+when the context supplies callable get/set methods. Native security scanning stays
+on; the check explicitly trusts its own disposable local fixture after scanning.
 
-Publish a tested candidate and read its actual `published_at` from GitHub. Generate
-the entry and English PR draft from the exact published commit:
+To generate a pin update from an actual published release:
 
 ```bash
-python scripts/prepare_catalog.py --ref v1.8.0-rc.1 \
+python scripts/prepare_catalog.py --ref v1.8.0 \
   --released-at VERIFIED_GITHUB_RELEASE_TIMESTAMP
 ```
 
-Output goes to the ignored `catalog-submission/` directory: `hermes-telegram-ux.yaml`,
-`PR-DRAFT.md`, and `readiness.json`. The entry's capabilities come from that commit's
-manifest, not uncommitted source. No GitHub write or PR submission occurs.
-Use `--require-mature` at actual submission time; it exits nonzero before the later
-of commit/release time plus 14 days. The timestamp must be independently verified;
-the script cannot verify a user-provided publication date itself.
-
-Before submitting:
-
-1. Complete fresh Telegram live acceptance for the candidate on the new core using
-   [TESTING.md](TESTING.md); attach the record and a representative demo. The older
-   1.7.0 record is historical evidence, not candidate acceptance.
-2. Confirm the pinned release has matured for at least two weeks under the official
-   policy. New candidate code starts a new window; an earlier draft does not satisfy it.
-3. Recheck official policy and current main. Run the official structure checker on
-   the generated YAML and validate/install the exact candidate against that current
-   checkout. Changed protected interfaces require a reviewed compatibility update,
-   not removal of the guard.
-4. Submit only `plugin-catalog/hermes-telegram-ux.yaml` to the upstream repository,
-   using the actual candidate CI and live acceptance evidence in the PR description.
-
-Maintainer review determines acceptance and timing. The remaining compatibility
-coupling is disclosed so reviewers can judge whether the candidate is suitable for
-the directory; it is not presented as a solved public-API-only integration.
+The ignored `catalog-submission/` output is local preparation only. Use
+`--require-mature` to check whether the later of commit/release time plus 14 days
+has elapsed before asking maintainers to merge the pin. The timestamp must be
+independently verified from GitHub. Only the catalog YAML is submitted upstream;
+plugin source stays in this repository.
