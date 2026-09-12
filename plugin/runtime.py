@@ -26,6 +26,7 @@ from .narration import tool_note, SETUP_TOOLS, UI_TOOLS, PROGRESS_FIELD, public_
 from .controls import ALIASES
 from .i18n import package_language, localize, tr
 from .intake import IntakeFeedback
+from .bindings import Overrides, Handlers
 
 # Tool catalogue and skill loading are implementation setup, not user-facing search/read work.
 _SETUP_TOOLS = SETUP_TOOLS
@@ -53,7 +54,8 @@ class InteractionRuntime:
         self.soft_wait = bool(ctx.get_config("soft_wait", False))
         self.min_edit = max(0.7, min(float(ctx.get_config("status_min_edit_seconds", 2.5)), 10.0))
         self.slow_after = max(15.0, float(ctx.get_config("slow_notice_seconds", 45.0)))
-        self._adapter_overrides = []
+        self._overrides = Overrides()
+        self._wired = []
         self._original_stop = None
         self._original_idle_stop = None
         self._original_send_ack = None
@@ -109,28 +111,59 @@ class InteractionRuntime:
         logger.info("Hermes Interaction: event-driven status runtime registered")
 
     def wire_telegram(self, application, adapter) -> None:
-        # Platform factories run only after gateway.run finished importing. Importing it from the
-        # plugin-discovery worker can deadlock against gateway startup's own discovery lock.
+        if any(app is application and bot is adapter for app, bot in self._wired):
+            return
+        # Record each handler addition, even if a factory fails before returning cleanup.
+        handlers = Handlers(application)
+        checkpoint = len(self._control_cleanup)
+        previous_runner = self._runner_cls
+        previous_sends = set(self._raw_sends)
+        self._control_cleanup.append(handlers.close)
+        try:
+            with self._overrides.transaction(), self.intake.patches.transaction():
+                self._wire_telegram(handlers, adapter)
+        except BaseException:
+            for cleanup in reversed(self._control_cleanup[checkpoint:]):
+                with suppress(Exception):
+                    cleanup()
+            del self._control_cleanup[checkpoint:]
+            self._runner_cls = previous_runner
+            for bot in set(self._raw_sends) - previous_sends:
+                self._raw_sends.pop(bot, None)
+            raise
+        self._wired.append((application, adapter))
+
+    def _wire_telegram(self, application, adapter) -> None:
+        # Defer gateway imports until native platform factories run after discovery.
         if self._runner_cls is None:
             self._patch_runner()
-        # Extend the native per-sender/topic batch quiet window; commands retain native bypass.
         seconds = max(0.3, min(float(self.ctx.get_config("text_batch_seconds", 0.8)), 1.5))
         for name in ("_text_batch_delay_seconds", "_TEXT_BATCH_FAST_DELAY_S", "_TEXT_BATCH_SHORT_DELAY_S"):
             if hasattr(adapter, name):
-                self._adapter_overrides.append((adapter, name, getattr(adapter, name)))
-                setattr(adapter, name, seconds)
+                self._overrides.set(adapter, name, seconds)
         self._wire_send(adapter)
         self._control_cleanup.append(self.telegram.wire(application, adapter))
         from .controls import wire as wire_controls
-        self._control_cleanup.append(wire_controls(application,adapter,language=self.language))
+        self._control_cleanup.append(wire_controls(application, adapter, language=self.language))
         from .welcome import wire
-        self._control_cleanup.append(wire(application, adapter,language=self.language))
+        self._control_cleanup.append(wire(application, adapter, language=self.language))
         self._control_cleanup.append(self.intake.wire(application, adapter))
 
     def _patch_runner(self) -> None:
+        previous = self._runner_cls
+        try:
+            with self._overrides.transaction(), self.intake.patches.transaction():
+                self._install_runner_patches()
+        except BaseException:
+            self._runner_cls = previous
+            raise
+
+    def _install_runner_patches(self) -> None:
         from gateway.run import GatewayRunner
 
-        if getattr(GatewayRunner._run_agent_notify_long_running, "_hermes_interaction", False):
+        current = GatewayRunner._run_agent_notify_long_running
+        if (getattr(current, "_hermes_interaction", False)
+                and getattr(current, "_hermes_interaction_active", [True])[0]):
             raise RuntimeError("Hermes Interaction is already installed in this process")
         self._runner_cls = GatewayRunner
         self.intake.patch_gateway(GatewayRunner)
@@ -190,7 +223,7 @@ class InteractionRuntime:
             return True
 
         completion_group._hermes_interaction=True
-        GatewayRunner._deliver_async_delegation_group=completion_group
+        self._overrides.set(GatewayRunner, "_deliver_async_delegation_group", completion_group)
 
         async def send_ack(runner, event, adapter, message):
             if not runtime.is_telegram(event.source):
@@ -229,8 +262,8 @@ class InteractionRuntime:
 
         send_ack._hermes_interaction=True
         idle_stop._hermes_interaction=True
-        GatewayRunner._send_busy_ack_reply=send_ack
-        GatewayRunner._handle_stop_command=idle_stop
+        self._overrides.set(GatewayRunner, "_send_busy_ack_reply", send_ack)
+        self._overrides.set(GatewayRunner, "_handle_stop_command", idle_stop)
 
         async def stop(runner, event, quick_key, source):
             if not runtime.is_telegram(source):
@@ -267,43 +300,40 @@ class InteractionRuntime:
 
         stop._hermes_interaction = True
         busy_text._hermes_interaction = True
-        GatewayRunner._busy_stop_command = stop
+        self._overrides.set(GatewayRunner, "_busy_stop_command", stop)
 
-        GatewayRunner._run_agent_notify_long_running = notify
-        GatewayRunner._compose_busy_ack_message = busy_text
+        self._overrides.set(GatewayRunner, "_run_agent_notify_long_running", notify)
+        self._overrides.set(GatewayRunner, "_compose_busy_ack_message", busy_text)
 
     def uninstall(self) -> None:
         self.intake.close()
-        for cleanup in self._control_cleanup:
+        for cleanup in reversed(self._control_cleanup):
             with suppress(Exception):
                 cleanup()
         self._control_cleanup.clear()
-        if self._runner_cls is not None:
-            if getattr(self._runner_cls._run_agent_notify_long_running, "_hermes_interaction", False):
-                self._runner_cls._run_agent_notify_long_running = self._original_notify
-            if getattr(self._runner_cls._compose_busy_ack_message, "_hermes_interaction", False):
-                self._runner_cls._compose_busy_ack_message = self._original_busy_text
-            if getattr(self._runner_cls._busy_stop_command, "_hermes_interaction", False):
-                self._runner_cls._busy_stop_command = self._original_stop
-            if getattr(self._runner_cls._handle_stop_command,"_hermes_interaction",False):
-                self._runner_cls._handle_stop_command=self._original_idle_stop
-            if getattr(self._runner_cls._send_busy_ack_reply,"_hermes_interaction",False):
-                self._runner_cls._send_busy_ack_reply=self._original_send_ack
-            if getattr(self._runner_cls._deliver_async_delegation_group,"_hermes_interaction",False):
-                self._runner_cls._deliver_async_delegation_group=self._original_completion_group
-        for adapter, original in self._raw_sends.items():
-            adapter.send=original
+        with self.actions._lock:
+            self.actions.pending.clear()
+            self.actions.menus.clear()
+        with self.registry._lock:
+            for state in self.registry._states.values():
+                state.status_closed = True
+            self.registry._states.clear()
+        self._overrides.rollback()
+        self._runner_cls = None
+        self._wired.clear()
         self._raw_sends.clear()
         self._status_cooldowns.clear()
-        for consumer, original in list(self._stream_overrides.items()):
-            consumer._clean_for_display = original
+        for consumer, (original_ref, installed_ref, active, owned) in list(self._stream_overrides.items()):
+            active[0] = False
+            if consumer._clean_for_display is installed_ref():
+                if owned:
+                    consumer._clean_for_display = original_ref()
+                else:
+                    del consumer._clean_for_display
         self._stream_overrides.clear()
         for task in self._background_tasks.values():
             task.cancel()
         self._background_tasks.clear()
-        for adapter, name, value in self._adapter_overrides:
-            setattr(adapter, name, value)
-        self._adapter_overrides.clear()
 
     def _root(self,sid):
         with self._background_lock:
@@ -337,9 +367,10 @@ class InteractionRuntime:
     def _state_for_source(self,source):
         return self._state_for_chat(source.chat_id,getattr(source,"thread_id",None))
 
-    def _state_for_chat(self,chat_id,thread):
+    def _state_for_chat(self,chat_id,thread,adapter=None):
         with self.registry._lock:
             states=[s for s in self.registry._states.values() if
+                (adapter is None or s.adapter is adapter) and
                 str(getattr(s.source,"chat_id",None))==str(chat_id) and
                 str(getattr(s.source,"thread_id",None))==str(thread)]
         return states[0] if len(states)==1 else None
@@ -349,14 +380,13 @@ class InteractionRuntime:
         original=adapter.send
         if hasattr(adapter, "_edit_text"):
             from plugins.platforms.telegram.telegram_ids import normalize_telegram_chat_id
-            self._adapter_overrides.append((adapter, "_edit_text", adapter._edit_text))
             async def edit_text(chat_id, message_id, text, parse_mode=None):
                 kwargs = dict(chat_id=normalize_telegram_chat_id(chat_id), message_id=int(message_id), text=text)
                 kwargs.update(adapter._link_preview_kwargs())
                 if parse_mode is not None:
                     kwargs["parse_mode"] = parse_mode
                 await adapter._bot.edit_message_text(**kwargs)
-            adapter._edit_text = edit_text
+            self._overrides.set(adapter, "_edit_text", edit_text)
         self._raw_sends[adapter]=original
         runtime=self
         async def send(chat_id,content,reply_to=None,metadata=None):
@@ -369,7 +399,7 @@ class InteractionRuntime:
                 "💾 Self-improvement review: User profile updated": "已更新使用偏好。",
             }
             content = localize(notices[content], runtime.language) if isinstance(content, str) and content in notices else content
-            state=runtime._state_for_chat(chat_id,(metadata or {}).get("thread_id"))
+            state=runtime._state_for_chat(chat_id,(metadata or {}).get("thread_id"),adapter=adapter)
             if state and runtime._has_background(state.session_id) and (
                 acknowledgement_only(content) or (state.receipt_text and str(content).strip()==state.receipt_text)):
 
@@ -382,7 +412,7 @@ class InteractionRuntime:
                     from gateway.platforms.base import SendResult
                     return SendResult(success=True,message_id=state.status_message_id)
             return await original(chat_id,content,reply_to=reply_to,metadata=metadata)
-        adapter.send=send
+        self._overrides.set(adapter, "send", send)
 
     def _ensure_background_watch(self,state):
         previous=self._background_tasks.get(state.session_id)
@@ -466,8 +496,14 @@ class InteractionRuntime:
         consumer = state.stream_holder[0] if state.stream_holder else None
         if consumer is not None and hasattr(consumer, "_clean_for_display") and consumer not in self._stream_overrides:
             original = consumer._clean_for_display
-            self._stream_overrides[consumer] = original
-            consumer._clean_for_display = lambda text: original(clean_stream_text(text))
+            active = [True]
+            def cleaned(text):
+                return original(clean_stream_text(text) if active[0] else text)
+            # Weak records must not retain bound methods (and their consumer) forever.
+            original_ref = weakref.WeakMethod(original) if getattr(original, "__self__", None) is not None else weakref.ref(original)
+            self._stream_overrides[consumer] = (original_ref, weakref.ref(cleaned), active,
+                                                "_clean_for_display" in vars(consumer))
+            consumer._clean_for_display = cleaned
 
     def narration_request(self, request, session_id="", platform="", **_kwargs):
         root = self._root(session_id)

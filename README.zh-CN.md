@@ -6,7 +6,7 @@
 
 [English](README.md) · [下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [安装指南](docs/INSTALLATION.md) · [反馈问题](https://github.com/pler1y/hermes-telegram-ux/issues)
 
-**1.8.0 已补齐原生安装与新版核心兼容，并修复停止、替换任务时的进度和按钮归属问题。** [官方目录 PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) 已提交，仍需维护者审查及版本成熟期。[原生安装](docs/NATIVE-INSTALL.md) · [收录状态](docs/CATALOG.md)。
+**1.8.1 改进加载失败回滚、卸载和多 Bot 隔离，并允许兼容核心中的纯注释或格式变化。** [官方目录 PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) 已提交，仍需维护者审查及版本成熟期。[原生安装](docs/NATIVE-INSTALL.md) · [收录状态](docs/CATALOG.md)。
 
 ## 用起来是什么样
 

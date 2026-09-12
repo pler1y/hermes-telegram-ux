@@ -1,8 +1,8 @@
 # Official catalog submission
 
 [PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) requests a
-**community** entry for Hermes Telegram UX. Version **1.8.0** supplies the completed
-native installation work, current-core compatibility and task ownership fixes.
+**community** entry for Hermes Telegram UX. Version **1.8.1** supplies the completed
+native installation work, current-core compatibility, transactional wiring, scoped bot actions and safer unload.
 The entry is not accepted until a Hermes maintainer reviews and merges it.
 The plugin remains maintained by pler1y; inclusion does not bundle or enable it by default.
 
@@ -11,14 +11,17 @@ The plugin remains maintained by pler1y; inclusion does not bundle or enable it 
 - Native Git installation, configuration/recovery, enable, discovery, Telegram handler wiring and removal.
 - Complete declarations of two tools, thirteen hooks and two middleware handlers.
 - Three guarded core baselines: Hermes 0.21.0 `b499ab11fe8b` and 0.21.2
-  `a84a2223f82c` / `436ec489854b`. All 23 guarded files must match one baseline.
+  `a84a2223f82c` / `436ec489854b`. All 23 guarded files must match one baseline by raw bytes or complete Python syntax.
 - Regression coverage for a new turn arriving while an old turn stops or finishes:
   progress, cleanup and follow-up actions stay with the owning turn.
+- Bot-specific button delivery/authorization, rollback after partial handler failure and idempotent wiring.
+- Unload preserves later wrappers and makes any retained UX layer inert; completed stream consumers can be collected.
+- Global notification defaults no longer changed by installation; older owned defaults are restored without overwriting user edits.
 - Chinese/English packages and reproducible isolated checks.
 
 The integration uses internal gateway interfaces as well as public plugin APIs.
-It does not modify core source files, but unrelated future changes to guarded
-files require review and another tested baseline. The guard is not disabled to
+It does not modify core source files. Formatting/comment-only differences are accepted;
+changes to executable syntax still require review and another tested baseline. The guard is not disabled to
 make validation pass. See [compatibility](COMPATIBILITY.md).
 
 ## What the official process still requires
@@ -30,7 +33,7 @@ or promise acceptance. A new release/pin starts its own window; the PR descripti
 records the verified release timestamp and earliest maturity date.
 
 The repository contains historical Telegram/model acceptance for 1.7.0. Version
-1.8.0 has automated integration evidence; a fresh full Telegram/model acceptance
+1.8.1 has automated integration evidence; a fresh full Telegram/model acceptance
 run on the new core has not been recorded. Reviewers can request further evidence.
 Automatic validation is not presented as live platform acceptance.
 
@@ -55,7 +58,7 @@ python scripts/check_editions.py
 The old 0.21.0 baseline predates `plugins validate`; omit `--require-validator` there.
 All checks use disposable homes and do not call a model or send Telegram messages.
 CI covers all three baselines and checks current upstream main on push, pull
-request and manual dispatch.
+request and manual dispatch, including Python 3.11/3.12 syntax-fingerprint checks.
 
 The examined 0.21.2 native installer accepts `manifest_version: 1`. The optional
 `requires_hermes` manifest field triggers an upstream validator import error, so
@@ -67,7 +70,7 @@ on; the check explicitly trusts its own disposable local fixture after scanning.
 To generate a pin update from an actual published release:
 
 ```bash
-python scripts/prepare_catalog.py --ref v1.8.0 \
+python scripts/prepare_catalog.py --ref v1.8.1 \
   --released-at VERIFIED_GITHUB_RELEASE_TIMESTAMP
 ```
 

@@ -45,7 +45,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "hermes-telegram-ux.yaml").write_text(yaml.safe_dump(entry, sort_keys=False))
     readiness = {"sha": sha, "version": manifest["version"], "released_at": released.isoformat(),
-                 "earliest_submission_at": eligible.isoformat(), "mature": now >= eligible,
+                 "earliest_pin_at": eligible.isoformat(), "mature": now >= eligible,
                  "tested_core_commits": [p["core_commit"] for p in compat["profiles"]],
                  "requires_fresh_upstream_validation": True, "submitted": False}
     (args.output / "readiness.json").write_text(json.dumps(readiness, indent=2) + "\n")
@@ -57,7 +57,7 @@ mid-task instruction receipts, natural stop controls, and English/Chinese interf
 The plugin stays in its own repository and is explicitly installed and enabled.
 
 - Repository: {REPO}
-- Candidate: `{manifest['version']}` / `{sha}`
+- Release: `{manifest['version']}` / `{sha}`
 - Published: {released.isoformat()}
 - Earliest pin date under the two-week policy: **{eligible.isoformat()}**
 - Installation and limits: {entry['docs_url']}
@@ -68,9 +68,9 @@ The plugin uses public tools/hooks/middleware plus documented internal gateway a
 Telegram adapters; it does not claim compatibility with every commit in that range.
 
 Validation commands and behavior coverage are documented in `docs/CATALOG.md` and
-`docs/TESTING.md` at the pinned commit. Before submitting, attach the candidate CI URL,
+`docs/TESTING.md` at the pinned commit. Before requesting merge, attach the release CI URL,
 rerun the official catalog structure/validate checks against the then-current upstream,
-verify publication age, and record fresh Telegram live acceptance results.
+verify publication age, and state which Telegram live acceptance results are actually available.
 
 This is a catalog-only submission. Related rolling-status work (#80262) and the
 editable-status API proposal (#69885) are acknowledged; no core behavior change or
@@ -78,7 +78,7 @@ replacement of those proposals is requested here.
 """)
     print(json.dumps(readiness, indent=2))
     if args.require_mature and not readiness["mature"]:
-        raise SystemExit("Candidate is not mature yet; files are a draft, not a submission.")
+        raise SystemExit("Release has not reached the two-week pin age; generated files do not submit or change a PR.")
 
 
 if __name__ == "__main__":

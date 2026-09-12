@@ -11,6 +11,7 @@ import time
 
 from .i18n import greeting, tr
 from .status import TurnState
+from .bindings import Overrides
 
 logger = logging.getLogger(__name__)
 _preparing = ContextVar("hermes_ux_preparing", default=None)
@@ -26,7 +27,7 @@ class IntakeFeedback:
         self.runtime = runtime
         self.pending = OrderedDict()
         self.expiry = {}
-        self.patches = []
+        self.patches = Overrides()
 
     async def begin(self, source, text, adapter):
         key = source_key(source)
@@ -123,8 +124,7 @@ class IntakeFeedback:
         def patch(name, make):
             original = getattr(cls, name)
             replacement = make(original)
-            self.patches.append((cls, name, original, replacement))
-            setattr(cls, name, replacement)
+            self.patches.set(cls, name, replacement)
 
         def turn(original):
             @wraps(original)
@@ -214,14 +214,10 @@ class IntakeFeedback:
                 return
             return original_status(runner, kind, message)
 
-        self.patches.append((TurnRunner, "_status_callback_sync", original_status, status))
-        TurnRunner._status_callback_sync = status
+        self.patches.set(TurnRunner, "_status_callback_sync", status)
 
     def close(self):
-        for cls, name, original, replacement in reversed(self.patches):
-            if getattr(cls, name) is replacement:
-                setattr(cls, name, original)
-        self.patches.clear()
+        self.patches.rollback()
         for task in self.expiry.values():
             task.cancel()
         self.expiry.clear()

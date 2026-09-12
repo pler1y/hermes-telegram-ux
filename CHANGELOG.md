@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.1 — 2026-09-12
+
+- Accept formatting/comment-only changes using full Python syntax fingerprints while rejecting changed executable code, literals, scopes, defaults and decorators.
+- Roll back partial platform wiring, avoid duplicate handlers and restore inherited methods on unload. Preserve later third-party wrappers and make retained UX layers forward to native behavior.
+- Bind follow-up buttons and callback authorization to the originating Telegram adapter; scope background send lookup to that adapter.
+- Release completed stream consumers and avoid overwriting later stream wrappers on unload.
+- Stop changing global notification intervals/acknowledgement toggles. Retire older installer-owned values on upgrade while preserving user edits.
+- Add seven regression cases and real-core formatting/rejection checks on Python 3.11/3.12. Internal gateway dependencies and fresh new-core live acceptance remain disclosed limits.
+
 ## 1.8.0 — 2026-09-12
 
 - Ship native Git installation and configuration from the catalog candidate.

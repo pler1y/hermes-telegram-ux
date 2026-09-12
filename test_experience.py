@@ -81,14 +81,14 @@ class CallbackTests(unittest.IsolatedAsyncioTestCase):
     async def test_double_click_dispatches_once_and_unauthorized_user_cannot_claim(self):
         store=ActionStore(); ctx=Context(); ctx.inject_message=Mock(return_value=True)
         ui=TelegramActions(ctx,store)
-        ui.adapter=SimpleNamespace(_is_callback_user_authorized=lambda *a,**k: True)
-        menu=store.create_menu(session_key='k',user_id='1',chat_id='2',thread_id=None,message_id='3',actions=[{'label':'查看详情','prompt':'查看本次详情'}])
+        adapter=SimpleNamespace(_is_callback_user_authorized=lambda *a,**k: True)
+        menu=store.create_menu(session_key='k',user_id='1',chat_id='2',thread_id=None,message_id='3',adapter=adapter,actions=[{'label':'查看详情','prompt':'查看本次详情'}])
         q=SimpleNamespace(data=f'hi:{menu.token}:0',from_user=SimpleNamespace(id=9,username='user'),message=SimpleNamespace(chat_id=2,message_thread_id=None,message_id=3,chat=SimpleNamespace(type='private'),reply_text=AsyncMock()),answer=AsyncMock(),edit_message_reply_markup=AsyncMock())
         update=SimpleNamespace(callback_query=q)
-        await ui.callback(update,None)
+        await ui.callback(update,None,adapter=adapter)
         ctx.inject_message.assert_not_called()
         q.from_user.id=1
-        await asyncio.gather(ui.callback(update,None),ui.callback(update,None))
+        await asyncio.gather(ui.callback(update,None,adapter=adapter),ui.callback(update,None,adapter=adapter))
         ctx.inject_message.assert_called_once_with('查看本次详情',session_key='k')
     async def test_progress_hook_updates_existing_bubble_state(self):
         runtime=InteractionRuntime(Context())

@@ -46,6 +46,10 @@ jobs:
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/build_release.py --check
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_editions.py
   upstream-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12']
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -60,8 +64,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python }}
       - name: Check current upstream interfaces without importing gateway or credentials
         working-directory: ux
         run: |
-          python -c 'from pathlib import Path; from plugin.compat import verify_core; print(verify_core(Path("../hermes-core")))'
+          python scripts/check_compatibility.py --hermes-core ../hermes-core

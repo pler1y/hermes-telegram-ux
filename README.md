@@ -6,7 +6,7 @@ Get a quick acknowledgement, follow live task progress, add instructions along t
 
 [简体中文](README.zh-CN.md) · [Download](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [Installation guide](docs/INSTALLATION.en.md) · [Report an issue](https://github.com/pler1y/hermes-telegram-ux/issues)
 
-**Version 1.8.0** adds native Hermes installation and fixes task replacement/stop races. [Official catalog PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) is submitted; inclusion is pending maintainer review and release maturity. See [native installation](docs/NATIVE-INSTALL.md) and [submission status](docs/CATALOG.md).
+**Version 1.8.1** adds safer plugin loading/unloading, bot-specific follow-up buttons and formatting-tolerant core checks. [Official catalog PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) is submitted; inclusion is pending maintainer review and release maturity. See [native installation](docs/NATIVE-INSTALL.md) and [submission status](docs/CATALOG.md).
 
 ## What it feels like
 
@@ -38,7 +38,7 @@ Send `/start` to find information, read a link or file, or write something. Runn
 
 ## Install
 
-You'll need a working Telegram bot and model login. This release checks the interfaces of **Hermes 0.21.0 (`b499ab11fe8b`) or 0.21.2 (`a84a2223f82c`, `436ec489854b`)**. Other commits are accepted only when all guarded files match one baseline; see [compatibility](docs/COMPATIBILITY.md). For installation through `hermes plugins install`, follow [native installation](docs/NATIVE-INSTALL.md).
+You'll need a working Telegram bot and model login. This release checks the interfaces of **Hermes 0.21.0 (`b499ab11fe8b`) or 0.21.2 (`a84a2223f82c`, `436ec489854b`)**. Other commits are accepted only when all guarded files match one baseline by bytes or complete Python syntax; see [compatibility](docs/COMPATIBILITY.md). For installation through `hermes plugins install`, follow [native installation](docs/NATIVE-INSTALL.md).
 
 For ZIP installation, choose the English `-en.zip` or Chinese `-zh.zip` and its checksum from the matching [release](https://github.com/pler1y/hermes-telegram-ux/releases). Verify and extract the archive. Run this read-only compatibility check from the extracted directory as the account that owns Hermes, adjusting the paths for your installation:
 

@@ -1,12 +1,12 @@
 # Native Hermes installation · 原生安装
 
-**Version 1.8.0** is available for direct installation. Its official catalog PR is still awaiting acceptance.
+**Version 1.8.1** is available for direct installation. Its official catalog PR is still awaiting acceptance.
 Use an isolated test bot first. The supported core interfaces are listed in
 [COMPATIBILITY.md](COMPATIBILITY.md); a version number alone is insufficient.
 Linux and macOS are supported by the setup helper. Have a working Telegram adapter
 and model login before installing. Use the Python environment that runs Hermes.
 
-1.8.0 可直接安装，官方目录申请尚未获准收录。请先在独立测试环境验证；版本及接口边界见上面的兼容文档。
+1.8.1 可直接安装，官方目录申请尚未获准收录。请先在独立测试环境验证；版本及接口边界见上面的兼容文档。
 原生安装由 Hermes 管理代码和固定版本，本项目的 `configure` 只管理交互配置及其备份。
 已经通过 ZIP 安装的实例继续使用对应的安装器；迁移前先卸载受管理的 ZIP 版本，并确认没有恢复出的旧插件占用同名目录。
 
@@ -22,7 +22,7 @@ export PYTHONPATH="$HERMES_CORE"
 ```
 
 Copy the release's **full 40-character commit SHA** from its GitHub release into
-`UX_COMMIT` below. `--ref` accepts an exact SHA, not a tag. Find it under [releases](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.0).
+`UX_COMMIT` below. `--ref` accepts an exact SHA, not a tag. Find it under [releases](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.1).
 
 ```bash
 UX_COMMIT=REPLACE_WITH_FULL_40_CHARACTER_RELEASE_SHA

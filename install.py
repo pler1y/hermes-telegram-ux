@@ -114,10 +114,7 @@ def desired_values(preset, language=None):
     if language is not None:
         values[entry + ("settings", "language")] = language
     if preset == "recommended":
-        values.update({("agent", "gateway_notify_interval"): 1,
-                       ("display", "busy_input_mode"): "steer",
-                       ("display", "busy_ack_enabled"): True,
-                       ("display", "busy_steer_ack_enabled"): True,
+        values.update({("display", "busy_input_mode"): "steer",
                        ("platforms", "telegram", "reactions"): True,
                        ("platforms", "telegram", "extra", "disable_link_previews"): True,
                        ("display", "platforms", "telegram", "runtime_footer", "enabled"): False})
@@ -129,8 +126,20 @@ def desired_values(preset, language=None):
 def plan_install(config, previous, preset, language=None):
     changed = deepcopy(config)
     records = deepcopy(previous.get("records", [])) if previous else []
+    desired = desired_values(preset, language)
+    # Retire settings no longer owned by this release. Restore only our last
+    # written value; a later user edit remains theirs and is no longer tracked.
+    for record in records[:]:
+        path = tuple(record["path"])
+        if record["kind"] == "value" and path not in desired:
+            try:
+                if get_value(changed, path) == record["after"]:
+                    put_value(changed, path, record["before"])
+            except ValueError:
+                pass  # A user replaced the parent mapping; preserve that choice too.
+            records.remove(record)
     existing = {tuple(r["path"]): r for r in records}
-    for path, value in desired_values(preset, language).items():
+    for path, value in desired.items():
         current = get_value(changed, path)
         record = existing.get(path)
         after = {"exists": True, "value": value}

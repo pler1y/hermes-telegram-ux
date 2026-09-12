@@ -18,12 +18,13 @@
 
 `recommended` 另写入：
 
-- `agent.gateway_notify_interval=1`
-- `display.busy_input_mode=steer`，`display.busy_ack_enabled=true`，`display.busy_steer_ack_enabled=true`
+- `display.busy_input_mode=steer`
 - `display.platforms.telegram` 下：`streaming=false`、`tool_progress=off`、`cleanup_progress=true`、`interim_assistant_messages=false`、`thinking_progress=false`、`long_running_notifications=true`、`busy_ack_enabled=true`、`busy_steer_ack_enabled=true`、`busy_ack_detail=false`、`live_status=off`、`runtime_footer.enabled=false`
 - `platforms.telegram.reactions=true`、`platforms.telegram.extra.disable_link_previews=true`
 
-`display` 中的三个全局忙碌输入键以及 `agent.gateway_notify_interval` 也可能影响同一 Gateway 的其他平台。多平台用户应先查看 dry-run，或选择 `keep-display` 并自行配置。
+`display.busy_input_mode` 是 Hermes 的全局/配置档选项，仍会影响同一 Gateway 的其他平台。多平台用户可选择 `keep-display` 保留原路由；安装器会在 dry-run 中列出实际修改。
+
+从 1.8.1 起，安装器不再修改全局通知间隔及两个全局回执开关，Telegram 回执只设置在平台配置中。升级会恢复旧版安装器仍持有的这三项值；若用户已改成其他值，则保留用户选择。
 
 不删除原有 `status_phrases`，也不替换整个 `runtime_footer` 映射，只修改所需叶子配置。对其他值的语义保持不变；使用 PyYAML 写入后，原有注释和 YAML 排版不会保留，原始字节保存在备份中。
 

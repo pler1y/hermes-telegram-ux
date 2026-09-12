@@ -51,6 +51,7 @@ class MenuState:
     actions: list[dict[str, str]]
     created_at: float
     session_id: str = ""
+    adapter: Any = None
 
 
 class ActionStore:
@@ -99,12 +100,12 @@ class ActionStore:
 
     def create_menu(self, *, session_key: str, user_id: str, chat_id: str,
                     thread_id: str | None, message_id: str,
-                    actions: list[dict[str, str]], session_id: str = "") -> MenuState:
+                    actions: list[dict[str, str]], session_id: str = "", adapter=None) -> MenuState:
         with self._lock:
             self._prune()
             token = secrets.token_hex(8)
             state = MenuState(token, session_key, user_id, chat_id, thread_id,
-                              message_id, actions, self.clock(), session_id)
+                              message_id, actions, self.clock(), session_id, adapter)
             self.menus[token] = state
             return state
 
@@ -129,19 +130,21 @@ class TelegramActions:
         language = ctx.get_config("language", "package")
         self.language = language if language in {"zh", "en"} else package_language()
         self.store = store
-        self.adapter = None
 
     def wire(self, application, adapter):
         from telegram.ext import CallbackQueryHandler
 
-        self.adapter = adapter
-        handler = CallbackQueryHandler(self.callback, pattern=r"^hi:")
+        async def callback(update, context):
+            await self.callback(update, context, adapter=adapter)
+
+        handler = CallbackQueryHandler(callback, pattern=r"^hi:")
         application.add_handler(handler, group=-1)
         logger.info("Hermes Interaction: contextual Telegram actions registered")
         return lambda: application.remove_handler(handler, group=-1)
 
     async def attach(self, state, actions: list[dict[str, str]]) -> bool:
-        if not actions or not self.adapter or state.failed or state.interrupted:
+        adapter = state.adapter
+        if not actions or not adapter or state.failed or state.interrupted:
             return False
         source = state.source
         user_id = str(getattr(source, "user_id", "") or "")
@@ -158,10 +161,10 @@ class TelegramActions:
             menu = self.store.create_menu(
                 session_key=state.session_key, user_id=user_id, chat_id=chat_id,
                 thread_id=str(thread) if thread is not None else None,
-                message_id=message_id, actions=actions, session_id=state.session_id,
+                message_id=message_id, actions=actions, session_id=state.session_id, adapter=adapter,
             )
             try:
-                await self.adapter._bot.edit_message_reply_markup(
+                await adapter._bot.edit_message_reply_markup(
                     chat_id=int(chat_id) if chat_id.lstrip("-").isdigit() else chat_id,
                     message_id=int(message_id), reply_markup=self._markup(menu),
                 )
@@ -174,14 +177,14 @@ class TelegramActions:
                       "text": tr("接下来可以：", self.language)}
             if thread is not None:
                 kwargs["message_thread_id"] = int(thread)
-            sent = await self.adapter._bot.send_message(**kwargs)
+            sent = await adapter._bot.send_message(**kwargs)
             message_id = str(sent.message_id)
             menu = self.store.create_menu(
                 session_key=state.session_key, user_id=user_id, chat_id=chat_id,
                 thread_id=str(thread) if thread is not None else None,
-                message_id=message_id, actions=actions, session_id=state.session_id,
+                message_id=message_id, actions=actions, session_id=state.session_id, adapter=adapter,
             )
-            await self.adapter._bot.edit_message_reply_markup(
+            await adapter._bot.edit_message_reply_markup(
                 chat_id=kwargs["chat_id"], message_id=int(message_id), reply_markup=self._markup(menu))
             return True
         except Exception:
@@ -197,7 +200,7 @@ class TelegramActions:
                 for i, action in enumerate(menu.actions)]
         return InlineKeyboardMarkup(rows)
 
-    def _authorized(self, query, state: MenuState) -> bool:
+    def _authorized(self, query, state: MenuState, adapter) -> bool:
         msg = query.message
         if not msg or not query.from_user:
             return False
@@ -205,13 +208,13 @@ class TelegramActions:
                   str(msg.message_thread_id) if msg.message_thread_id is not None else None,
                   str(msg.message_id))
         expected = (state.user_id, state.chat_id, state.thread_id, state.message_id)
-        if actual != expected:
+        if actual != expected or state.adapter is not adapter:
             return False
-        return bool(self.adapter and self.adapter._is_callback_user_authorized(
+        return bool(adapter and adapter._is_callback_user_authorized(
             actual[0], chat_id=actual[1], chat_type=getattr(msg.chat, "type", None),
             thread_id=actual[2], user_name=getattr(query.from_user, "username", None)))
 
-    async def callback(self, update, context) -> None:
+    async def callback(self, update, context, *, adapter) -> None:
         query = update.callback_query
         if not query or not isinstance(query.data, str):
             return
@@ -228,7 +231,7 @@ class TelegramActions:
         if state is None:
             await query.answer(tr("这组选项已过期、已使用或对话已更新。请直接输入想做的事。", self.language), show_alert=True)
             return
-        if not self._authorized(query, state):
+        if not self._authorized(query, state, adapter):
             await query.answer(tr("只能由原会话中的用户操作。", self.language), show_alert=True)
             return
         claimed = self.store.claim(token, index)

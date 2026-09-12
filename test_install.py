@@ -190,6 +190,28 @@ class LifecycleTests(_LifecycleFixture):
 
 
 class CompatibilityTests(unittest.TestCase):
+    def test_comment_and_indentation_formatting_do_not_disable_the_plugin(self):
+        source = "def allowed(user):\n    return user == 7\n"
+        # Published fixture for the versioned fingerprint format; do not generate
+        # the expected hash using the implementation under test.
+        digest = "e19ea29f359e818906e3979e253c2e729748a8592d95cc0f9d075c56d7a500d9"
+        profile = {"core_commit": "a" * 40, "hermes_version": "0.21.2",
+                   "files": {"interface.py": hashlib.sha256(source.encode()).hexdigest()},
+                   "python_ast_v1": {"interface.py": digest}}
+        with tempfile.TemporaryDirectory() as raw, patch("plugin.compat.json.loads", return_value={"profiles": [profile]}):
+            root = Path(raw)
+            (root / "interface.py").write_text("# revised explanation\n\ndef allowed( user ):\n  return user == 7  # authorized id\n")
+            self.assertEqual(verify_core(root)["core_commit"], "a" * 40)
+            for changed in ("def allowed(user):\n  return True\n",
+                            "def allowed(user):\n  return user != 7\n",
+                            "def allowed(user):\n  return user == 8\n",
+                            "def allowed(user):\nreturn user == 7\n",
+                            source + "raise AssertionError('must not execute')\n"):
+                with self.subTest(source=changed):
+                    (root / "interface.py").write_text(changed)
+                    with self.assertRaises(CompatibilityError):
+                        verify_core(root)
+
     def test_missing_core_interfaces_fail_closed(self):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaisesRegex(CompatibilityError, "Mismatched interfaces"):
@@ -225,6 +247,29 @@ class CompatibilityTests(unittest.TestCase):
                     verify_core(root)
                 (root / "a.py").write_text("b")
                 self.assertEqual(verify_core(root)["core_commit"], "b" * 40)
+
+
+class ConfigurationScopeTests(unittest.TestCase):
+    def test_recommended_settings_do_not_change_global_notification_policy(self):
+        base = {"agent": {"gateway_notify_interval": 180},
+                "display": {"busy_ack_enabled": False, "busy_steer_ack_enabled": False}}
+        configured, _records = lifecycle.plan_install(base, None, "recommended")
+        self.assertEqual(configured["agent"], base["agent"])
+        for name in ("busy_ack_enabled", "busy_steer_ack_enabled"):
+            self.assertEqual(configured["display"][name], base["display"][name])
+            self.assertTrue(configured["display"]["platforms"]["telegram"][name])
+
+    def test_upgrade_retires_global_defaults_and_preserves_later_user_edits(self):
+        records = [{"path": ["agent", "gateway_notify_interval"], "kind": "value",
+                    "before": {"exists": True, "value": 180}, "after": {"exists": True, "value": 1}},
+                   {"path": ["display", "busy_ack_enabled"], "kind": "value",
+                    "before": {"exists": False}, "after": {"exists": True, "value": True}}]
+        for interval, expected in ((1, 180), (240, 240)):
+            config = {"agent": {"gateway_notify_interval": interval}, "display": {"busy_ack_enabled": True}}
+            configured, current = lifecycle.plan_install(config, {"records": records}, "recommended")
+            self.assertEqual(configured["agent"]["gateway_notify_interval"], expected)
+            self.assertNotIn("busy_ack_enabled", configured["display"])
+            self.assertFalse(any(r["path"] == ["agent", "gateway_notify_interval"] for r in current))
 
 
 class NativeConfigurationTests(_LifecycleFixture):
