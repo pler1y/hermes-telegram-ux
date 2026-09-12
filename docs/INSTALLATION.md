@@ -4,7 +4,7 @@
 
 使用 [支持的 Hermes 核心版本](COMPATIBILITY.md)，完成模型登录和 Telegram 接入，确认机器人可以正常回复消息。新环境可按 [从零安装指南](FRESH-INSTALL.md)配置。
 
-从 [发行页](https://github.com/pler1y/hermes-telegram-ux/releases/latest)下载 `-zh.zip` 中文版或 `-en.zip` 英文版和对应的 `.sha256` 文件，校验后解压。以下命令在解压目录运行，由拥有 Hermes 配置的账号执行。
+本文适用于 ZIP 安装；通过 Hermes 插件命令管理代码请看[原生安装](NATIVE-INSTALL.md)。从 [发行页](https://github.com/pler1y/hermes-telegram-ux/releases)下载对应版本的 `-zh.zip` 中文版或 `-en.zip` 英文版和 `.sha256` 文件，校验后解压。1.8.0-rc.1 标记为候选版，尚未收录官方目录。以下命令在解压目录运行，由拥有 Hermes 配置的账号执行。
 
 ```bash
 HERMES_HOME="$HOME/.hermes"
@@ -38,7 +38,7 @@ Gateway 的启停沿用自己的部署方式。用户级 systemd 服务使用 `s
 
 需要保留原有显示设置时，在首次安装命令末尾添加 `--preset keep-display`，再按 [配置说明](CONFIGURATION.md)手动调整。重复安装会保留首次选择以及后续手动修改的配置。
 
-使用本项目的 `install.py` 完成安装，以便统一管理显示预设、备份和卸载。内部插件 ID 为 `hermes-interaction`，用于兼容旧版安装；仅通过 Hermes 原生插件入口启用代码不会创建这些管理记录。
+ZIP 安装使用本项目的 `install.py install/uninstall` 管理代码、显示预设和备份。原生安装使用独立的 `configure/restore-config` 配置入口，保留 Hermes 管理的代码与版本信息。两种管理记录不能混用。内部插件 ID 仍为 `hermes-interaction`。
 
 ## 升级与卸载
 

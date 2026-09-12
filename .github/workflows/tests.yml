@@ -4,6 +4,14 @@ permissions:
   contents: read
 jobs:
   regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - core: b499ab11fe8b081470e269f2fb27abae03000da5
+            validator: ''
+          - core: a84a2223f82c3d9906fd4a9d778a188774e7a08e
+            validator: '--require-validator'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -14,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: NousResearch/hermes-agent
-          ref: b499ab11fe8b081470e269f2fb27abae03000da5
+          ref: ${{ matrix.core }}
           path: hermes-core
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -32,5 +40,26 @@ jobs:
           export PYTHONPATH="$GITHUB_WORKSPACE/hermes-core"
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/run_tests.py
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_runtime.py
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_native_install.py ${{ matrix.validator }}
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/build_release.py --check
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_editions.py
+  upstream-compatibility:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ux
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: main
+          path: hermes-core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check current upstream interfaces without importing gateway or credentials
+        working-directory: ux
+        run: |
+          python -c 'from pathlib import Path; from plugin.compat import verify_core; print(verify_core(Path("../hermes-core")))'

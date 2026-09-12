@@ -58,8 +58,11 @@ class InteractionRuntime:
         self._original_idle_stop = None
         self._original_send_ack = None
         self._original_completion_group = None
-        state_store=getattr(ctx,'state',None)
-        self._cancelled_delegations=state_store.get('cancelled_delegations',{}) if state_store else {}
+        state_store = getattr(ctx, "state", None)
+        # Admission contexts need not provide optional durable state. A generic
+        # no-op registration stub is not a state store.
+        self._state_store = state_store if callable(getattr(state_store, "get", None)) and callable(getattr(state_store, "set", None)) else None
+        self._cancelled_delegations = self._state_store.get("cancelled_delegations", {}) if self._state_store is not None else {}
         if not isinstance(self._cancelled_delegations,dict):self._cancelled_delegations={}
         self._raw_sends = {}
         self._status_cooldowns = {}
@@ -416,9 +419,8 @@ class InteractionRuntime:
         cutoff=time.time()-7*86400
         retained={k:v for k,v in self._cancelled_delegations.items() if v.get('at',0)>=cutoff}
         self._cancelled_delegations=dict(list(retained.items())[-512:])
-        state_store=getattr(self.ctx,'state',None)
-        if state_store is not None:
-            state_store.set('cancelled_delegations',self._cancelled_delegations)
+        if self._state_store is not None:
+            self._state_store.set('cancelled_delegations',self._cancelled_delegations)
 
     @staticmethod
     def is_telegram(source):

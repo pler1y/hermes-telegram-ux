@@ -11,4 +11,5 @@ config.yaml
 .DS_Store
 ._*
 dist/
+catalog-submission/
 .coverage

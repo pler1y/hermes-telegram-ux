@@ -3,15 +3,17 @@ from copy import deepcopy
 import json
 from pathlib import Path
 import tempfile
+import hashlib
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import yaml
 import install as lifecycle
 from plugin.compat import CompatibilityError, verify_core
 
 
-class LifecycleTests(unittest.TestCase):
+class _LifecycleFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -36,6 +38,8 @@ class LifecycleTests(unittest.TestCase):
     def install(self, **kwargs):
         return lifecycle.install(self.home, **kwargs)
 
+
+class LifecycleTests(_LifecycleFixture):
     def test_fresh_install_and_uninstall_restore_semantic_baseline(self):
         result = self.install()
         self.assertFalse(self.config()["display"]["platforms"]["telegram"]["streaming"])
@@ -190,6 +194,113 @@ class CompatibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaisesRegex(CompatibilityError, "Mismatched interfaces"):
                 verify_core(Path(root))
+
+    def test_content_match_accepts_unrelated_commit_but_rejects_changed_interface(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / ".git").mkdir()
+            (root / "interface.py").write_text("tested")
+            profile = {"core_commit": "a" * 40, "hermes_version": "0.21.2",
+                       "files": {"interface.py": hashlib.sha256(b"tested").hexdigest()}}
+            with patch("plugin.compat.json.loads", return_value={"profiles": [profile]}), patch(
+                "plugin.compat.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout="b" * 40)
+            ):
+                result = verify_core(root)
+                self.assertEqual(result["core_commit"], "a" * 40)
+                self.assertEqual(result["source_commit"], "b" * 40)
+                (root / "interface.py").write_text("unreviewed change")
+                with self.assertRaisesRegex(CompatibilityError, "interface.py"):
+                    verify_core(root)
+
+    def test_cannot_mix_files_from_different_baselines(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            profiles = [{"core_commit": letter * 40, "hermes_version": "0.21.2",
+                         "files": {name: hashlib.sha256(letter.encode()).hexdigest()
+                                   for name in ("a.py", "b.py")}} for letter in ("a", "b")]
+            (root / "a.py").write_text("a")
+            (root / "b.py").write_text("b")
+            with patch("plugin.compat.json.loads", return_value={"profiles": profiles}):
+                with self.assertRaises(CompatibilityError):
+                    verify_core(root)
+                (root / "a.py").write_text("b")
+                self.assertEqual(verify_core(root)["core_commit"], "b" * 40)
+
+
+class NativeConfigurationTests(_LifecycleFixture):
+    def native_tree(self):
+        target = self.home / "plugins" / lifecycle.PLUGIN_ID
+        lifecycle.copy_plugin(Path(__file__).parent / "plugin", target)
+        (target / ".git").mkdir()
+        (target / ".git" / "HEAD").write_text("fixture native checkout")
+        (target / ".hermes-catalog.json").write_text('{"sha": "fixture"}')
+        return target
+
+    def tree_bytes(self, target):
+        return {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+
+    def test_configure_restore_preserves_native_checkout_and_user_edits(self):
+        target = self.native_tree()
+        before = self.tree_bytes(target)
+        result = lifecycle.configure(self.home, language="en")
+        self.assertEqual(result["management"], "config-only")
+        self.assertEqual(self.config()["plugins"]["entries"][lifecycle.PLUGIN_ID]["settings"]["language"], "en")
+        changed = self.config()
+        changed["model"]["default"] = "user-changed"
+        changed["display"]["platforms"]["telegram"]["streaming"] = True
+        self.save(changed)
+        lifecycle.configure(self.home, language="en")
+        self.assertEqual(self.config(), changed)
+        lifecycle.uninstall(self.home, config_only=True)
+        self.assertEqual(self.tree_bytes(target), before)
+        expected = deepcopy(self.original)
+        expected["model"]["default"] = "user-changed"
+        self.assertEqual(self.config(), expected)
+
+    def test_wrong_management_command_cannot_replace_native_checkout(self):
+        target = self.native_tree()
+        before = self.tree_bytes(target)
+        lifecycle.configure(self.home)
+        with self.assertRaisesRegex(RuntimeError, "managed by Hermes"):
+            self.install()
+        with self.assertRaisesRegex(RuntimeError, "restore-config"):
+            lifecycle.uninstall(self.home)
+        self.assertEqual(self.tree_bytes(target), before)
+
+    def test_configure_refuses_existing_zip_management(self):
+        self.install()
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "ZIP installation"):
+            lifecycle.configure(self.home)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_interrupted_configuration_recovers_without_replacing_checkout(self):
+        target = self.native_tree()
+        before = self.tree_bytes(target)
+        config_before = self.path.read_bytes()
+        real_write = lifecycle.atomic_write
+        def fail(path, data, mode=0o600):
+            if path == self.home / lifecycle.STATE_DIR / "state.json":
+                raise OSError("simulated crash")
+            return real_write(path, data, mode)
+        with patch.object(lifecycle, "atomic_write", side_effect=fail), patch.object(lifecycle, "recover"):
+            with self.assertRaises(OSError):
+                lifecycle.configure(self.home)
+        # An independent native update after the crash must survive config recovery.
+        (target / ".git" / "HEAD").write_text("updated by native manager")
+        before[".git/HEAD"] = b"updated by native manager"
+        with lifecycle.locked(self.home) as directory:
+            self.assertTrue(lifecycle.recover(self.home, directory))
+        self.assertEqual(self.path.read_bytes(), config_before)
+        self.assertEqual(self.tree_bytes(target), before)
+
+    def test_configure_dry_run_is_read_only_for_config_and_checkout(self):
+        target = self.native_tree()
+        before = self.tree_bytes(target)
+        config_before = self.path.read_bytes()
+        lifecycle.configure(self.home, dry_run=True)
+        self.assertEqual(self.path.read_bytes(), config_before)
+        self.assertEqual(self.tree_bytes(target), before)
 
 
 if __name__ == "__main__":

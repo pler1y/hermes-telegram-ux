@@ -48,7 +48,7 @@ def main():
     paths = sources()
     manifest = {"project": "hermes-telegram-ux", "version": metadata["version"],
                 "language": json.loads((ROOT / "plugin/language.json").read_text())["language"],
-                "core_commit": json.loads((ROOT / "plugin/compatibility.json").read_text())["core_commit"],
+                "tested_core_commits": [p["core_commit"] for p in json.loads((ROOT / "plugin/compatibility.json").read_text())["profiles"]],
                 "sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}}
     manifest_path = ROOT / "release-manifest.json"
     if args.check:

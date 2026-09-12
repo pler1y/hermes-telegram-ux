@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0-rc.1 — Catalog preparation candidate
+
+- Add native Git installation, configuration and configuration-only recovery that preserve Hermes-managed source and provenance metadata.
+- Validate Hermes 0.21.0 and 0.21.2 baselines using complete 19-file interface sets; allow unrelated commits with matching interfaces and reject mixed or modified sets.
+- Declare both middleware registrations and use the manifest format supported by the native installer. Handle registration contexts without optional durable state.
+- Add official admission checks, native install/enable/Telegram wiring/remove checks, two-baseline CI, current-main compatibility checks, and catalog submission draft generation.
+- Preserve the existing Telegram interaction design. New-core live acceptance and the official two-week maturity period remain required before catalog submission.
+
 ## 1.7.1 — 2026-09-12
 
 - Respect Telegram's retry delay across status bubbles on the same bot; progressively back off after transport failures and resume with the latest status.

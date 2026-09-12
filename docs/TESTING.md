@@ -42,6 +42,16 @@ export PYTHONPATH="$HERMES_CORE"
 
 CI 执行自动回归和原生注册检查，不使用任何模型或 Telegram 凭据。真实 Telegram 验收需要维护者在隔离测试账号中执行，结果写入 ACCEPTANCE.md。
 
+## 官方目录准备检查
+
+1.8.0-rc.1 的 CI 对两套固定核心分别执行完整回归、ZIP 生命周期及 `scripts/check_native_install.py`。后者将候选源码放入临时 Git 仓库，通过真实 `hermes plugins install --ref` 安装，再验证配置、原生启用、发现、实际 Telegram adapter 接线及恢复、配置还原和原生移除；全部使用临时配置和合成数据，不连接 Telegram。
+
+当前 0.21.2 基线运行 `scripts/check_native_install.py --require-validator`，要求官方 `plugins validate` 实际成功，不能因缺少验证器静默跳过。旧 0.21.0 没有该命令，其余原生路径仍必须成功。另一个 CI job 检查每次运行时的 main 是否仍匹配受保护接口。
+
+原生配置测试覆盖保留 Git/catalog 元数据、配置失败后恢复、恢复期间的独立插件升级、模式混用拒绝及用户修改保留。兼容测试检查文档等无关提交可继续使用、已变更接口拒绝以及不同基线文件不能混搭。
+
+新的核心支持仍需单独实机验收。候选准备及上游当前限制见 [CATALOG.md](CATALOG.md)。
+
 完整实机流程结束后可运行 `python acceptance/verify_artifacts.py --root 你的测试目录` 独立核对生成产物。测试中的等待时长仅用于观察取消行为，不是性能测试或默认延迟设置。
 
 ## 1.7.0 追加验收

@@ -6,6 +6,8 @@ Get a quick acknowledgement, follow live task progress, add instructions along t
 
 [简体中文](README.zh-CN.md) · [Download](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [Installation guide](docs/INSTALLATION.en.md) · [Report an issue](https://github.com/pler1y/hermes-telegram-ux/issues)
 
+**Catalog preparation candidate: 1.8.0-rc.1.** This branch adds native Hermes installation and current-core validation. The project has not been accepted into the official catalog. See [native installation](docs/NATIVE-INSTALL.md) and [submission status](docs/CATALOG.md); stable downloads remain on the latest stable release.
+
 ## What it feels like
 
 This example illustrates the conversation flow. Progress rows update the same bubble; model-generated wording varies with the task.
@@ -36,9 +38,9 @@ Send `/start` to find information, read a link or file, or write something. Runn
 
 ## Install
 
-You'll need **Hermes 0.21.0 at core commit `b499ab11fe8b`**, with a working Telegram bot and model login. Other commits with the same version number still need validation; see [compatibility](docs/COMPATIBILITY.md).
+You'll need a working Telegram bot and model login. This candidate checks the interfaces of **Hermes 0.21.0 (`b499ab11fe8b`) or 0.21.2 (`a84a2223f82c`)**. Other commits are accepted only when all guarded files match one baseline; see [compatibility](docs/COMPATIBILITY.md). For installation through `hermes plugins install`, follow [native installation](docs/NATIVE-INSTALL.md).
 
-Download the English `-en.zip` or Chinese `-zh.zip` and its checksum from [Releases](https://github.com/pler1y/hermes-telegram-ux/releases/latest). Verify and extract the archive. Run this read-only compatibility check from the extracted directory as the account that owns Hermes, adjusting the paths for your installation:
+For ZIP installation, choose the English `-en.zip` or Chinese `-zh.zip` and its checksum from the matching [release](https://github.com/pler1y/hermes-telegram-ux/releases). Candidate packages are marked as pre-releases. Verify and extract the archive. Run this read-only compatibility check from the extracted directory as the account that owns Hermes, adjusting the paths for your installation:
 
 ```bash
 HERMES_HOME="$HOME/.hermes"

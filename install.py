@@ -107,10 +107,12 @@ def put_value(config, path, value):
                 break
 
 
-def desired_values(preset):
+def desired_values(preset, language=None):
     entry = ("plugins", "entries", PLUGIN_ID)
     values = {entry + ("allow_gateway_injection",): True}
     values.update({entry + ("settings", key): value for key, value in SETTINGS.items()})
+    if language is not None:
+        values[entry + ("settings", "language")] = language
     if preset == "recommended":
         values.update({("agent", "gateway_notify_interval"): 1,
                        ("display", "busy_input_mode"): "steer",
@@ -124,11 +126,11 @@ def desired_values(preset):
     return values
 
 
-def plan_install(config, previous, preset):
+def plan_install(config, previous, preset, language=None):
     changed = deepcopy(config)
     records = deepcopy(previous.get("records", [])) if previous else []
     existing = {tuple(r["path"]): r for r in records}
-    for path, value in desired_values(preset).items():
+    for path, value in desired_values(preset, language).items():
         current = get_value(changed, path)
         record = existing.get(path)
         after = {"exists": True, "value": value}
@@ -230,14 +232,15 @@ def recover(home, directory):
         raise RuntimeError("Configuration changed after an interrupted install. Preserve your edits and inspect " + str(backup))
     destination = home / "plugins" / PLUGIN_ID
     rollback = destination.with_name("." + PLUGIN_ID + "-recover")
-    if rollback.exists():
-        shutil.rmtree(rollback)
-    if (backup / "plugin").exists():
-        copy_plugin(backup / "plugin", rollback)
-    if destination.exists():
-        shutil.rmtree(destination)
-    if rollback.exists():
-        os.replace(rollback, destination)
+    if journal.get("manage_plugin", True):
+        if rollback.exists():
+            shutil.rmtree(rollback)
+        if (backup / "plugin").exists():
+            copy_plugin(backup / "plugin", rollback)
+        if destination.exists():
+            shutil.rmtree(destination)
+        if rollback.exists():
+            os.replace(rollback, destination)
     atomic_write(path, (backup / "config.yaml").read_bytes(), journal["config_mode"])
     state_path = directory / "state.json"
     if (backup / "state.json").exists():
@@ -252,7 +255,7 @@ def recover(home, directory):
     return True
 
 
-def transact(home, directory, config, next_state, source):
+def transact(home, directory, config, next_state, source, *, manage_plugin=True):
     """Journal first; on any exception restore the exact pre-operation snapshot."""
     path = home / "config.yaml"
     destination = home / "plugins" / PLUGIN_ID
@@ -261,7 +264,7 @@ def transact(home, directory, config, next_state, source):
     backup.mkdir(parents=True, mode=0o700)
     backup.chmod(0o700)
     atomic_write(backup / "config.yaml", path.read_bytes())
-    if destination.exists():
+    if manage_plugin and destination.exists():
         copy_plugin(destination, backup / "plugin")
     if state_path.exists():
         atomic_write(backup / "state.json", state_path.read_bytes())
@@ -270,17 +273,18 @@ def transact(home, directory, config, next_state, source):
     destination.parent.mkdir(exist_ok=True)
     staged = destination.with_name("." + PLUGIN_ID + "-" + backup.name)
     old = destination.with_name(staged.name + "-old")
-    if source:
+    if manage_plugin and source:
         copy_plugin(source, staged)
     after = yaml_bytes(config)
     mode = path.stat().st_mode & 0o777
     journal = {"backup": str(backup), "config_hashes": [digest(path.read_bytes()), digest(after)],
-               "config_mode": mode, "temporary": [staged.name, old.name]}
+               "config_mode": mode, "manage_plugin": manage_plugin,
+               "temporary": [staged.name, old.name] if manage_plugin else []}
     atomic_write(directory / "transaction.json", json_bytes(journal))
     try:
-        if destination.exists():
+        if manage_plugin and destination.exists():
             os.replace(destination, old)
-        if source:
+        if manage_plugin and source:
             os.replace(staged, destination)
         atomic_write(path, after, mode)
         if next_state:
@@ -314,6 +318,8 @@ def install(home, source=None, *, core=None, preset="recommended", dry_run=False
             raise RuntimeError("An interrupted transaction exists. Stop the gateway and run recover first.")
         state_path = directory / "state.json"
         previous = json.loads(state_path.read_text()) if state_path.exists() else None
+        if previous and previous.get("management") == "config-only":
+            raise RuntimeError("This plugin is managed by Hermes. Use configure to update its UX settings.")
         selected = previous["preset"] if previous else preset
         changed, records = plan_install(config, previous, selected)
         result = {"action": "install", "version": manifest["version"], "preset": selected,
@@ -327,7 +333,42 @@ def install(home, source=None, *, core=None, preset="recommended", dry_run=False
         return result
 
 
-def uninstall(home, *, dry_run=False):
+def configure(home, *, core=None, preset="recommended", language=None, dry_run=False):
+    """Configure a native install without moving its checkout or Git/catalog metadata."""
+    home = Path(home).expanduser().resolve()
+    read_config(home)
+    compatibility = verify_core(core)
+    if language not in {None, "zh", "en"}:
+        raise ValueError("language must be zh or en")
+    destination = home / "plugins" / PLUGIN_ID
+    if (home / "plugins").is_symlink() or destination.is_symlink():
+        raise ValueError("Plugin destination must not be a symlink.")
+    manifest = yaml.safe_load((destination / "plugin.yaml").read_text())
+    if not isinstance(manifest, dict) or manifest.get("name") != PLUGIN_ID or not (destination / "__init__.py").is_file():
+        raise ValueError("Install the native plugin with hermes plugins install first.")
+    with locked(home) as directory:
+        if (directory / "transaction.json").exists():
+            raise RuntimeError("Run recover before configuring an interrupted transaction.")
+        state_path = directory / "state.json"
+        previous = json.loads(state_path.read_text()) if state_path.exists() else None
+        if previous and previous.get("management") != "config-only":
+            raise RuntimeError("A ZIP installation is managed here. Use its install/uninstall commands first.")
+        config = read_config(home)
+        selected = previous["preset"] if previous else preset
+        changed, records = plan_install(config, previous, selected, language)
+        result = {"action": "configure", "version": manifest["version"], "preset": selected,
+                  "compatibility": compatibility, "management": "config-only",
+                  "changed_paths": [".".join(r["path"]) for r in records
+                                    if get_value(config, r["path"]) != get_value(changed, r["path"])]}
+        if dry_run:
+            return dict(result, dry_run=True)
+        state = dict(previous or {}, schema=1, management="config-only", version=manifest["version"],
+                     preset=selected, records=records)
+        result["backup"] = transact(home, directory, changed, state, None, manage_plugin=False)
+        return result
+
+
+def uninstall(home, *, dry_run=False, config_only=False):
     home = Path(home).expanduser().resolve()
     read_config(home)
     if (home / "plugins").is_symlink() or (home / "plugins" / PLUGIN_ID).is_symlink():
@@ -340,14 +381,19 @@ def uninstall(home, *, dry_run=False):
         if not state_path.exists():
             return {"action": "uninstall", "changed": False, "reason": "No managed installation."}
         state = json.loads(state_path.read_text())
+        native = state.get("management") == "config-only"
+        if native != config_only:
+            raise RuntimeError("Use restore-config for native installs; use uninstall for ZIP installs.")
         changed, conflicts = plan_restore(config, state["records"])
         if not (Path(state["baseline_backup"]) / "config.yaml").is_file():
             raise RuntimeError("Baseline backup is missing; restore it before uninstalling.")
         baseline = Path(state["baseline_backup"]) / "plugin"
-        result = {"action": "uninstall", "changed": True, "preserved_user_changes": conflicts,
-                  "restores_previous_plugin": baseline.exists()}
+        result = {"action": "restore-config" if native else "uninstall", "changed": True,
+                  "preserved_user_changes": conflicts, "restores_previous_plugin": not native and baseline.exists()}
         if not dry_run:
-            result["backup"] = transact(home, directory, changed, None, baseline if baseline.exists() else None)
+            result["backup"] = transact(home, directory, changed, None,
+                                        baseline if not native and baseline.exists() else None,
+                                        manage_plugin=not native)
         else:
             result["dry_run"] = True
         return result
@@ -355,19 +401,25 @@ def uninstall(home, *, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["check", "install", "uninstall", "recover"])
+    parser.add_argument("action", choices=["check", "install", "configure", "restore-config", "uninstall", "recover"])
     parser.add_argument("--hermes-home", type=Path, default=Path(os.environ.get("HERMES_HOME", "~/.hermes")))
     parser.add_argument("--hermes-core", type=Path)
     parser.add_argument("--preset", choices=["recommended", "keep-display"], default="recommended")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--language", choices=["zh", "en"], help="Language for native configure")
     args = parser.parse_args()
+    if args.language and args.action != "configure":
+        parser.error("--language is used with configure; ZIP installs use their edition language")
     try:
         if args.action == "check":
             result = verify_core(args.hermes_core)
         elif args.action == "install":
             result = install(args.hermes_home, core=args.hermes_core, preset=args.preset, dry_run=args.dry_run)
-        elif args.action == "uninstall":
-            result = uninstall(args.hermes_home, dry_run=args.dry_run)
+        elif args.action == "configure":
+            result = configure(args.hermes_home, core=args.hermes_core, preset=args.preset,
+                               language=args.language, dry_run=args.dry_run)
+        elif args.action in {"uninstall", "restore-config"}:
+            result = uninstall(args.hermes_home, dry_run=args.dry_run, config_only=args.action == "restore-config")
         else:
             if args.dry_run:
                 parser.error("recover cannot use --dry-run")

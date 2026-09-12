@@ -1,4 +1,4 @@
-"""Fail closed before registering hooks on an untested Hermes core.
+"""Fail closed unless all guarded files match one tested Hermes baseline.
 
 No gateway imports here: discovery can run on a worker while gateway.run imports.
 """
@@ -23,21 +23,31 @@ def verify_core(root: Path | None = None) -> dict:
         root = Path(spec.origin).resolve().parent.parent
     root = root.expanduser().resolve()
     contract = json.loads(Path(__file__).with_name("compatibility.json").read_text())
-    mismatched = []
-    for name, expected in contract["files"].items():
+    profiles = contract["profiles"]
+    actual = {}
+    for name in {name for profile in profiles for name in profile["files"]}:
         path = root / name
-        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-            mismatched.append(name)
-    if mismatched:
+        actual[name] = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+    differences = [(profile, [name for name, expected in profile["files"].items()
+                             if actual[name] != expected]) for profile in profiles]
+    matched = next((profile for profile, missing in differences if not missing), None)
+    if matched is None:
+        closest, missing = min(differences, key=lambda item: len(item[1]))
         raise CompatibilityError(
-            "Unsupported or modified Hermes core. Tested commit: " + contract["core_commit"]
-            + ". Mismatched interfaces: " + ", ".join(mismatched)
+            "Unsupported or modified Hermes core. Closest tested commit: " + closest["core_commit"]
+            + ". Mismatched interfaces: " + ", ".join(missing)
             + ". No UX hooks were installed. See docs/COMPATIBILITY.md."
         )
-    # Source archives have no .git; the interface hashes remain mandatory there.
+    # A catalog-only, documentation or unrelated platform commit must not invalidate
+    # byte-identical guarded interfaces. Git HEAD is diagnostic, never a bypass.
+    revision = None
     if (root / ".git").exists():
-        result = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
-                                capture_output=True, text=True, timeout=10)
-        if result.returncode or result.stdout.strip() != contract["core_commit"]:
-            raise CompatibilityError("Hermes revision is not the tested commit " + contract["core_commit"])
-    return {"core_commit": contract["core_commit"], "interface_files": len(contract["files"])}
+        try:
+            result = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],
+                                    capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                revision = result.stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return {"core_commit": matched["core_commit"], "source_commit": revision,
+            "hermes_version": matched["hermes_version"], "interface_files": len(matched["files"])}
