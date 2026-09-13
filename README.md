@@ -1,82 +1,114 @@
+<div align="center">
+
 # Hermes Telegram UX
 
-Timely replies, clear progress and room for new instructions — Hermes on Telegram.
+**Instant feedback. Live progress. A conversation you can steer.**
 
-Get a quick acknowledgement, follow live task progress, add instructions along the way, and receive complete answers and files in your chat.
+A Telegram interaction plugin for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
-[简体中文](README.zh-CN.md) · [Download](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [Installation guide](docs/INSTALLATION.en.md) · [Report an issue](https://github.com/pler1y/hermes-telegram-ux/issues)
+[![Release](https://img.shields.io/github/v/release/pler1y/hermes-telegram-ux)](https://github.com/pler1y/hermes-telegram-ux/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Version 1.8.1** adds safer plugin loading/unloading, bot-specific follow-up buttons and formatting-tolerant core checks. [Official catalog PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) is submitted; inclusion is pending maintainer review and release maturity. See [native installation](docs/NATIVE-INSTALL.md) and [submission status](docs/CATALOG.md).
+[Quick start](#quick-start) · [Usage](#usage) · [Documentation](#documentation) · [简体中文](README.zh-CN.md)
 
-## What it feels like
+</div>
 
-This example illustrates the conversation flow. Progress rows update the same bubble; model-generated wording varies with the task.
+---
 
-| Moment | In your Telegram chat |
-|---|---|
-| Your request | Make a restocking sheet for the next 7 days. |
-| Immediate reply | 🤔 Thinking… |
-| Work begins | 📄 I'll check stock and daily usage to find what needs restocking. |
-| Your update | Make it 10 days and include incoming stock. |
-| Receipt | Got it — thanks for the update. |
-| Adjustment | 🧮 I'll calculate 10 days of demand and subtract incoming stock. |
-| Delivery | A complete answer and the generated restocking CSV. |
-
-If a new message must wait, its receipt says it will be handled after the current task. Say “stop the task” to request a stop; earlier actions are not undone.
-
-Send `/start` to find information, read a link or file, or write something. Running tasks, conversations and usage are under “More options”. The [1.7.0 live acceptance record](docs/ACCEPTANCE-1.7.0.md) lists verified scenarios and their limits.
+Keep working with Hermes without wondering whether your message arrived. Get an immediate acknowledgement, follow progress in a single message, and add instructions while the task is running. Answers and generated files arrive in the same chat.
 
 ## Features
 
-- **Quick feedback** — a short, natural acknowledgement as your message arrives.
-- **Live progress** — updates in one message, with fitting emoji and less notification clutter.
-- **Visible internal work** — see when Hermes is tidying up the conversation context.
-- **Change direction** — add details while a task is running.
-- **Stop naturally** — say “stop the task” to stop current or associated background work.
-- **Complete delivery** — receive full answers, generated files and useful follow-up buttons.
-- **Chinese and English editions** — choose your interface language when installing.
+- **Immediate feedback** — “🤔 Thinking…” appears as an ordinary request arrives, without waiting for the model.
+- **One progress message** — task updates share a bubble instead of filling the chat with status messages.
+- **Mid-task instructions** — add a requirement or change direction; receipts distinguish updates from queued requests.
+- **Natural stop requests** — say “stop the task” or “stop please” to enter Hermes' stop flow.
+- **Answers and files** — receive complete replies, generated files and follow-up actions in Telegram.
+- **Two interface languages** — choose English or Chinese during setup.
 
-## Install
+## In conversation
 
-You'll need a working Telegram bot and model login. This release checks the interfaces of **Hermes 0.21.0 (`b499ab11fe8b`) or 0.21.2 (`a84a2223f82c`, `436ec489854b`, `044a77b3b6af`)**. Other commits are accepted only when all guarded files match one baseline by bytes or complete Python syntax; see [compatibility](docs/COMPATIBILITY.md). For installation through `hermes plugins install`, follow [native installation](docs/NATIVE-INSTALL.md).
+An illustrative flow; progress wording is generated for each task.
 
-For ZIP installation, choose the English `-en.zip` or Chinese `-zh.zip` and its checksum from the matching [release](https://github.com/pler1y/hermes-telegram-ux/releases). Verify and extract the archive. Run this read-only compatibility check from the extracted directory as the account that owns Hermes, adjusting the paths for your installation:
+> **You** · Make a restocking sheet for the next 7 days.<br>
+> **Hermes** · 🤔 Thinking…<br>
+> **Progress** · 📄 I'll check stock and daily usage.<br>
+> **You** · Make it 10 days and include incoming stock.<br>
+> **Hermes** · Got it — thanks for the update.<br>
+> **Progress** · 🧮 I'll calculate 10 days of demand, including incoming stock.<br>
+> **Result** · Your answer and restocking CSV.
+
+Progress lines update the same temporary message, which is cleaned up when the answer is delivered. See the [live acceptance record](docs/ACCEPTANCE-1.7.0.md) for previously verified scenarios.
+
+## Quick start
+
+### Requirements
+
+- Hermes with a working model login and Telegram bot, on Linux or macOS.
+- A [supported Hermes core](docs/COMPATIBILITY.md). Selected 0.21.0 and 0.21.2 revisions are tested; not every revision is compatible. The installer checks before enabling the plugin.
+- Hermes' Python environment with PyYAML 6.x and `python-telegram-bot` 22.x.
+
+### Install with Hermes
+
+For a **new installation**, finish active tasks and stop your Gateway. Run the following as the account that runs Hermes. Set `HERMES_CORE` to your actual core directory; the path below is a common layout.
 
 ```bash
-HERMES_HOME="$HOME/.hermes"
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 HERMES_CORE="$HERMES_HOME/hermes-agent"
 HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
 export PYTHONPATH="$HERMES_CORE"
 
-"$HERMES_PYTHON" install.py check --hermes-core "$HERMES_CORE"
+# Install the reviewed v1.8.2 release.
+"$HERMES_PYTHON" -m hermes_cli.main plugins install \
+  https://github.com/pler1y/hermes-telegram-ux \
+  --ref 6197d30a994a195c37611e29f26803ac1db2d6ff --no-enable
 ```
 
-After the check passes, finish active tasks and stop your Gateway. Then install:
+Check compatibility, configure the English interface and enable the plugin:
 
 ```bash
-"$HERMES_PYTHON" install.py install --hermes-home "$HERMES_HOME" --hermes-core "$HERMES_CORE"
+UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
+"$HERMES_PYTHON" "$UX_DIR/install.py" check --hermes-core "$HERMES_CORE" && \
+"$HERMES_PYTHON" "$UX_DIR/install.py" configure --hermes-core "$HERMES_CORE" --language en && \
+"$HERMES_PYTHON" -m hermes_cli.main plugins enable hermes-interaction
 ```
 
-Restart the same Gateway, then send `/new` and `/start` in Telegram. See the [installation guide](docs/INSTALLATION.en.md) for upgrades, language settings and removal.
+After successful setup, restart the same Gateway. Send `/new`, then `/start` in Telegram. Change `--language en` to `--language zh` for Chinese.
 
-## Use it
+Already installed? Follow [upgrade and removal](docs/NATIVE-INSTALL.md#upgrade-and-remove). ZIP users should continue with the [ZIP installation guide](docs/INSTALLATION.en.md); the two installation methods must not be mixed. See [native installation](docs/NATIVE-INSTALL.md) for custom paths, dependencies and shared Gateway settings.
 
-Send a question, link or file as usual. During a task, keep typing to add a detail or change the request.
+## Usage
 
-| Action | Example |
+Send messages, links and files as usual. No special command is needed to start a task.
+
+| To… | Send… |
 |---|---|
-| Add a requirement | “Use a 10-day forecast and include incoming stock.” |
-| Stop a task | “Stop the task.” |
-| Open the menu | `/start` or “show menu” |
+| Add a requirement | “Include incoming stock in the calculation.” |
+| Request a stop | “Stop the task.” or “Stop please.” |
+| Open the menu | `/start` |
+| Start a new conversation | `/new` |
+
+Stop phrases are matched as whole messages. A request to stop does not undo completed actions or create a resumable pause. Interface language follows your configuration, not the language of each incoming message.
 
 ## Documentation
 
-- [Install, upgrade and uninstall](docs/INSTALLATION.en.md)
-- [中文安装指南](docs/INSTALLATION.md) · [从零安装](docs/FRESH-INSTALL.md)
-- [Configuration](docs/CONFIGURATION.md) · [Compatibility](docs/COMPATIBILITY.md)
-- [Development and testing](docs/TESTING.md) · [Release builds](docs/RELEASE.md)
-- [Security](SECURITY.md)
+| Guide | What's inside |
+|---|---|
+| [Native installation](docs/NATIVE-INSTALL.md) | Install, update and remove through Hermes |
+| [ZIP installation](docs/INSTALLATION.en.md) | Downloadable editions and manual setup |
+| [Configuration](docs/CONFIGURATION.md) | Language, display presets and progress settings |
+| [Compatibility](docs/COMPATIBILITY.md) | Supported cores and upgrade checks |
+| [Recovery](docs/RECOVERY.md) | Backups and interrupted installations |
+| [Changelog](CHANGELOG.md) | Changes by release |
+
+Some detailed guides are currently in Chinese. Both README pages cover installation and everyday use.
+
+## Contributing
+
+Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and what to include in a report. Check [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions) for regression and upstream compatibility results.
+
+For sensitive reports, follow [SECURITY.md](SECURITY.md). Official directory submission is tracked separately in [catalog status](docs/CATALOG.md).
 
 ## License
 
-[MIT](LICENSE). See [NOTICE.md](NOTICE.md) for dependency and source information.
+[MIT](LICENSE). Dependency and source acknowledgements are in [NOTICE.md](NOTICE.md).

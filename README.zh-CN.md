@@ -1,86 +1,113 @@
+<div align="center">
+
 # Hermes Telegram UX
 
-让 Hermes 在 Telegram 里及时回应、清楚汇报、随时接受新要求。
+**消息即刻回应，进度随时可见，任务途中也能改变方向。**
 
-消息到达即接话，任务进度在同一条消息中更新；执行途中可以补充要求或请求停止，完成后直接收到答案和文件。
+为 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 提供更自然的 Telegram 交互。
 
-[English](README.md) · [下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/latest) · [安装指南](docs/INSTALLATION.md) · [反馈问题](https://github.com/pler1y/hermes-telegram-ux/issues)
+[![Release](https://img.shields.io/github/v/release/pler1y/hermes-telegram-ux)](https://github.com/pler1y/hermes-telegram-ux/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**1.8.1 改进加载失败回滚、卸载和多 Bot 隔离，并允许兼容核心中的纯注释或格式变化。** [官方目录 PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) 已提交，仍需维护者审查及版本成熟期。[原生安装](docs/NATIVE-INSTALL.md) · [收录状态](docs/CATALOG.md)。
+[快速开始](#快速开始) · [使用](#使用) · [文档](#文档) · [English](README.md)
 
-## 用起来是什么样
+</div>
 
-下面是交互流程示例；进度行会更新同一个气泡。模型生成的具体措辞随任务而变化。
+---
 
-| 时刻 | Telegram 中的对话 |
-|---|---|
-| 你发送任务 | 帮我按未来 7 天的需求生成补货表。 |
-| 立即接话 | 🤔 思考中… |
-| 开始处理 | 📄 我先核对库存和日均用量，找出需要补货的商品。 |
-| 你补充要求 | 改为 10 天，把在途库存也算进去。 |
-| 收到补充 | 收到，补充已记下。 |
-| 实际调整 | 🧮 接下来按 10 天计算，同时扣除在途库存。 |
-| 完成交付 | 完整回复和生成的补货 CSV 文件。 |
-
-如果新消息需要排队，回执会说明“这条会在当前任务后处理”。单独发送“停一下”“等一下”“等下”“等等”“停”或“暂停”等短句都可以请求停止，无需记住固定说法。这些表达触发停止，不是可从原位置恢复的暂停；已完成的操作不会自动撤销。包含这些词的完整要求（例如“等一下再部署”）不会直接当成停止指令。
-
-通过 `/start` 打开首页，可以选择查资料、读链接或文件、写几句话；任务、历史对话和用量入口放在“更多设置”中。[1.7.0 实机验收记录](docs/ACCEPTANCE-1.7.0.md)包含已验证的场景和测试边界。
+给 Hermes 发消息后，不必猜它有没有收到。立即获得回应，在同一条消息里查看任务进度，执行中也能补充要求。完成的答案和文件，直接交付到当前聊天。
 
 ## 功能
 
-- **即时接话**：收到消息就给出简短回应，随后自然接上任务进度。
-- **内部状态**：整理聊天上下文时，也能看到 Hermes 正在做什么。
-- **中英双版**：选择中文或英文安装包，接话、进度提示与菜单保持同一种语言。
-- **任务进度**：在同一条消息中持续更新，减少重复通知。
-- **途中补充**：任务进行时，可以继续添加要求、调整方向。
-- **随时停止**：发送“停一下”，停止当前任务，也支持后台任务。
-- **结果交付**：完整发送回复，将生成的文件直接交付到对话中。
-- **快捷入口**：通过首页菜单和后续按钮，继续操作或调整设置。
+- **即时回应**：普通请求到达时立即显示「🤔 思考中…」，不等待模型生成。
+- **同一气泡更新进度**：任务状态持续更新，减少重复消息。
+- **途中补充要求**：添加细节或调整方向；回执会区分补充要求和排队请求。
+- **自然表达停止**：单独说“等一下”“等下”“等等”“停”或“暂停”，即可请求停止。
+- **答案与文件交付**：在 Telegram 中接收完整回复、生成文件和后续操作入口。
+- **中英双语界面**：安装时选择中文或英文。
 
-## 安装
+## 对话示例
 
-需要已接入 Telegram、完成模型登录的 Hermes。本版本验证了 **0.21.0（`b499ab11fe8b`）和 0.21.2（`a84a2223f82c`、`436ec489854b`、`044a77b3b6af`）** 四套核心；其他提交只有在受保护的接口文件完整匹配某套基线时才允许加载，详见[兼容边界](docs/COMPATIBILITY.md)。通过 Hermes 管理插件代码请看[原生安装](docs/NATIVE-INSTALL.md)。
+以下展示交互流程；具体进度措辞由模型根据任务生成。
 
-ZIP 安装从[全部发行版](https://github.com/pler1y/hermes-telegram-ux/releases)选择对应版本的 `-zh.zip` 中文版及校验和文件，校验后解压。
+> **你** · 帮我按未来 7 天的需求生成补货表。<br>
+> **Hermes** · 🤔 思考中…<br>
+> **进度** · 📄 我先核对库存和日均用量。<br>
+> **你** · 改为 10 天，把在途库存也算进去。<br>
+> **Hermes** · 收到，补充已记下。<br>
+> **进度** · 🧮 接下来按 10 天计算，同时扣除在途库存。<br>
+> **结果** · 完整回复和生成的补货 CSV 文件。
 
-在解压目录中，由 Hermes 所属账号先执行只读兼容检查，路径按实际安装位置填写：
+进度行更新同一条临时消息，答案交付后清理。已验证场景见[实机验收记录](docs/ACCEPTANCE-1.7.0.md)。
+
+## 快速开始
+
+### 环境要求
+
+- Linux 或 macOS 上已安装 Hermes，完成模型登录，并接入可正常回复的 Telegram Bot。
+- 使用[支持的 Hermes 核心](docs/COMPATIBILITY.md)。目前验证了 0.21.0 和 0.21.2 的部分修订，并非所有修订都兼容；安装器会在启用前检查。
+- Hermes 的 Python 环境中已具备 PyYAML 6.x 和 `python-telegram-bot` 22.x。
+
+### 使用 Hermes 命令安装
+
+以下适用于**首次安装**。先结束正在执行的任务并停止 Gateway，再由运行 Hermes 的账号执行。将 `HERMES_CORE` 改成实际核心目录，下方为常见路径。
 
 ```bash
-HERMES_HOME="$HOME/.hermes"
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 HERMES_CORE="$HERMES_HOME/hermes-agent"
 HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
 export PYTHONPATH="$HERMES_CORE"
 
-"$HERMES_PYTHON" install.py check --hermes-core "$HERMES_CORE"
+# 安装已验证的 v1.8.2 发行版。
+"$HERMES_PYTHON" -m hermes_cli.main plugins install \
+  https://github.com/pler1y/hermes-telegram-ux \
+  --ref 6197d30a994a195c37611e29f26803ac1db2d6ff --no-enable
 ```
 
-检查通过后，结束正在运行的任务并停止 Gateway，再安装：
+检查兼容性、配置中文界面并启用插件：
 
 ```bash
-"$HERMES_PYTHON" install.py install --hermes-home "$HERMES_HOME" --hermes-core "$HERMES_CORE"
+UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
+"$HERMES_PYTHON" "$UX_DIR/install.py" check --hermes-core "$HERMES_CORE" && \
+"$HERMES_PYTHON" "$UX_DIR/install.py" configure --hermes-core "$HERMES_CORE" --language zh && \
+"$HERMES_PYTHON" -m hermes_cli.main plugins enable hermes-interaction
 ```
 
-重新启动 Gateway，在 Telegram 发送 `/new`，再发送 `/start`。
+配置成功后，重新启动同一个 Gateway。在 Telegram 发送 `/new`，再发送 `/start`。需要英文界面时，将 `--language zh` 改为 `--language en`。
 
-安装选项、配置预览及服务管理方式见 [安装指南](docs/INSTALLATION.md)。
+已有安装请看[升级与卸载](docs/NATIVE-INSTALL.md#upgrade-and-remove)。通过 ZIP 安装的用户继续使用 [ZIP 安装指南](docs/INSTALLATION.md)，不要混用两种安装方式。自定义路径、依赖及共享 Gateway 设置见[原生安装指南](docs/NATIVE-INSTALL.md)。
 
 ## 使用
 
-照常给 Hermes 发送任务即可。运行期间可以继续补充要求，也可以直接停止：
+照常发送消息、链接或文件即可，不需要用特殊命令启动任务。
 
-| 操作 | 示例 |
+| 想做什么 | 发送什么 |
 |---|---|
-| 补充要求 | “改按 10 天计算，把在途库存也算进去。” |
-| 停止任务 | “停一下” |
-| 打开首页 | `/start` 或“开始使用” |
+| 补充要求 | “把在途库存也算进去。” |
+| 请求停止 | “等一下”“等下”“等等”“停”或“暂停” |
+| 打开菜单 | `/start` |
+| 开始新会话 | `/new` |
+
+停止短句按整条消息匹配，“不要停”“等一下再部署”等完整要求不会直接变成停止指令。停止不会撤销已经执行的操作，也不是可以从原位置恢复的暂停。界面语言由配置决定，不随每条消息的语言自动切换。
 
 ## 文档
 
-- [配置说明](docs/CONFIGURATION.md)：显示预设和进度设置
-- [升级与卸载](docs/INSTALLATION.md#升级与卸载) · [故障恢复](docs/RECOVERY.md)
-- [开发与测试](docs/TESTING.md) · [发布构建](docs/RELEASE.md)
-- [安全与隐私](SECURITY.md)
+| 指南 | 内容 |
+|---|---|
+| [原生安装](docs/NATIVE-INSTALL.md) | 通过 Hermes 安装、更新和移除 |
+| [ZIP 安装](docs/INSTALLATION.md) | 下载版本与手动安装 |
+| [从零开始](docs/FRESH-INSTALL.md) | 新环境准备 |
+| [配置说明](docs/CONFIGURATION.md) | 语言、显示预设和进度设置 |
+| [兼容说明](docs/COMPATIBILITY.md) | 支持的核心与升级检查 |
+| [故障恢复](docs/RECOVERY.md) | 备份与中断恢复 |
+| [更新日志](CHANGELOG.md) | 各版本变化 |
+
+## 参与贡献
+
+欢迎提交问题反馈和范围明确的 Pull Request。开发流程与反馈所需信息见 [CONTRIBUTING.md](CONTRIBUTING.md)。回归测试和上游兼容检查结果见 [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions)。
+
+敏感问题请按 [SECURITY.md](SECURITY.md) 处理。官方插件目录申请单独记录在[收录状态](docs/CATALOG.md)中。
 
 ## 许可证
 
-[MIT](LICENSE)。依赖与来源说明见 [NOTICE.md](NOTICE.md)。
+采用 [MIT](LICENSE) 许可证。依赖与来源说明见 [NOTICE.md](NOTICE.md)。
