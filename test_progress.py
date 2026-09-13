@@ -34,7 +34,7 @@ class TaskProgressTests(unittest.TestCase):
             progress = TaskProgress()
             progress.initialize(text)
             self.assertEqual(progress.request, text)
-            self.assertEqual(progress.render(time.monotonic(), 45), "我看一下…")
+            self.assertEqual(progress.render(time.monotonic(), 45), "思考中…")
             self.assertNotIn("深度思考", progress.render(time.monotonic()+90, 45))
 
     def test_search_transitions_follow_native_structured_result(self):

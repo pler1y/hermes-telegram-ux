@@ -15,7 +15,7 @@ This example illustrates the conversation flow. Progress rows update the same bu
 | Moment | In your Telegram chat |
 |---|---|
 | Your request | Make a restocking sheet for the next 7 days. |
-| Immediate reply | Let me take a look 👀 |
+| Immediate reply | 🤔 Thinking… |
 | Work begins | 📄 I'll check stock and daily usage to find what needs restocking. |
 | Your update | Make it 10 days and include incoming stock. |
 | Receipt | Got it — thanks for the update. |

@@ -18,8 +18,8 @@ EN = {
     "收到这条消息了。": "Got your message.",
     "暂时无法继续这个操作，请直接发送一条消息。": "I couldn't continue that action. Please send a message directly.",
     "想一下…": "Let me think 🤔",
-    "我看一下…": "Let me take a look 👀",
-    "好，我看一下 👀": "Let me take a look 👀",
+    "思考中…": "Thinking…",
+    "🤔 思考中…": "🤔 Thinking…",
     "在呢 👋": "Hey! 👋",
     "不客气 😊": "You're welcome 😊",
     "嗯，收到 👌": "Got it 👌",
@@ -163,7 +163,7 @@ def greeting(text, language="zh"):
     elif clean in {"好", "好的", "嗯", "ok", "okay", "got it"}:
         key = "嗯，收到 👌"
     else:
-        key = "好，我看一下 👀"
+        key = "🤔 思考中…"
     return tr(key, language)
 
 

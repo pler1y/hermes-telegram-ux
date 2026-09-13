@@ -304,7 +304,7 @@ class TaskProgress:
         if stage == "analyze":
             return "正在核对资料，整理与你有关的部分…" if "搜索" in self.completed_note or "候选资料" in self.completed_note else "正在核对这一步的结果…"
         return {
-            "opening": "我看一下…",
+            "opening": "思考中…",
             "search": "正在搜索相关资料…",
             "read": "正在阅读，核对具体内容…",
             "inspect": "先看看现有内容和情况…",

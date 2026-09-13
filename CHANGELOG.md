@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.2 — 2026-09-13
+
+- Replace the generic immediate acknowledgement and opening progress with “🤔 思考中…” / “🤔 Thinking…” without adding a delay.
+- Accept standalone Chinese stop requests including 等一下、等下、等等、停 and 暂停 through the existing native stop path. Full sentences and negated requests remain ordinary messages. These aliases stop work; they do not add resumable pause.
+- Update usage examples and cover aliases through the native Telegram command handler.
+
 ## 1.8.1 — 2026-09-12
 
 - Accept formatting/comment-only changes using full Python syntax fingerprints while rejecting changed executable code, literals, scopes, defaults and decorators.

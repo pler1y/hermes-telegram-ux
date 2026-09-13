@@ -67,6 +67,19 @@ class NativeNaturalControls(unittest.IsolatedAsyncioTestCase):
         self.adapter.handle_message.assert_not_awaited()
         self.adapter._log_blocked_user.assert_called_once()
 
+    async def test_new_stop_phrases_reach_native_command_handler(self):
+        from telegram.ext import ApplicationHandlerStop
+        handler = self.handler()
+        for text in ('等一下', '等一下呀', '等下', '等等', '停', '暂停一下'):
+            with self.subTest(text=text):
+                update = self.update(text + '！')
+                self.assertTrue(handler.check_update(update))
+                with self.assertRaises(ApplicationHandlerStop):
+                    await handler.callback(update, S(bot=None))
+                self.assertEqual(self.adapter.handle_message.call_args.args[0].text, '/stop')
+        for text in ('等一下再部署', '不要停', '如果出错就停一下'):
+            self.assertFalse(handler.check_update(self.update(text)))
+
     async def test_conditional_text_and_unaddressed_group_text_are_not_commands(self):
         handler=self.handler()
         self.assertFalse(handler.check_update(self.update('如果出错就停一下')))

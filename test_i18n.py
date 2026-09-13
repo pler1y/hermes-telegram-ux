@@ -13,7 +13,7 @@ class LanguageTests(unittest.TestCase):
     def test_fixed_edition_does_not_follow_input_language(self):
         self.assertEqual(greeting("你好", "en"), "Hey! 👋")
         self.assertEqual(greeting("hello", "zh"), "在呢 👋")
-        self.assertEqual(greeting("Read this file", "zh"), "好，我看一下 👀")
+        self.assertEqual(greeting("Read this file", "zh"), "🤔 思考中…")
         self.assertEqual(greeting("谢谢", "en"), "You're welcome 😊")
 
     def test_english_progress_preserves_counts_and_model_text(self):

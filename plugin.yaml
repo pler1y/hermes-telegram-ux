@@ -1,6 +1,6 @@
 manifest_version: 1
 name: hermes-interaction
-version: 1.8.1
+version: 1.8.2
 label: Hermes Telegram UX
 description: Instant Telegram feedback, live task updates and natural controls for Hermes.
 kind: standalone
