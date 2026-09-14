@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.3-rc.1 — Unpublished catalog candidate, 2026-09-14
+
+- Preserve 1.8.2 feedback and natural stop behavior; keep both native manifests in sync with the two actually registered middleware handlers. Add exact capability and official missing-declaration regression checks.
+- Add reviewed Hermes 0.21.2 core `5eb99eb2844b22ebb723711b8e6a0bbb80bb5f04` while retaining four prior baselines. Require complete source/AST profiles and the matching core version before importing the runtime; reject incomplete contracts and unknown executable changes.
+- Forward consumed natural controls and welcome commands to the native platform observer once, preserving original identity and current-core ingress accounting. Unhandled messages and deep links continue normally.
+- Verify root, payload and installed source through official validation, plus native install/no-enable, bare enable/discovery, disable and removal before/after optional configuration. Save reproducible validation reports.
+- Prepare exact-SHA catalog drafts for unpublished candidates without inventing release timestamps or maturity. No upstream PR or release is created by these tools.
+
+
 ## 1.8.2 — 2026-09-13
 
 - Replace the generic immediate acknowledgement and opening progress with “🤔 思考中…” / “🤔 Thinking…” without adding a delay.

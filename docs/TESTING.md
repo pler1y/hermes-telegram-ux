@@ -77,3 +77,13 @@ CI 执行自动回归和原生注册检查，不使用任何模型或 Telegram �
 `python scripts/check_compatibility.py --hermes-core /path/to/core` 会先验证真实核心，再把受保护文件复制到临时目录：纯注释变化应接受，新增可执行语句应拒绝。CI 分别用 Python 3.11 和 3.12 检查，不修改原核心。新的代码变化、作用域变化、常量变化及非法语法均有拒绝测试。
 
 新版完整 Telegram/模型实机验收尚未记录，不能将上述检查当作实机演示。
+
+## 1.8.3-rc.1 目录候选
+
+CI 已扩展为五套固定核心，并在当前 main 通过完整源码保护后继续执行官方 validate 与原生 enable/discovery。`check_native_install.py --report native-report.json` 保留 source、payload、installed 三份官方 JSON 报告与缺少 tool_request 的拒绝报告；校验必须零警告且实际执行 capability probe。开启前和禁用后还会在新进程中验证插件没有加载。
+
+`test_catalog.py` 核对两处 manifest 与真实 register 的完整能力集合，以及未提供可选 state 的注册环境；检查源码归档、核心版本变化、缺少版本文件、损坏/不完整基线。子进程在 `python -O` 下加载修改过的核心，确认未导入 UX runtime 或 gateway、没有调用任何 ctx 注册接口。
+
+`test_catalog_preparation.py` 使用临时 Git 仓库验证精确 SHA 的草案生成、未发布状态和两周成熟期，防止旧发布时间让新提交提前成熟。`test_controls.py` 使用真实 Telegram observer 验证消费消息只观察一次，保留原消息身份；深链接、未处理文本和不满足群聊条件的消息继续交给 PTB，观察器失败也不会重复执行停止。
+
+新增核心的上游测试及实际本地命令结果见 [VALIDATION-1.8.3-rc.1.md](VALIDATION-1.8.3-rc.1.md)。这些仍是隔离集成验证，不是 Telegram 客户端实机录像。

@@ -13,3 +13,4 @@ config.yaml
 dist/
 catalog-submission/
 .coverage
+native-report.json

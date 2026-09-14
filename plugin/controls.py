@@ -2,6 +2,7 @@
 import logging
 import re
 from .i18n import tr
+from .dispatch import stop_after_dispatch
 
 logger=logging.getLogger(__name__)
 ALIASES={
@@ -23,7 +24,7 @@ def command_for(text):
 
 def wire(application,adapter,language="zh"):
     from telegram import Message,Update
-    from telegram.ext import MessageHandler,filters,ApplicationHandlerStop
+    from telegram.ext import MessageHandler,filters
 
     async def control(update,context):
         msg=update.effective_message
@@ -44,7 +45,7 @@ def wire(application,adapter,language="zh"):
         except Exception as exc:
             logger.warning('Natural Telegram control failed (%s)',type(exc).__name__)
             await msg.reply_text(tr('这次没能确认操作结果，请直接发送 {command}。',language,command=command))
-        raise ApplicationHandlerStop
+        await stop_after_dispatch(adapter, update, context)
 
     pattern=r'(?i)^\s*(?:'+'|'.join(re.escape(text) for text in ALIASES)+r')[。！!.]*\s*$'
     handler=MessageHandler(filters.TEXT & filters.Regex(pattern),control)

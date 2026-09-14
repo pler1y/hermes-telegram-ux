@@ -16,6 +16,8 @@ jobs:
             validator: '--require-validator'
           - core: 044a77b3b6af4ce16138d42762f812a20b9f7a89
             validator: '--require-validator'
+          - core: 5eb99eb2844b22ebb723711b8e6a0bbb80bb5f04
+            validator: '--require-validator'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -43,10 +45,15 @@ jobs:
         run: |
           export PYTHONPATH="$GITHUB_WORKSPACE/hermes-core"
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/run_tests.py
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_compatibility.py --hermes-core "$GITHUB_WORKSPACE/hermes-core"
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_runtime.py
-          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_native_install.py ${{ matrix.validator }}
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_native_install.py ${{ matrix.validator }} --report native-report.json
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/build_release.py --check
           "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_editions.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.core }}
+          path: ux/native-report.json
   upstream-compatibility:
     strategy:
       fail-fast: false
@@ -71,3 +78,16 @@ jobs:
         working-directory: ux
         run: |
           python scripts/check_compatibility.py --hermes-core ../hermes-core
+      - name: Validate and enable on compatible upstream source
+        run: |
+          python -m pip install uv
+          cd hermes-core
+          uv sync --frozen --no-dev --no-install-project --python '${{ matrix.python }}'
+          uv pip install --python .venv/bin/python 'python-telegram-bot==22.8'
+          cd ../ux
+          export PYTHONPATH="$GITHUB_WORKSPACE/hermes-core"
+          "$GITHUB_WORKSPACE/hermes-core/.venv/bin/python" scripts/check_native_install.py --require-validator --report native-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upstream-native-python-${{ matrix.python }}
+          path: ux/native-report.json

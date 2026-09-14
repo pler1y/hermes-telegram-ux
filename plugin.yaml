@@ -1,13 +1,16 @@
 manifest_version: 1
 name: hermes-interaction
-version: 1.8.2
+version: 1.8.3-rc.1
 label: Hermes Telegram UX
 description: Instant Telegram feedback, live task updates and natural controls for Hermes.
 kind: standalone
 license: MIT
 provides_tools: [interaction_update, interaction_actions]
 provides_hooks: [pre_api_request, post_api_request, api_request_error, pre_tool_call, post_tool_call, on_session_end, on_session_reset, pre_gateway_dispatch, pre_approval_request, post_approval_response, subagent_start, subagent_stop, post_llm_call]
-provides_middleware: [llm_request, tool_request]
+# Must match InteractionRuntime.install(), including the tool argument sanitizer.
+provides_middleware:
+  - llm_request
+  - tool_request
 python_dependencies:
   - PyYAML>=6,<7
   - python-telegram-bot>=22,<23

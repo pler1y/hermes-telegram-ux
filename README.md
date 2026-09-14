@@ -15,6 +15,8 @@ A Telegram interaction plugin for [Hermes Agent](https://github.com/NousResearch
 
 ---
 
+Local development candidate: **1.8.3-rc.1** (based on 1.8.2). See [candidate validation](docs/VALIDATION-1.8.3-rc.1.md) and [catalog readiness](docs/CATALOG.md). The commands below still pin the published 1.8.2 release.
+
 Keep working with Hermes without wondering whether your message arrived. Get an immediate acknowledgement, follow progress in a single message, and add instructions while the task is running. Answers and generated files arrive in the same chat.
 
 ## Features

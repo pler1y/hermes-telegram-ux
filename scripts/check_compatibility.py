@@ -22,6 +22,7 @@ def main():
     profile = next(p for p in profiles if p["core_commit"] == result["core_commit"])
     with tempfile.TemporaryDirectory(prefix="hermes-ux-compat-") as raw:
         copy = Path(raw)
+        shutil.copyfile(core / "pyproject.toml", copy / "pyproject.toml")
         for name in profile["files"]:
             target = copy / name
             target.parent.mkdir(parents=True, exist_ok=True)

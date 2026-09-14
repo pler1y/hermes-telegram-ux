@@ -204,14 +204,15 @@ class WelcomeMenu:
 
 
 def wire(application, adapter, language="zh"):
-    from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler, filters, ApplicationHandlerStop
+    from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler, filters
+    from .dispatch import stop_after_dispatch
     menu = WelcomeMenu(adapter, language=language)
     async def start(update, context):
         # Existing deep links retain their native handling.
         if getattr(context, "args", None):
             return
         await menu.open(update, context)
-        raise ApplicationHandlerStop
+        await stop_after_dispatch(adapter, update, context)
     handlers = [CommandHandler(["start", "hello"], start),
         MessageHandler(filters.TEXT & filters.Regex(r"(?i)^(?:开始使用|你能做什么|打开控制菜单|show menu|what can you do)[。！!.]*$"), start),
         CallbackQueryHandler(menu.callback, pattern=r"^hw:")]

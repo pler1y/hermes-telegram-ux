@@ -207,6 +207,17 @@ class LifecycleTests(_LifecycleFixture):
 
 
 class CompatibilityTests(unittest.TestCase):
+    @staticmethod
+    def contract(profiles):
+        for profile in profiles:
+            profile.setdefault("python_ast_v1", {name: "0" * 64 for name in profile["files"]})
+        return {"schema": 4, "policy": "reviewed-source",
+                "guarded_files": list(profiles[0]["files"]), "profiles": profiles}
+
+    @staticmethod
+    def version(root):
+        (root / "pyproject.toml").write_text('[project]\nversion = "0.21.2"\n')
+
     def test_comment_and_indentation_formatting_do_not_disable_the_plugin(self):
         source = "def allowed(user):\n    return user == 7\n"
         # Published fixture for the versioned fingerprint format; do not generate
@@ -215,8 +226,9 @@ class CompatibilityTests(unittest.TestCase):
         profile = {"core_commit": "a" * 40, "hermes_version": "0.21.2",
                    "files": {"interface.py": hashlib.sha256(source.encode()).hexdigest()},
                    "python_ast_v1": {"interface.py": digest}}
-        with tempfile.TemporaryDirectory() as raw, patch("plugin.compat.json.loads", return_value={"profiles": [profile]}):
+        with tempfile.TemporaryDirectory() as raw, patch("plugin.compat.json.loads", return_value=self.contract([profile])):
             root = Path(raw)
+            self.version(root)
             (root / "interface.py").write_text("# revised explanation\n\ndef allowed( user ):\n  return user == 7  # authorized id\n")
             self.assertEqual(verify_core(root)["core_commit"], "a" * 40)
             for changed in ("def allowed(user):\n  return True\n",
@@ -237,11 +249,12 @@ class CompatibilityTests(unittest.TestCase):
     def test_content_match_accepts_unrelated_commit_but_rejects_changed_interface(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
+            self.version(root)
             (root / ".git").mkdir()
             (root / "interface.py").write_text("tested")
             profile = {"core_commit": "a" * 40, "hermes_version": "0.21.2",
                        "files": {"interface.py": hashlib.sha256(b"tested").hexdigest()}}
-            with patch("plugin.compat.json.loads", return_value={"profiles": [profile]}), patch(
+            with patch("plugin.compat.json.loads", return_value=self.contract([profile])), patch(
                 "plugin.compat.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout="b" * 40)
             ):
                 result = verify_core(root)
@@ -254,12 +267,13 @@ class CompatibilityTests(unittest.TestCase):
     def test_cannot_mix_files_from_different_baselines(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
+            self.version(root)
             profiles = [{"core_commit": letter * 40, "hermes_version": "0.21.2",
                          "files": {name: hashlib.sha256(letter.encode()).hexdigest()
                                    for name in ("a.py", "b.py")}} for letter in ("a", "b")]
             (root / "a.py").write_text("a")
             (root / "b.py").write_text("b")
-            with patch("plugin.compat.json.loads", return_value={"profiles": profiles}):
+            with patch("plugin.compat.json.loads", return_value=self.contract(profiles)):
                 with self.assertRaises(CompatibilityError):
                     verify_core(root)
                 (root / "a.py").write_text("b")

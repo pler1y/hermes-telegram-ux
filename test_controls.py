@@ -1,7 +1,7 @@
 """Exercise natural controls through the real Telegram command entry, before busy batching."""
 import unittest
 from types import SimpleNamespace as S
-from unittest.mock import AsyncMock,Mock
+from unittest.mock import AsyncMock,Mock,patch
 from plugin.runtime import InteractionRuntime
 
 
@@ -66,6 +66,50 @@ class NativeNaturalControls(unittest.IsolatedAsyncioTestCase):
             await self.handler().callback(self.update(),S(bot=None))
         self.adapter.handle_message.assert_not_awaited()
         self.adapter._log_blocked_user.assert_called_once()
+
+    async def test_consumed_stop_reaches_native_observer_once_with_original_update(self):
+        from telegram.ext import ApplicationHandlerStop
+        update = self.update()
+        observer = AsyncMock(wraps=self.adapter._on_platform_update)
+        self.adapter._on_platform_update = observer
+        with self.assertRaises(ApplicationHandlerStop):
+            await self.handler().callback(update, S(bot=None))
+        self.assertIs(observer.call_args.args[0], update)
+        self.assertEqual(observer.await_count, 1)
+        self.assertEqual(update.effective_message.text, '停一下。')
+        if hasattr(self.adapter, '_check_ingress_dispatch_stall'):
+            self.assertEqual(self.adapter._updates_dispatched_total, 1)
+
+    async def test_consumed_menu_reaches_native_observer_but_deep_link_continues(self):
+        from telegram.ext import ApplicationHandlerStop, CommandHandler
+        handler = next(h for h, g in self.handlers if g == -2 and isinstance(h, CommandHandler))
+        observer = AsyncMock(wraps=self.adapter._on_platform_update)
+        self.adapter._on_platform_update = observer
+        update = self.update('/start')
+        with patch('plugin.welcome.WelcomeMenu.open', new_callable=AsyncMock) as opened:
+            with self.assertRaises(ApplicationHandlerStop):
+                await handler.callback(update, S(bot=None, args=[]))
+            opened.assert_awaited_once()
+            observer.assert_awaited_once_with(update, S(bot=None, args=[]))
+            await handler.callback(update, S(bot=None, args=['native-deep-link']))
+            self.assertEqual(observer.await_count, 1)
+            self.assertEqual(opened.await_count, 1)
+
+    async def test_unhandled_or_unaddressed_control_leaves_native_observer_to_ptb(self):
+        observer = AsyncMock(wraps=self.adapter._on_platform_update)
+        self.adapter._on_platform_update = observer
+        await self.handler().callback(self.update('do not stop'), S(bot=None))
+        self.adapter._should_process_message.return_value = False
+        await self.handler().callback(self.update(), S(bot=None))
+        observer.assert_not_awaited()
+
+    async def test_native_observer_failure_does_not_redispatch_a_consumed_stop(self):
+        from telegram.ext import ApplicationHandlerStop
+        self.adapter._on_platform_update = AsyncMock(side_effect=RuntimeError('observer failed'))
+        with self.assertRaises(ApplicationHandlerStop):
+            await self.handler().callback(self.update(), S(bot=None))
+        self.adapter.handle_message.assert_awaited_once()
+        self.adapter._enqueue_text_event.assert_not_called()
 
     async def test_new_stop_phrases_reach_native_command_handler(self):
         from telegram.ext import ApplicationHandlerStop

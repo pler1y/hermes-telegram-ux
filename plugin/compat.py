@@ -9,11 +9,44 @@ import ast
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
+import tomllib
 
 
 class CompatibilityError(RuntimeError):
     pass
+
+
+def load_contract() -> dict:
+    """Reject incomplete baselines instead of letting an empty file set match."""
+    def require(condition):
+        if not condition:
+            raise ValueError("Incomplete or malformed baseline")
+
+    try:
+        contract = json.loads(Path(__file__).with_name("compatibility.json").read_text())
+        require(contract["schema"] == 4)
+        require(contract["policy"] == "reviewed-source")
+        required = contract["guarded_files"]
+        require(isinstance(required, list) and required and len(set(required)) == len(required))
+        require(all(isinstance(name, str) and not Path(name).is_absolute()
+                   and ".." not in Path(name).parts and name.endswith(".py") for name in required))
+        profiles = contract["profiles"]
+        require(isinstance(profiles, list) and profiles)
+        commits = set()
+        for profile in profiles:
+            commit = profile["core_commit"]
+            require(re.fullmatch(r"[0-9a-f]{40}", commit) and commit not in commits)
+            commits.add(commit)
+            require(re.fullmatch(r"\d+\.\d+\.\d+", profile["hermes_version"]))
+            for key in ("files", "python_ast_v1"):
+                hashes = profile[key]
+                require(isinstance(hashes, dict) and set(hashes) == set(required))
+                require(all(re.fullmatch(r"[0-9a-f]{64}", digest) for digest in hashes.values()))
+    except (OSError, ValueError, KeyError, TypeError, AssertionError) as exc:
+        raise CompatibilityError("Invalid compatibility contract; no UX hooks were installed.") from exc
+    return contract
 
 
 def python_ast_v1(data: bytes) -> str:
@@ -39,7 +72,7 @@ def verify_core(root: Path | None = None) -> dict:
             raise CompatibilityError("Run with Hermes' Python or pass --hermes-core /path/to/hermes-agent.")
         root = Path(spec.origin).resolve().parent.parent
     root = root.expanduser().resolve()
-    contract = json.loads(Path(__file__).with_name("compatibility.json").read_text())
+    contract = load_contract()
     profiles = contract["profiles"]
     actual, contents, syntax = {}, {}, {}
     for name in {name for profile in profiles for name in profile["files"]}:
@@ -62,14 +95,26 @@ def verify_core(root: Path | None = None) -> dict:
 
     differences = [(profile, [name for name, expected in profile["files"].items()
                              if not matches(profile, name, expected)]) for profile in profiles]
-    matched = next((profile for profile, missing in differences if not missing), None)
-    if matched is None:
+    candidates = [profile for profile, missing in differences if not missing]
+    if not candidates:
         closest, missing = min(differences, key=lambda item: len(item[1]))
         raise CompatibilityError(
             "Unsupported or modified Hermes core. Closest tested commit: " + closest["core_commit"]
             + ". Mismatched interfaces: " + ", ".join(missing)
             + ". No UX hooks were installed. See docs/COMPATIBILITY.md."
         )
+    # Version is an additional boundary, not a substitute for source review.
+    # Parse metadata without importing the core (including its version module).
+    try:
+        version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise CompatibilityError("Cannot read Hermes core version; no UX hooks were installed.") from exc
+    matched = next((profile for profile in candidates if profile["hermes_version"] == version), None)
+    if matched is None:
+        versions = ", ".join(sorted({profile["hermes_version"] for profile in candidates}))
+        raise CompatibilityError(
+            f"Unsupported Hermes version {version!r}; matching source baselines require "
+            f"{versions}. No UX hooks were installed. See docs/COMPATIBILITY.md.")
     # Git HEAD is diagnostic, never a bypass for changed executable syntax.
     revision = None
     if (root / ".git").exists():
@@ -81,5 +126,6 @@ def verify_core(root: Path | None = None) -> dict:
         except (OSError, subprocess.TimeoutExpired):
             pass
     return {"core_commit": matched["core_commit"], "source_commit": revision,
-            "hermes_version": matched["hermes_version"], "interface_files": len(matched["files"]),
+            "hermes_version": version, "policy": contract["policy"],
+            "interface_files": len(matched["files"]),
             "format_only_files": [name for name, expected in matched["files"].items() if actual[name] != expected]}

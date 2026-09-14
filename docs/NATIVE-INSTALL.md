@@ -1,12 +1,15 @@
 # Native Hermes installation · 原生安装
 
-**Version 1.8.2** is available for direct installation. Its official catalog PR is still awaiting acceptance.
+**Published version 1.8.2** remains available for direct installation. The local
+**1.8.3-rc.1** candidate has separate [validation evidence](VALIDATION-1.8.3-rc.1.md);
+its changes are not included in the published SHA below. No upstream action is
+part of this candidate preparation.
 Use an isolated test bot first. The supported core interfaces are listed in
 [COMPATIBILITY.md](COMPATIBILITY.md); a version number alone is insufficient.
 Linux and macOS are supported by the setup helper. Have a working Telegram adapter
 and model login before installing. Use the Python environment that runs Hermes.
 
-1.8.2 可直接安装，官方目录申请尚未获准收录。请先在独立测试环境验证；版本及接口边界见上面的兼容文档。
+1.8.2 可直接安装；本地 1.8.3-rc.1 候选尚未发布或提交。请先在独立测试环境验证；版本及接口边界见上面的兼容文档。
 原生安装由 Hermes 管理代码和固定版本，本项目的 `configure` 只管理交互配置及其备份。
 已经通过 ZIP 安装的实例继续使用对应的安装器；迁移前先卸载受管理的 ZIP 版本，并确认没有恢复出的旧插件占用同名目录。
 
@@ -30,12 +33,15 @@ UX_COMMIT=6197d30a994a195c37611e29f26803ac1db2d6ff
 UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
 
 "$HERMES_PYTHON" "$UX_DIR/install.py" check --hermes-core "$HERMES_CORE"
+# On the supported 0.21.2 cores, validate before configure/enable.
+"$HERMES_PYTHON" -m hermes_cli.main plugins validate "$UX_DIR"
 "$HERMES_PYTHON" "$UX_DIR/install.py" configure --hermes-core "$HERMES_CORE" --language en --dry-run
 "$HERMES_PYTHON" "$UX_DIR/install.py" configure --hermes-core "$HERMES_CORE" --language en
 "$HERMES_PYTHON" -m hermes_cli.main plugins enable hermes-interaction
 ```
 
 中文界面将 `--language en` 改为 `--language zh`。先查看 dry-run，再执行 configure。
+旧 0.21.0 核心没有 validate 命令，只运行兼容检查；候选验证不会把缺少该命令记作通过。
 `configure` 会启用插件、设置显示预设，并允许用户点击后续按钮时注入新消息；不会替换模型登录。
 共享多平台 Gateway 可在首次 configure 时加 `--preset keep-display`，参见 [配置说明](CONFIGURATION.md)。
 
