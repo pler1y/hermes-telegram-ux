@@ -1,116 +1,68 @@
-<div align="center">
+# Hermes Telegram UX · Catalog-safe
 
-# Hermes Telegram UX
+**1.8.3-catalog.1 — local, unpublished candidate.** [中文使用说明](README.zh-CN.md)
 
-**Instant feedback. Live progress. A conversation you can steer.**
+See tool execution, model requests and approval status in Telegram through public Hermes plugin events. A separate status message is edited as events arrive. Hermes continues to deliver interim messages, approvals, final answers and files. Text answers that used tools can include a short record of observed calls.
 
-A Telegram interaction plugin for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+## Scope versus Full
 
-[![Release](https://img.shields.io/github/v/release/pler1y/hermes-telegram-ux)](https://github.com/pler1y/hermes-telegram-ux/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+| Feature | Catalog-safe | Full 1.8.3-rc.1 |
+|---|---|---|
+| Tool / API / approval events | Public-hook status panel | Integrated progress |
+| Interim messages | Native; panel shows that an update arrived | Integrated narration |
+| Final output | Original text plus optional counts | Integrated delivery |
+| Immediate intake receipt | Starts at execution, not ingress | Supported |
+| Busy acknowledgement / steering | Native Hermes | Custom UX |
+| Stop | Native `/stop`; observe actual turn end | Custom lifecycle / phrases |
+| Background completion groups | Native Hermes | Custom rendering |
+| One bubble across the whole lifecycle | Not promised | Supported |
+| Custom menu / action buttons | `/tgux` help only | Supported |
+| Private imports / method replacement | None | Guarded integration |
 
-[Quick start](#quick-start) · [Usage](#usage) · [Documentation](#documentation) · [简体中文](README.zh-CN.md)
+Live display requires a single-use, 60-second ingress ticket propagated through Python context plus matching public sender/profile identity. Missing/lost context, ambiguous identity, reconnects, subagents and background starts fall back to native behavior. Queue restarts may lose the ticket. No session-key parsing, internal polling or gateway mutation is used. Thread metadata and reply anchors are preserved. See the [public API inventory](docs/PUBLIC-API.md).
 
-</div>
+The plugin stores bounded IDs, counts and status categories in memory. It does not copy prompts, tool results, approval commands or interim text to status messages. Counts describe observed events, not billing. Turn-end status is not a delivery receipt. Finished panels remain visible.
 
----
+## Install the delivered artifact
 
-Local development candidate: **1.8.3-rc.1** (based on 1.8.2). See [candidate validation](docs/VALIDATION-1.8.3-rc.1.md) and [catalog readiness](docs/CATALOG.md). The commands below still pin the published 1.8.2 release.
+Requires a working Hermes 0.21.3+ Telegram setup and Python 3.11–3.13. Stop active work and the target Gateway first. Use one edition per Gateway; do not enable Full alongside this edition.
 
-Keep working with Hermes without wondering whether your message arrived. Get an immediate acknowledgement, follow progress in a single message, and add instructions while the task is running. Answers and generated files arrive in the same chat.
-
-## Features
-
-- **Immediate feedback** — “🤔 Thinking…” appears as an ordinary request arrives, without waiting for the model.
-- **One progress message** — task updates share a bubble instead of filling the chat with status messages.
-- **Mid-task instructions** — add a requirement or change direction; receipts distinguish updates from queued requests.
-- **Natural stop requests** — say “stop the task” or “stop please” to enter Hermes' stop flow.
-- **Answers and files** — receive complete replies, generated files and follow-up actions in Telegram.
-- **Two interface languages** — choose English or Chinese during setup.
-
-## In conversation
-
-An illustrative flow; progress wording is generated for each task.
-
-> **You** · Make a restocking sheet for the next 7 days.<br>
-> **Hermes** · 🤔 Thinking…<br>
-> **Progress** · 📄 I'll check stock and daily usage.<br>
-> **You** · Make it 10 days and include incoming stock.<br>
-> **Hermes** · Got it — thanks for the update.<br>
-> **Progress** · 🧮 I'll calculate 10 days of demand, including incoming stock.<br>
-> **Result** · Your answer and restocking CSV.
-
-Progress lines update the same temporary message, which is cleaned up when the answer is delivered. See the [live acceptance record](docs/ACCEPTANCE-1.7.0.md) for previously verified scenarios.
-
-## Quick start
-
-### Requirements
-
-- Hermes with a working model login and Telegram bot, on Linux or macOS.
-- A [supported Hermes core](docs/COMPATIBILITY.md). Selected 0.21.0 and 0.21.2 revisions are tested; not every revision is compatible. The installer checks before enabling the plugin.
-- Hermes' Python environment with PyYAML 6.x and `python-telegram-bot` 22.x.
-
-### Install with Hermes
-
-For a **new installation**, finish active tasks and stop your Gateway. Run the following as the account that runs Hermes. Set `HERMES_CORE` to your actual core directory; the path below is a common layout.
+In the delivery directory, verify the SHA256 file against trusted delivery evidence:
 
 ```bash
-export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-HERMES_CORE="$HERMES_HOME/hermes-agent"
-HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
-export PYTHONPATH="$HERMES_CORE"
-
-# Install the reviewed v1.8.2 release.
-"$HERMES_PYTHON" -m hermes_cli.main plugins install \
-  https://github.com/pler1y/hermes-telegram-ux \
-  --ref 6197d30a994a195c37611e29f26803ac1db2d6ff --no-enable
+shasum -a 256 -c hermes-telegram-ux-catalog-1.8.3-catalog.1.zip.sha256
+CATALOG_HOME="${HERMES_HOME:-$HOME/.hermes}"
+CATALOG_DIR="$CATALOG_HOME/plugins/hermes-telegram-ux-catalog"
+test ! -e "$CATALOG_DIR" && mkdir -p "$CATALOG_DIR" && \
+  unzip -q hermes-telegram-ux-catalog-1.8.3-catalog.1.zip -d "$CATALOG_DIR"
+hermes plugins validate "$CATALOG_DIR"
+hermes plugins enable hermes-telegram-ux-catalog
 ```
 
-Check compatibility, configure the English interface and enable the plugin:
+Restart the same Gateway, then send `/tgux`. `PROVENANCE.json` records the complete source SHA and per-file hashes. No additional Python packages, custom installer or core edits are required.
 
-```bash
-UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
-"$HERMES_PYTHON" "$UX_DIR/install.py" check --hermes-core "$HERMES_CORE" && \
-"$HERMES_PYTHON" "$UX_DIR/install.py" configure --hermes-core "$HERMES_CORE" --language en && \
-"$HERMES_PYTHON" -m hermes_cli.main plugins enable hermes-interaction
-```
+Native Git installation is also supported: `hermes plugins install file:///absolute/path/to/catalog-safe-checkout --ref FULL_40_CHARACTER_REVIEWED_COMMIT --no-enable`, followed by validation and enablement. Substitute the reviewed local source path and full commit from the delivery report. The candidate is not published: do not install the repository's default branch, which remains Full. Do not run an unpinned `plugins update` against that branch.
 
-After successful setup, restart the same Gateway. Send `/new`, then `/start` in Telegram. Change `--language en` to `--language zh` for Chinese.
+## Configuration and removal
 
-Already installed? Follow [upgrade and removal](docs/NATIVE-INSTALL.md#upgrade-and-remove). ZIP users should continue with the [ZIP installation guide](docs/INSTALLATION.en.md); the two installation methods must not be mixed. See [native installation](docs/NATIVE-INSTALL.md) for custom paths, dependencies and shared Gateway settings.
+Merge settings into `plugins.entries.hermes-telegram-ux-catalog.settings` and restart the Gateway:
 
-## Usage
+| Key | Default | Meaning |
+|---|---|---|
+| `language` | `zh` | `zh` or `en` |
+| `progress` | `true` | Show correlated live panels |
+| `final_summary` | `true` | Append counts to text replies with tool activity |
+| `update_interval` | `1.5` | Minimum edit interval, 1–30 seconds |
+| `status_ttl` | `600` | Idle status expiry, 30–3600 seconds |
 
-Send messages, links and files as usual. No special command is needed to start a task.
+Expiry retires the status panel; it does not cancel the task. Initial send failures are not retried, avoiding duplicate messages after ambiguous network failures. Native progress/streaming settings remain operator-controlled. Streamed final annotation visibility depends on the native delivery path; no streaming messages are intercepted.
 
-| To… | Send… |
-|---|---|
-| Add a requirement | “Include incoming stock in the calculation.” |
-| Request a stop | “Stop the task.” or “Stop please.” |
-| Open the menu | `/start` |
-| Start a new conversation | `/new` |
+Run `hermes plugins disable hermes-telegram-ux-catalog` and restart to use native Telegram behavior. Run `hermes plugins remove hermes-telegram-ux-catalog` to remove the directory. For upgrades, stop the Gateway, back up the installed directory, verify the new artifact checksum and replace the directory before validating and enabling it. Restore the backup to roll back.
 
-Stop phrases are matched as whole messages. A request to stop does not undo completed actions or create a resumable pause. Interface language follows your configuration, not the language of each incoming message.
+## Development
 
-## Documentation
+[Testing](docs/TESTING.md) · [Acceptance scenarios](docs/ACCEPTANCE.md) · [Progress](docs/PROGRESS.md) · [API contract and fallback rules](docs/PUBLIC-API.md)
 
-| Guide | What's inside |
-|---|---|
-| [Native installation](docs/NATIVE-INSTALL.md) | Install, update and remove through Hermes |
-| [ZIP installation](docs/INSTALLATION.en.md) | Downloadable editions and manual setup |
-| [Configuration](docs/CONFIGURATION.md) | Language, display presets and progress settings |
-| [Compatibility](docs/COMPATIBILITY.md) | Supported cores and upgrade checks |
-| [Recovery](docs/RECOVERY.md) | Backups and interrupted installations |
-| [Changelog](CHANGELOG.md) | Changes by release |
+CI validates the official contract and clean installation on the fixed baseline and current main. Runtime has no source fingerprint gate. This is not yet an accepted Catalog listing; maintainer review and release maturity remain separate requirements.
 
-Some detailed guides are currently in Chinese. Both README pages cover installation and everyday use.
-
-## Contributing
-
-Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and what to include in a report. Check [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions) for regression and upstream compatibility results.
-
-For sensitive reports, follow [SECURITY.md](SECURITY.md). Official directory submission is tracked separately in [catalog status](docs/CATALOG.md).
-
-## License
-
-[MIT](LICENSE). Dependency and source acknowledgements are in [NOTICE.md](NOTICE.md).
+MIT License.

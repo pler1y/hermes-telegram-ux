@@ -1,69 +1,21 @@
-# 1.6.0 验收记录
+# Catalog-safe live acceptance
 
-日期：2026-09-11，Asia/Shanghai。结果由测试执行者操作真实 Telegram Lite 客户端，并独立核对主机文件、状态日志及后台任务账本取得；不以模型自述作为通过证据。
+Use an isolated Telegram test bot and a fixed official Hermes core. Record exact source/artifact hashes and restore the previous service if setup or delivery fails. Never treat synthetic hook tests as real Telegram acceptance.
 
-## 环境
+| # | Task | Check |
+|---|---|---|
+| 1 | Pure conversation with an exact marker | Model reply arrives; no unnecessary count footer |
+| 2 | One terminal calculation | Tool/API status, correct answer and count |
+| 3 | Read two test files then summarize | Multiple tool transitions; original answer preserved |
+| 4 | Generate a small CSV in the test directory | File delivered by native Hermes |
+| 5 | Read a deliberately absent test file | Honest failure state; final explanation survives |
+| 6 | A bounded foreground wait | Status remains visible during tool execution |
+| 7 | Prompted approval on an isolated fixture | Native buttons; waiting status; approve once |
+| 8 | Deny a fixture approval | Denial status; forbidden fixture action does not execute |
+| 9 | Time-limited fixture task | Tool timeout/failure reflected without blocking later work |
+| 10 | Native `/stop` during a wait, then recovery | Native interruption; next conversation works |
+| 11 | Disable plugin and send a pure reply | Native baseline still works |
 
-- 独立 Linux ARM64 主机，Ubuntu 24.04、Python 3.11.16。
-- 从官方源码提交 `b499ab11fe8b081470e269f2fb27abae03000da5` 安装 Hermes 0.21.0。
-- 独立运行账号、Hermes home、systemd 服务与测试 Bot；原版先完成普通回复和一次真实 terminal 计算。
-- 模型为 `xai-oauth / grok-4.6`，通过用户独立 OAuth 授权接入；没有复制其他应用登录链。
-- Telegram Python SDK 为 22.8。初始没有安装任何 UX 插件，也没有从既有生产实例复制配置或对话。
+Additional automated cases cover rate-limits, transport errors, cross-topic concurrent routes, missing context, duplicate/late events, session reset and unload. Group/topic and multi-profile live tests must be recorded separately if performed. Human product acceptance (“worth installing”) remains the maintainer's judgment after trying the candidate.
 
-## 自动检查
-
-**112 项回归全部通过，0 failure、0 error、0 skipped。** 使用 `scripts/run_tests.py`；其中 14 项为安装与兼容专项，其余覆盖进度状态、公开说明、原生工具中间件、身份隔离、按钮、停止、后台归属及运行期恢复。
-
-另通过 `scripts/check_runtime.py` 验证原生发现 → register(ctx) → 工具/prompt 注册 → 原生中间件分发；覆盖 OpenAI Codex 发送转换以及 xAI 请求中的展示字段。这是请求构造检查，不把它当作两个提供方均完成同等实机验收。
-
-另外创建新的干净核心 checkout 和 `.venv`，按 CI 中的锁定依赖命令安装，从发行 ZIP 解压后的源码再次执行上述 112 项检查及原生注册检查，均通过。GitHub Actions 使用同一组检查命令，托管运行状态和日志见 [自动测试记录](https://github.com/pler1y/hermes-telegram-ux/actions/workflows/tests.yml)；本文的实机结论与托管运行结果分别记录。
-
-## 安装生命周期
-
-| 场景 | 证据与结果 |
-|---|---|
-| 原版首次安装 | 指定 home/core 后由通用 install.py 成功安装，原生 Telegram polling 连接 |
-| 同版本重复安装/修复更新 | 配置变化路径为空，最初恢复基线保留 |
-| 正常卸载 | 插件目录移除，配置解析后的完整映射与原版基线相等 |
-| 从干净基线再安装 | 同一通用安装器成功，重启后实际收发和后台交付正常 |
-| 真实 1.5.0 升级 | 在独立临时 home 安装真实旧包，再安装 1.6.0、卸载；原配置及旧插件逐文件 SHA-256 完全恢复 |
-| 故障恢复 | 测试注入配置写入失败、管理状态写入失败和进程中断；原始配置字节、插件与记录恢复；外部新改动触发拒绝覆盖 |
-| 用户后续配置 | 重复安装保留新值，卸载按叶子和列表成员还原；用户替换整个配置映射时也保留该修改 |
-| 未知核心 | 版本/文件不匹配时在注册和写入插件前拒绝 |
-
-## 真实 Telegram 场景
-
-| 场景 | 观察和独立核对 |
-|---|---|
-| 首页 | `/start` 返回日常首页；鼠标点击“更多设置”更新同一菜单，关闭后可继续发消息 |
-| 单气泡进度 | 库存任务的一个消息 ID 先发送，随后连续编辑；公开说明与实际读取和计算对应，最终结果送达后状态清理 |
-| 及时反馈 | 首次库存测试记录 age=1.22s，缺材料测试 age=1.08s，前台停止测试 age=1.06s。起点是状态生命周期，非发送消息时间；不是延迟保证 |
-| 执行中补充 | 数据源等待期间将 7 天改为 10 天、计入在途、要求缺口降序及新文件名；客户端先显示“收到，补充已记下”，最终只收到修订 CSV |
-| CSV 实际交付 | Telegram 显示 `ten-day.csv` 文件；独立读取 5 行：封箱胶 14、打印纸 14、收纳袋 10、墨盒 7、信封 2，降序且不含不缺货的标签纸 |
-| 缺材料 | material-b.txt 确实不存在；最终说明缺口，notice.txt 保留日期和 30 人上限，将地点与报名截止标为待补充，文件实际送达 |
-| 前台停止 | started 标记出现后发送“停一下”；收到停止反馈，原气泡清理，超过原定完成时间后没有 done 标记，前台活动列表为空 |
-| 后台与前台 | 原生后台账本显示子任务运行；前台请求“我还在”收到独立回复，所属后台状态持续存在 |
-| 后台停止 | “停一下”反馈正在停止后台任务；账本结束为 error/dropped，取消完成事件被消费，没有再次唤醒模型或迟到回复；done 标记不存在 |
-| 后台成功交付 | 干净重装后重新委派，计算结果 5050；客户端收到完整 `5050` 与 background-success.txt，文件内容独立核实 |
-| 后续按钮 | 返回两个选项后鼠标点击“展开第二种”，只展开对应内容，原按钮被移除；单次消费和越权阻止另有回归覆盖 |
-| 完整正文 | 上述最终结果以完整消息出现，未逐字刷屏；模型返回完整长文时仍遵守 Telegram 长度限制 |
-
-`acceptance/verify_artifacts.py` 独立检查实际产物，结果全通过：
-
-| 文件 | SHA-256 |
-|---|---|
-| ten-day.csv | `ec39329de5b46538f282689a394096853c3ca780f55285e316d517dff89213de` |
-| notice.txt | `98c2aba1bf44e1571f6af3a31f30077d8a427c1e7b81515ffedcb86a631d735e` |
-| background-success.txt | `3f95b1b8a32c2c0251dfdbc3c8a30aab6d6e680cf0ef03e8af84a65dff0c4a85` |
-
-## 本次发现并修复
-
-1. 插件卸载时欢迎菜单和后续按钮 handler 未全部移除。已回收所有 handler 的清理函数，并补入卸载幂等回归。
-2. 自动权限检查曾显示成用户确认提示，检查结束后的通用提示又覆盖真实运行步骤。现在区分自动检查与人工确认，结束后恢复原执行状态；补入真实事件顺序回归。
-3. 用户将整个显示配置映射替换为其他值后，卸载曾无法继续。现在保留该修改，同时继续恢复其他受管理项。
-
-所有修复都在发行源码内，通过安装器部署，没有在主机单独打补丁。
-
-## 边界
-
-结果适用于上述固定核心和实际场景。没有验证任意 Hermes 新版、所有第三方插件组合、所有模型、群聊完整流程或 Telegram 所有客户端。停止测试证明本次可控进程被中断，不保证能撤销已经完成的外部操作。速度优化不属于本轮范围。
+Actual results belong in `VALIDATION.md` after execution. There are no Full screenshots or mislabeled mockups in this distribution.

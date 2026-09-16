@@ -3,14 +3,7 @@ __pycache__/
 .venv/
 .env
 .env.*
-auth.json
-config.yaml
-*.db
-*.db-*
-*.log
 .DS_Store
-._*
 dist/
-catalog-submission/
-.coverage
-native-report.json
+artifacts/
+.pytest_cache/

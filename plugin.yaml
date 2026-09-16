@@ -1,46 +1,45 @@
-manifest_version: 1
-name: hermes-interaction
-version: 1.8.3-rc.1
-label: Hermes Telegram UX
-description: Instant Telegram feedback, live task updates and natural controls for Hermes.
-kind: standalone
+name: hermes-telegram-ux-catalog
+version: 1.8.3-catalog.1
+description: Telegram execution progress from public Hermes events, with optional reply statistics.
+author: pler1y
 license: MIT
-provides_tools: [interaction_update, interaction_actions]
-provides_hooks: [pre_api_request, post_api_request, api_request_error, pre_tool_call, post_tool_call, on_session_end, on_session_reset, pre_gateway_dispatch, pre_approval_request, post_approval_response, subagent_start, subagent_stop, post_llm_call]
-# Must match InteractionRuntime.install(), including the tool argument sanitizer.
-provides_middleware:
-  - llm_request
-  - tool_request
-python_dependencies:
-  - PyYAML>=6,<7
-  - python-telegram-bot>=22,<23
-tags: [telegram, ux, progress]
+homepage: https://github.com/pler1y/hermes-telegram-ux
+requires_hermes: ">=0.21.3"
+provides_tools: []
+provides_middleware: []
+provides_hooks:
+  - pre_gateway_dispatch
+  - pre_llm_call
+  - pre_tool_call
+  - post_tool_call
+  - pre_api_request
+  - post_api_request
+  - api_request_error
+  - pre_approval_request
+  - post_approval_response
+  - on_interim_message
+  - transform_llm_output
+  - on_session_end
+  - on_session_finalize
+  - on_session_reset
 config_schema:
   language:
-    type: string
-    default: package
-    description: Fixed interface language (zh or en); package uses the downloaded edition.
-  status_emoji:
+    type: str
+    default: zh
+    description: Status language, zh or en. Restart the Gateway after changing settings.
+  progress:
     type: bool
     default: true
-    description: Add a fitting emoji when a progress update has none.
-  soft_wait:
+    description: Show a separate status message for reliably correlated Telegram turns.
+  final_summary:
     type: bool
-    default: false
-    description: Omit early acknowledgements and ordinary model waiting; show substantive work, important updates and long waits.
-  status_delay_seconds:
+    default: true
+    description: Append observed tool and API counts to text replies that used tools.
+  update_interval:
     type: float
-    default: 0.6
-    description: Fallback delay for task status when an intake acknowledgement is unavailable.
-  status_min_edit_seconds:
+    default: 1.5
+    description: Minimum seconds between status edits (1 to 30).
+  status_ttl:
     type: float
-    default: 2.5
-    description: Minimum interval between normal progress edits.
-  slow_notice_seconds:
-    type: float
-    default: 45.0
-    description: Time without a new event before displaying a waiting notice.
-  text_batch_seconds:
-    type: float
-    default: 0.8
-    description: Telegram text coalescing quiet window.
+    default: 600
+    description: Stop showing live status after this many seconds without an event (30 to 3600).

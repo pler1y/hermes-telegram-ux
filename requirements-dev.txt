@@ -1,2 +1,0 @@
-PyYAML>=6,<7
-# Runtime/integration tests use the pinned Hermes environment; see docs/TESTING.md.

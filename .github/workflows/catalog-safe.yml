@@ -1,0 +1,53 @@
+name: Catalog-safe
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        core: [3c3ab69abb9b08683b5eb15b4e2b8be1198c875f, main]
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ux
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ matrix.core }}
+          path: core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Official locked dependencies
+        working-directory: core
+        run: |
+          python -m pip install uv
+          uv sync --frozen --no-dev --no-install-project --python '${{ matrix.python }}'
+      - name: Unit, contract and boundary checks
+        working-directory: ux
+        run: |
+          export PYTHONPATH="$PWD:$GITHUB_WORKSPACE/core"
+          export HERMES_HOME="$(mktemp -d)"
+          PY="$GITHUB_WORKSPACE/core/.venv/bin/python"
+          "$PY" -m unittest discover -s tests/unit -v
+          "$PY" -m unittest discover -s tests/contract -v
+          "$PY" scripts/check_boundary.py
+          "$PY" -m hermes_cli.main plugins validate . --json
+          "$PY" -m hermes_cli.main plugins doctor . --ci
+          "$PY" scripts/check_native.py --core "$GITHUB_WORKSPACE/core" --ref HEAD
+          "$PY" scripts/build_release.py --ref HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-${{ matrix.core }}-${{ matrix.python }}
+          path: |
+            ux/artifacts/native.json
+            ux/dist/
