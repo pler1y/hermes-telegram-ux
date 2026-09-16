@@ -106,6 +106,16 @@ class StateTests(unittest.TestCase):
         self.feed("post_api_request", api_request_id="r2")
         self.assertEqual(self.adapter.turns[("s1", "t1")].counts(), (0, 2, 0))
 
+    def test_interim_events_share_the_total_memory_bound(self):
+        turn = self.adapter.turns[("s1", "t1")]
+        for index in range(511):
+            self.feed("pre_tool_call", tool_call_id=str(index), tool_name="terminal")
+        self.feed("on_interim_message", iteration=1)
+        self.feed("on_interim_message", iteration=2)
+        self.feed("on_interim_message", iteration=True)
+        self.assertEqual(len(turn.interims), 1)
+        self.assertTrue(turn.capped)
+
     def test_approvals_correlate_by_unique_turn_not_session_key(self):
         self.ctx.hooks["pre_approval_request"](turn_id="t1", tool_call_id="a", session_key="opaque:route", surface="gateway")
         turn = self.adapter.turns[("s1", "t1")]

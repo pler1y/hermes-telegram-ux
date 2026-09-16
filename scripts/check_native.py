@@ -34,9 +34,9 @@ def probe(enabled):
     manager.discover_and_load()
     info = next((p for p in manager.list_plugins() if p["name"] == NAME), None)
     assert info is not None, "Installed plugin not discovered"
-    assert info["error"] is None, info
     assert info["enabled"] is enabled, info
     if enabled:
+        assert info["error"] is None, info
         assert info["hooks"] == 14 and info["tools"] == 0 and info["middleware"] == 0, info
         assert manager.has_hook("transform_llm_output")
         assert manager.invoke_hook("pre_llm_call", session_id="smoke", turn_id="turn", platform="telegram") == []
@@ -45,6 +45,9 @@ def probe(enabled):
         assert len(result) == 1 and result[0].startswith("Preserved final reply"), result
         manager.invoke_hook("on_session_end", session_id="smoke", turn_id="turn", completed=True)
         manager.unload(NAME)
+    else:
+        assert info["hooks"] == 0, info
+        assert info["error"] == "disabled via config" or "not enabled in config" in (info["error"] or ""), info
     assert not manager.has_hook("pre_tool_call")
     manager.unload()
     print(json.dumps({"enabled": enabled, "discovery": "pass", "native_final_path": "pass"}))

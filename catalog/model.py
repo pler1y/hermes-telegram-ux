@@ -63,8 +63,11 @@ class Turn:
             self.last = {"timeout": "approval_timeout", "notify_failed": "approval_failed", "cancelled": "approval_cancelled", "deny": "approval_denied", "smart_deny": "approval_denied"}.get(choice, "working")
         elif event == "on_interim_message":
             iteration = data.get("iteration")
-            if isinstance(iteration, int) and len(self.interims) < 512:
-                self.interims.add(iteration)
+            if isinstance(iteration, int) and not isinstance(iteration, bool) and iteration not in self.interims:
+                if sum(map(len, (self.tools, self.apis, self.approvals, self.interims))) < 512:
+                    self.interims.add(iteration)
+                else:
+                    self.capped = True
             self.last = "interim"
 
     def phase(self):
