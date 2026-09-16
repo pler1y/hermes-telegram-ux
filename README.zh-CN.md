@@ -88,6 +88,8 @@ hermes plugins remove hermes-telegram-ux-catalog
 
 ## 开发与验证
 
-以 [TESTING.md](docs/TESTING.md) 执行单元测试、真实 PluginManager 契约测试、官方 validate/doctor、干净安装生命周期与发行包检查。当前进度见 [PROGRESS.md](docs/PROGRESS.md)，真实体验场景见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。模拟测试与真实 Telegram 结果分别记录。
+已完成 33 项单元/边界测试和 4 项真实宿主契约测试，以及官方验证、两种干净安装流程和真实 Telegram 验收。具体结果与未覆盖范围见 [VALIDATION.md](docs/VALIDATION.md)。
+
+以 [TESTING.md](docs/TESTING.md) 复现开发验证；当前进度见 [PROGRESS.md](docs/PROGRESS.md)，真实体验场景见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。自动化测试与真实 Telegram 结果分别记录。
 
 MIT License。Full 版本请使用独立的 Full 主线及其说明。

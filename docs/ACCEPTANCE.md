@@ -19,3 +19,9 @@ Use an isolated Telegram test bot and a fixed official Hermes core. Record exact
 Additional automated cases cover rate-limits, transport errors, cross-topic concurrent routes, missing context, duplicate/late events, session reset and unload. Group/topic and multi-profile live tests must be recorded separately if performed. Human product acceptance (“worth installing”) remains the maintainer's judgment after trying the candidate.
 
 Actual results belong in `VALIDATION.md` after execution. There are no Full screenshots or mislabeled mockups in this distribution.
+
+For reproducible human-approval cases, the source checkout includes
+`tests/fixtures/approval_gate`, a separate policy plugin that requests native
+approval for harmless marked `printf` commands. This exercises the real Gateway,
+approval buttons and outcome hooks without depending on shell-risk heuristics.
+Remove the fixture after testing; it is excluded from the release archive.

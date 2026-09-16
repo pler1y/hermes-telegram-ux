@@ -75,7 +75,9 @@ def main():
         env["HERMES_BUNDLED_PLUGINS"] = str(temp / "empty-bundled")
         Path(env["HERMES_BUNDLED_PLUGINS"]).mkdir()
         cli = [sys.executable, "-m", "hermes_cli.main", "plugins"]
-        reports = {"core_commit": core_sha, "release": release, "lifecycles": {}}
+        report_release = {key: release[key] for key in ("source_commit", "sha256", "files")}
+        report_release["archive_name"] = Path(release["artifact"]).name
+        reports = {"core_commit": core_sha, "release": report_release, "lifecycles": {}}
         for edition in ("git", "zip"):
             home = temp / edition
             home.mkdir()

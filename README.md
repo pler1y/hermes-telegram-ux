@@ -61,8 +61,8 @@ Run `hermes plugins disable hermes-telegram-ux-catalog` and restart to use nativ
 
 ## Development
 
-[Testing](docs/TESTING.md) · [Acceptance scenarios](docs/ACCEPTANCE.md) · [Progress](docs/PROGRESS.md) · [API contract and fallback rules](docs/PUBLIC-API.md)
+[Validation results](docs/VALIDATION.md) · [Testing](docs/TESTING.md) · [Acceptance scenarios](docs/ACCEPTANCE.md) · [Progress](docs/PROGRESS.md) · [API contract and fallback rules](docs/PUBLIC-API.md)
 
-CI validates the official contract and clean installation on the fixed baseline and current main. Runtime has no source fingerprint gate. This is not yet an accepted Catalog listing; maintainer review and release maturity remain separate requirements.
+Executed checks include 33 unit/boundary tests, 4 real-host contract tests, official validation, clean Git/ZIP lifecycles and 13 live Telegram cases. The CI workflow is configured for the fixed baseline/current main and Python 3.11/3.12; it has not run remotely yet. Runtime has no source fingerprint gate. This is not yet an accepted Catalog listing; maintainer review and release maturity remain separate requirements.
 
 MIT License.

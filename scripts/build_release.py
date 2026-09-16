@@ -11,7 +11,7 @@ import zipfile
 from check_boundary import ROOT, PAYLOAD, scan
 
 FILES = (*PAYLOAD, "plugin.yaml", "LICENSE", "README.md", "README.zh-CN.md", "docs/PUBLIC-API.md",
-         "docs/TESTING.md", "docs/ACCEPTANCE.md", "docs/PROGRESS.md")
+         "docs/TESTING.md", "docs/ACCEPTANCE.md", "docs/PROGRESS.md", "docs/VALIDATION.md")
 
 
 def git(*args):
