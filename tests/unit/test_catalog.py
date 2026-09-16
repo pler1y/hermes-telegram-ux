@@ -41,6 +41,7 @@ class TelegramStub:
         self.sent, self.edits, self.deleted = [], [], []
         self.failure, self.edit_failure = None, None
         self.send_gate = None
+        self.edit_gate = None
 
     async def send(self, **kwargs):
         self.sent.append(kwargs)
@@ -52,6 +53,8 @@ class TelegramStub:
 
     async def edit_message(self, **kwargs):
         self.edits.append(kwargs)
+        if self.edit_gate:
+            await self.edit_gate.wait()
         if self.edit_failure:
             return SimpleNamespace(success=False, retry_after=None)
         return SimpleNamespace(success=True)
@@ -299,6 +302,20 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.telegram.sent), 1)
         self.assertIn("已结束", self.telegram.edits[-1]["content"])
         self.assertFalse(self.adapter.turns)
+
+    async def test_finish_during_inflight_edit_flushes_terminal_status(self):
+        await self.begin()
+        self.telegram.edit_gate = asyncio.Event()
+        self.adapter.observe("pre_api_request", session_id="s1", turn_id="t1", api_request_id="a")
+        await self.settle()
+        self.assertIn("正在请求模型", self.telegram.edits[-1]["content"])
+        self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
+        await self.settle()
+        self.telegram.edit_gate.set()
+        await self.settle()
+        self.assertEqual(len(self.telegram.sent), 1)
+        self.assertIn("已结束", self.telegram.edits[-1]["content"])
+        self.assertFalse(self.adapter.transport.panels)
 
     async def test_interim_text_is_not_resent(self):
         await self.begin()

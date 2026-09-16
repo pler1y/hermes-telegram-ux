@@ -92,6 +92,7 @@ class TelegramPanels:
                     text = panel.text
                     result = await asyncio.wait_for(self.adapter.edit_message(
                         chat_id=panel.route.chat_id, message_id=panel.message_id, content=text,
+                        finalize=panel.terminal,
                     ), timeout=5)
                     if not result.success:
                         # An edit cannot duplicate a message. Honor bounded explicit rate limits.
@@ -102,7 +103,11 @@ class TelegramPanels:
                         return
                     last_text, last_edit = text, time.monotonic()
                 if panel.terminal:
-                    return
+                    # An ending event can arrive while the preceding edit is in flight.
+                    # Only retire after the newest text was actually sent.
+                    if panel.text == last_text:
+                        return
+                    continue
                 idle = self.ttl - (time.monotonic() - panel.touched)
                 if idle <= 0:
                     expired_text = self.expire(key)
