@@ -108,9 +108,11 @@ class CorePolicy(unittest.TestCase):
         result = verify_core(self.core)
         contract = load_contract()
         profile = copy.deepcopy(next(p for p in contract["profiles"] if p["core_commit"] == result["core_commit"]))
-        profile.update(core_commit="f" * 40, hermes_version="0.21.3")
+        # Use an unclaimed patch version so this remains a synthetic selection test
+        # after the running 0.21.3 core gains its real reviewed baseline.
+        profile.update(core_commit="f" * 40, hermes_version="0.21.4")
         contract["profiles"].append(profile)
-        (self.core / "pyproject.toml").write_text('[project]\nversion = "0.21.3"\n')
+        (self.core / "pyproject.toml").write_text('[project]\nversion = "0.21.4"\n')
         with patch("plugin.compat.json.loads", return_value=contract):
             self.assertEqual(verify_core(self.core)["core_commit"], "f" * 40)
 

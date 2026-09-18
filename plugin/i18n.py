@@ -26,6 +26,7 @@ EN = {
     "看看刚查到的内容…": "Let me check what turned up 🧐",
     "整理一下…": "Putting it together ✍️",
     "收到，补充已记下。": "Got it — thanks for the update.",
+    "收到，补充已记下，会同步给当前任务和正在进行的子任务/后台步骤。": "Got it — this reaches the current task and its active subagents/background steps.",
     "收到，这条会在当前任务后处理。": "Got it — this will run after the current task.",
     "收到，会按你的新要求处理。": "Got it — I'll use your updated request.",
     "收到，正在切换到你的新要求。": "Got it — switching to your updated request.",

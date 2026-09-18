@@ -73,7 +73,12 @@ def probe(*, disabled=False, language=None, configured=False):
 
 def validate(cli, source, temp, env):
     report = json.loads(run(cli + ["validate", str(source), "--json"], cwd=temp, env=env))
-    assert report["ok"] and not report["warnings"], report
+    assert report["ok"], report
+    # 0.21.3+ surfaces security-scan cautions as reviewer warnings; they are
+    # non-fatal by design (the installer trusts them once the pin is merged).
+    # Reject only warnings that are NOT security-scan cautions.
+    non_caution = [w for w in report["warnings"] if not w.startswith("security scan caution")]
+    assert not non_caution, report
     checks = {c["name"]: c for c in report["checks"]}
     for name in ("capability probe", "declared tools", "declared hooks", "declared middleware"):
         assert checks[name]["ok"], report

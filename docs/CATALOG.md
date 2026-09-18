@@ -14,7 +14,7 @@ candidate. The intended catalog tier is **community**, maintained by pler1y.
 - Both manifests declare exactly two tools, thirteen hooks and two middleware
   handlers. The official probe must run and report no declaration warnings.
   A fixture missing `tool_request` must fail official validation.
-- Five complete source baselines; every guarded file must match one baseline by
+- Six complete source baselines; every guarded file must match one baseline by
   raw SHA-256 or complete Python AST, and the core version must match that baseline.
   Unknown executable changes, incomplete contracts and mixed baselines fail before
   runtime imports or registration, including under Python optimization.

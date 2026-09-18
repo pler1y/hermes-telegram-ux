@@ -1,4 +1,4 @@
-# 1.8.3-rc.1 candidate validation — 2026-09-14
+# 1.8.3-rc.1 candidate validation — 2026-09-14, updated 2026-09-18
 
 This is a **local, unpublished candidate based on 1.8.2**. No release/tag or upstream
 PR was created or updated. The existing 1.8.2 artifacts are not replaced.
@@ -18,14 +18,18 @@ not modified.
 | 0.21.2 `a84a2223f82c` | 180 passed, 0 skipped | Passed | Passed | Passed, 0 warnings |
 | 0.21.2 `436ec489854b` | 180 passed, 0 skipped | Passed | Passed | Passed, 0 warnings |
 | 0.21.2 `044a77b3b6af` | 180 passed, 0 skipped | Passed | Passed | Passed, 0 warnings |
-| 0.21.2 `5eb99eb2844b` | 180 passed, 0 skipped | Passed | Passed | Passed, 0 warnings |
+| 0.21.2 `5eb99eb2844b` | 182 passed, 0 skipped | Passed | Passed | Passed, 0 warnings |
+| 0.21.3 `debfc7420b61` | 182 passed, 0 skipped | Passed | Passed | Passed, caution (sudo_usage) |
 
-The original 1.8.2 suite had 167 tests. Thirteen new cases cover manifest capability
+The original 1.8.2 suite had 167 tests. Fifteen new cases cover manifest capability
 agreement, incomplete contracts, exact-version selection, pre-registration refusal,
-source archives, native dispatch observation, and unpublished catalog preparation.
-Python 3.12.13 also passed the real-source formatting/change-rejection check on all five baselines; the
-full runtime matrix above uses Python 3.11. Linux CI is configured but has not been
-run remotely for this unpublished candidate.
+source archives, native dispatch observation, unpublished catalog preparation, and
+capability-aware parent/subagent steering receipts plus AST-string collision rejection.
+The four historical 0.21.0/0.21.2
+rows above record their original 180-test runs; the steering-receipt case added for
+0.21.3 was verified at 182 tests on `5eb99eb2` and `debfc7420b`. Python 3.11.13 and
+3.12.14 passed the real-source formatting/change-rejection check on all six baselines;
+the full runtime run used Python 3.11. Linux CI repeats the six-baseline matrix remotely.
 
 ## Native path exercised
 
@@ -34,7 +38,8 @@ release allowlist, fixes its full SHA, and invokes the unmodified official
 `python -m hermes_cli.main plugins` CLI. No mock installer/validator is used.
 
 1. `validate SOURCE --json` and `validate SOURCE/plugin --json`: the capability
-   probe executes register; tools/hooks/middleware match with zero warnings.
+   probe executes register; tools/hooks/middleware match. The current validator
+   may report an accepted security-scan `caution`; `dangerous` remains rejected.
 2. Remove `tool_request` from a separate fixture manifest: official validation
    returns exit 1 specifically for undeclared middleware. This proves registration
    is reached; a guard failure cannot be mistaken for the expected rejection.
@@ -76,6 +81,17 @@ reducing protection to signatures.
 - The current admission validator fixes the old requires_hermes parser import.
   The field remains omitted in the plugin manifest to retain old validator support;
   a mandatory exact-version gate supplements the existing source guard instead.
+
+Reviewed [5eb99eb2 → debfc7420b](https://github.com/NousResearch/hermes-agent/compare/5eb99eb2844b22ebb723711b8e6a0bbb80bb5f04...debfc7420b61a96ad97fc03b18cca74d7e72697d):
+
+- Busy steering now fans the same supplement out to active subagents. The UX receipt
+  names that delivery only when the reviewed core exposes the fan-out capability and
+  live children exist; older supported cores keep the short parent-only receipt.
+- The Codex SDK transform bypass moved from `agent.codex_runtime` to
+  `agent.sdk_transform_bypass`. The runtime probe uses the new public location with
+  an import fallback so both reviewed layouts remain executable.
+- `/stop` gained thread/chat-scope matching; the plugin still delegates stop semantics
+  to the native handler and its existing stop/cleanup regressions continue to pass.
 
 In the new core, **101 upstream tests passed** across these files:
 

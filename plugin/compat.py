@@ -62,6 +62,14 @@ def python_ast_v1(data: bytes) -> str:
         # Nonempty type parameters remain guarded as executable syntax.
         if getattr(node, "type_params", None) == []:
             del node.type_params
+        # ast.dump() changed how it renders some non-BMP string constants in
+        # Python 3.12. Canonicalize every string through an injective ASCII
+        # encoding so the same reviewed source has one fingerprint on 3.11/3.12.
+        # Applying the transform to every string also prevents a source string
+        # that resembles the tag from colliding with a transformed value.
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            node.value = ("\0HERMES_AST_STR_V1:"
+                          + node.value.encode("unicode_escape").decode("ascii"))
     return hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
 
 

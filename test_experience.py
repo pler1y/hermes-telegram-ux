@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from typing import Any, cast
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 sys.path.insert(0, str(Path(__file__).parent))
 from plugin.status import TurnRegistry, TurnState, ANALYZE, RETRY, phase_for_tool, tool_failed, safe_status_text
 from plugin.runtime import InteractionRuntime
@@ -136,6 +137,49 @@ class NativeCompatibilityTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIn(tr(expected, language), state.render(state.created_at + 3))
         finally:
             self.runtime.uninstall()
+
+    async def test_steer_receipt_tracks_verified_subagent_fanout_capability(self):
+        from plugin.i18n import tr
+        self.runtime._patch_runner()
+        try:
+            source = SimpleNamespace(chat_id='123', user_id='u', thread_id=None, platform='telegram')
+            event = SimpleNamespace(source=source, text='再顺手看一下日志')
+            child = SimpleNamespace(steer=Mock(return_value=True))
+            parent = SimpleNamespace(
+                steer=Mock(return_value=True), _active_children=[child], _active_children_lock=None)
+
+            runner = object.__new__(self.Runner)
+            fanout = getattr(self.Runner, '_steer_running_agent', None)
+            if callable(fanout):
+                # Reviewed cores with native fan-out send identical text to parent and child.
+                self.assertTrue(fanout(runner, parent, event.text))
+                parent.steer.assert_called_once_with(event.text)
+                child.steer.assert_called_once_with(event.text)
+                for language in ('zh', 'en'):
+                    self.runtime.language = language
+                    with self.subTest(language=language, capability='fanout'):
+                        message = self.Runner._compose_busy_ack_message(
+                            runner, cast(Any, event), 0, None, parent, is_steer_mode=True,
+                            is_queue_mode=False, is_redirect_mode=False,
+                            demoted_for_subagents=False, demoted_for_compression=False)
+                        self.assertEqual(message, tr(
+                            '收到，补充已记下，会同步给当前任务和正在进行的子任务/后台步骤。', language))
+                        if language == 'en':
+                            self.assertNotRegex(message, r'[\u4e00-\u9fff]')
+
+            # Older reviewed baselines have no native fan-out method and must not overpromise.
+            with patch.object(self.Runner, '_steer_active_subagents', None, create=True):
+                for language in ('zh', 'en'):
+                    self.runtime.language = language
+                    with self.subTest(language=language, capability='parent-only'):
+                        message = self.Runner._compose_busy_ack_message(
+                            runner, cast(Any, event), 0, None, parent, is_steer_mode=True,
+                            is_queue_mode=False, is_redirect_mode=False,
+                            demoted_for_subagents=False, demoted_for_compression=False)
+                        self.assertEqual(message, tr('收到，补充已记下。', language))
+        finally:
+            self.runtime.uninstall()
+
     async def test_stop_preserves_native_control_and_reports_verified_progress(self):
         original=self.Runner._busy_stop_command
         calls=[]

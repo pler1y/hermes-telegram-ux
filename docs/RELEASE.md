@@ -16,13 +16,13 @@ python scripts/build_release.py --check
 python scripts/check_editions.py
 ```
 
-对全部五套支持基线检查回归和原生生命周期；0.21.0 没有官方 validator，明确记录为不可用，不作为 admission 成功。新核心对应的上游批处理、审批、任务租约和后台持久化回归也要完成。详见 [候选验证](VALIDATION-1.8.3-rc.1.md)。
+对全部六套支持基线检查回归和原生生命周期；0.21.0 没有官方 validator，明确记录为不可用，不作为 admission 成功。新核心对应的上游批处理、审批、任务租约和后台持久化回归也要完成。详见 [候选验证](VALIDATION-1.8.3-rc.1.md)。
 
 构建器只读取允许列表，检查敏感内容和 Python 语法，生成确定性的中英文 ZIP、SHA-256 校验文件及 `release-manifest.json`。新增或修改代码/文档后必须重建；不要修改已发布 ZIP。提交候选时不包含忽略的 `dist/`、`catalog-submission/` 或本地测试报告，也不带入既有未跟踪研究资料。
 
 ## 发布说明
 
-- 支持新增官方 core `5eb99eb2844b22ebb723711b8e6a0bbb80bb5f04`，保留原四套基线。
+- 支持新增官方 core `debfc7420b61a96ad97fc03b18cca74d7e72697d`，保留原五套基线。
 - 完整源码/AST 检查外，再核对核心版本与基线清单完整性；未知代码在注册前拒绝。
 - 两处 middleware 声明与真实注册一致；官方验证器验证根目录、payload 和原生安装后的目录，并有漏声明失败样本。
 - 原生 enable 即可加载；配置助手仍用于语言、显示和按钮权限配置，并保留配置恢复功能。

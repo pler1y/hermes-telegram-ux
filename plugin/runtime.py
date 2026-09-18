@@ -189,6 +189,13 @@ class InteractionRuntime:
                     is_redirect_mode=is_redirect_mode, demoted_for_subagents=demoted_for_subagents,
                     demoted_for_compression=demoted_for_compression)
             if is_steer_mode:
+                # Only reviewed cores exposing native steer fan-out may promise child delivery.
+                # Older supported baselines keep the short receipt even when children exist.
+                fanout = getattr(GatewayRunner, "_steer_active_subagents", None)
+                has_children = getattr(GatewayRunner, "_agent_has_active_subagents", None)
+                if (callable(fanout) and callable(has_children) and has_children(running_agent)):
+                    return tr("收到，补充已记下，会同步给当前任务和正在进行的子任务/后台步骤。",
+                              runtime.language)
                 return tr("收到，补充已记下。", runtime.language)
             if is_queue_mode:
                 return tr("收到，这条会在当前任务后处理。", runtime.language)

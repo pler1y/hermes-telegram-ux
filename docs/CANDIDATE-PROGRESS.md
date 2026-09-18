@@ -5,16 +5,18 @@ without publishing a release or creating/updating an upstream PR.
 
 - Both middleware declarations match real registration; root/payload/installed
   sources pass the official probe and a missing middleware declaration is rejected.
-- Preserve all four old baselines and add reviewed official core
-  `5eb99eb2844b22ebb723711b8e6a0bbb80bb5f04`. Full-file/AST matching, complete profile
+- Preserve all five prior baselines and add reviewed official 0.21.3 core
+  `debfc7420b61a96ad97fc03b18cca74d7e72697d`. Full-file/AST matching, complete profile
   metadata and exact core versions are required before runtime import/registration.
 - Preserve native platform observation for UX-consumed Telegram updates; current
   core ingress counters no longer miss natural stop/menu messages.
-- Five cores each passed 180 plugin tests with no skips, compatibility/runtime
-  checks, native lifecycle and both ZIP edition lifecycles. Four newer cores also
-  passed official validation; the oldest core has no validator command.
-- Current-core upstream regressions: 101 passed. Python 3.12 source fingerprint
-  checks passed on all five cores; full runtime checks used Python 3.11 on macOS.
+- The newest two cores passed 182 plugin tests; the four historical cores retain
+  their recorded 180-test runs. All six passed with no skips, compatibility/runtime
+  checks, native lifecycle and both ZIP edition lifecycles. Five newer cores also
+  pass official validation; the newest surfaces a non-fatal security-scan caution.
+  The oldest core has no validator command.
+- Current-core upstream regressions: 101 passed. Python 3.11 and 3.12 source
+  fingerprint checks passed on all six cores; full runtime checks used Python 3.11 on macOS.
 - Details and reproducible commands: [validation](VALIDATION-1.8.3-rc.1.md),
   [release](RELEASE.md), [catalog preparation](CATALOG.md).
 - Existing untracked `docs/research/` remains untouched and outside the candidate.

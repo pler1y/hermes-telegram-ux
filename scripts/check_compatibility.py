@@ -27,11 +27,18 @@ def main():
             target = copy / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(core / name, target)
+        # Every stored AST fingerprint must accept a comment-only change on
+        # every supported Python version. Testing one file cannot detect a
+        # version-sensitive ast.dump() representation in another file.
+        for name in profile["files"]:
+            target = copy / name
+            original = target.read_bytes()
+            target.write_bytes(b"# Non-executable formatting fixture\n" + original)
+            formatted = verify_core(copy)
+            assert name in formatted["format_only_files"]
+            target.write_bytes(original)
         target = copy / "gateway/run.py"
         original = target.read_bytes()
-        target.write_bytes(b"# Non-executable formatting fixture\n" + original)
-        formatted = verify_core(copy)
-        assert "gateway/run.py" in formatted["format_only_files"]
         target.write_bytes(original + b"\nHERMES_UX_UNREVIEWED_CHANGE = True\n")
         try:
             verify_core(copy)
@@ -39,7 +46,9 @@ def main():
             pass
         else:
             raise AssertionError("Changed executable code was accepted")
-    print(json.dumps(dict(result, formatting_accepted=True, code_change_rejected=True)))
+    print(json.dumps(dict(result, formatting_accepted=True,
+                          formatting_files_checked=len(profile["files"]),
+                          code_change_rejected=True)))
 
 
 if __name__ == "__main__":

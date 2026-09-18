@@ -80,7 +80,7 @@ CI 执行自动回归和原生注册检查，不使用任何模型或 Telegram �
 
 ## 1.8.3-rc.1 目录候选
 
-CI 已扩展为五套固定核心，并在当前 main 通过完整源码保护后继续执行官方 validate 与原生 enable/discovery。`check_native_install.py --report native-report.json` 保留 source、payload、installed 三份官方 JSON 报告与缺少 tool_request 的拒绝报告；校验必须零警告且实际执行 capability probe。开启前和禁用后还会在新进程中验证插件没有加载。
+CI 已扩展为六套固定核心，并在当前 main 通过完整源码保护后继续执行官方 validate 与原生 enable/discovery。`check_native_install.py --report native-report.json` 保留 source、payload、installed 三份官方 JSON 报告与缺少 tool_request 的拒绝报告；校验必须成功且实际执行 capability probe，允许官方扫描器报告非致命 `caution`，但仍拒绝 `dangerous`。开启前和禁用后还会在新进程中验证插件没有加载。
 
 `test_catalog.py` 核对两处 manifest 与真实 register 的完整能力集合，以及未提供可选 state 的注册环境；检查源码归档、核心版本变化、缺少版本文件、损坏/不完整基线。子进程在 `python -O` 下加载修改过的核心，确认未导入 UX runtime 或 gateway、没有调用任何 ctx 注册接口。
 

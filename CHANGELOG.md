@@ -7,6 +7,7 @@
 - Forward consumed natural controls and welcome commands to the native platform observer once, preserving original identity and current-core ingress accounting. Unhandled messages and deep links continue normally.
 - Verify root, payload and installed source through official validation, plus native install/no-enable, bare enable/discovery, disable and removal before/after optional configuration. Save reproducible validation reports.
 - Prepare exact-SHA catalog drafts for unpublished candidates without inventing release timestamps or maturity. No upstream PR or release is created by these tools.
+- Add the reviewed Hermes 0.21.3 core `debfc7420b61a96ad97fc03b18cca74d7e72697d`. Use the native steer fan-out capability to describe delivery to active subagents without overpromising on older supported cores, and keep the Codex runtime probe compatible with both module layouts.
 
 
 ## 1.8.2 — 2026-09-13

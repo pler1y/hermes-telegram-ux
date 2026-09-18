@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Live native discovery/middleware verification in a disposable Hermes home."""
 import json
+from importlib import import_module
 import os
 from pathlib import Path
 import sys
@@ -32,7 +33,12 @@ def main():
         assert has_middleware("llm_request") and has_middleware("tool_request")
         from hermes_cli.middleware import apply_llm_request_middleware
         from agent.codex_responses_adapter import _preflight_codex_api_kwargs
-        from agent.codex_runtime import _bypass_sdk_request_transform
+        try:
+            bypass_sdk_request_transform = getattr(
+                import_module("agent.sdk_transform_bypass"), "bypass_sdk_request_transform")
+        except (ImportError, AttributeError):
+            bypass_sdk_request_transform = getattr(
+                import_module("agent.codex_runtime"), "_bypass_sdk_request_transform")
         from plugin.status import TurnState
         from plugin.progress import TaskProgress
         runtime = next(callback.__self__ for callback in get_plugin_manager()._middleware["llm_request"]
@@ -44,7 +50,7 @@ def main():
                            "type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}]}
             result = apply_llm_request_middleware(request, session_id="ux-fixture", platform="telegram", provider=provider)
             assert result.changed, provider
-            wire = _bypass_sdk_request_transform(_preflight_codex_api_kwargs(result.payload)) if provider == "openai-codex" else result.payload
+            wire = bypass_sdk_request_transform(_preflight_codex_api_kwargs(result.payload)) if provider == "openai-codex" else result.payload
             tool = wire.get("tools", wire.get("extra_body", {}).get("tools"))[0]
             assert "_hermes_progress" in tool["parameters"]["required"], provider
             assert "Telegram delivery requirement" in wire["instructions"]

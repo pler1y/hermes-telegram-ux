@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import yaml
 import install as lifecycle
-from plugin.compat import CompatibilityError, verify_core
+from plugin.compat import CompatibilityError, python_ast_v1, verify_core
 
 
 class _LifecycleFixture(unittest.TestCase):
@@ -240,6 +240,11 @@ class CompatibilityTests(unittest.TestCase):
                     (root / "interface.py").write_text(changed)
                     with self.assertRaises(CompatibilityError):
                         verify_core(root)
+
+    def test_ast_string_canonicalization_cannot_collide_with_tag_like_source(self):
+        non_bmp = 'VALUE = "😀"\n'.encode()
+        old_tag_collision = b'VALUE = "\\0HERMES_AST_NONBMP_V1:\\\\U0001f600"\n'
+        self.assertNotEqual(python_ast_v1(non_bmp), python_ast_v1(old_tag_collision))
 
     def test_missing_core_interfaces_fail_closed(self):
         with tempfile.TemporaryDirectory() as root:
