@@ -9,15 +9,17 @@
 [![Release](https://img.shields.io/github/v/release/pler1y/hermes-telegram-ux)](https://github.com/pler1y/hermes-telegram-ux/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[快速开始](#快速开始) · [使用](#使用) · [文档](#文档) · [English](README.md)
+[安装稳定版](#快速开始) · [下载 1.8.2](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.2) · [文档导航](docs/README.md) · [English](README.md)
 
 </div>
 
 ---
 
-当前本地开发候选：**1.8.3-rc.1**，基于 1.8.2。见[候选验证](docs/VALIDATION-1.8.3-rc.1.md)和[目录准备](docs/CATALOG.md)。以下安装命令仍固定已发布的 1.8.2。
-
 给 Hermes 发消息后，不必猜它有没有收到。立即获得回应，在同一条消息里查看任务进度，执行中也能补充要求。完成的答案和文件，直接交付到当前聊天。
+
+**当前稳定版：1.8.2。** 以下快速开始安装此版本；升级 Hermes 前请先核对[稳定版兼容范围](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。
+
+使用 **Hermes Agent** 请选择本项目；使用 **OpenClaw** 请前往 [OpenClaw Telegram UX](https://github.com/pler1y/openclaw-telegram-ux)。两个插件分别安装，功能与兼容范围以各自文档为准。
 
 ## 功能
 
@@ -47,7 +49,7 @@
 ### 环境要求
 
 - Linux 或 macOS 上已安装 Hermes，完成模型登录，并接入可正常回复的 Telegram Bot。
-- 使用[支持的 Hermes 核心](docs/COMPATIBILITY.md)。目前验证了 0.21.0 和 0.21.2 的部分修订，并非所有修订都兼容；安装器会在启用前检查。
+- 使用[1.8.2 支持的 Hermes 核心](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。目前验证了 0.21.0 和 0.21.2 的部分修订，并非所有修订都兼容；安装器会在启用前检查。
 - Hermes 的 Python 环境中已具备 PyYAML 6.x 和 `python-telegram-bot` 22.x。
 
 ### 使用 Hermes 命令安装
@@ -94,17 +96,21 @@ UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
 
 ## 文档
 
+[完整文档与目录导航](docs/README.md)按安装使用、开发维护和版本记录整理。
+
 | 指南 | 内容 |
 |---|---|
 | [原生安装](docs/NATIVE-INSTALL.md) | 通过 Hermes 安装、更新和移除 |
 | [ZIP 安装](docs/INSTALLATION.md) | 下载版本与手动安装 |
 | [从零开始](docs/FRESH-INSTALL.md) | 新环境准备 |
 | [配置说明](docs/CONFIGURATION.md) | 语言、显示预设和进度设置 |
-| [兼容说明](docs/COMPATIBILITY.md) | 支持的核心与升级检查 |
+| [稳定版兼容说明](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md) | 1.8.2 支持的核心与升级检查 |
 | [故障恢复](docs/RECOVERY.md) | 备份与中断恢复 |
 | [更新日志](CHANGELOG.md) | 各版本变化 |
 
 ## 参与贡献
+
+当前开发分支为 **1.8.3-rc.1** 候选，基于 1.8.2，尚未发布。候选新增的核心支持见[开发分支兼容表](docs/COMPATIBILITY.md)和[候选验证](docs/VALIDATION-1.8.3-rc.1.md)。
 
 欢迎提交问题反馈和范围明确的 Pull Request。开发流程与反馈所需信息见 [CONTRIBUTING.md](CONTRIBUTING.md)。回归测试和上游兼容检查结果见 [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions)。
 

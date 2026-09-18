@@ -2,12 +2,14 @@
 
 ## Before you start
 
-Use a [supported Hermes core](COMPATIBILITY.md). Confirm your model login and Telegram bot work before adding this plugin. The installer checks all guarded files against one tested baseline. This page covers ZIP lifecycle management; see [native installation](NATIVE-INSTALL.md) for Hermes-managed Git installs.
+For stable version 1.8.2, use a [core supported by that release](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md). Confirm your model login and Telegram bot work before adding this plugin. The installer checks all guarded files against one tested baseline. This page covers ZIP lifecycle management; see [native installation](NATIVE-INSTALL.md) for Hermes-managed Git installs.
 
-Download an edition and its matching `.zip.sha256` from [Releases](https://github.com/pler1y/hermes-telegram-ux/releases). This branch is a pre-release candidate:
+Download an edition and its matching `.zip.sha256` from the [1.8.2 stable release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.2):
 
-- `hermes-telegram-ux-1.8.0-rc.1-en.zip` for English.
-- `hermes-telegram-ux-1.8.0-rc.1-zh.zip` for Chinese.
+- `hermes-telegram-ux-1.8.2-en.zip` for English.
+- `hermes-telegram-ux-1.8.2-zh.zip` for Chinese.
+
+The development branch is the unpublished 1.8.3-rc.1 candidate. Its additional core support is listed separately in the [candidate compatibility table](COMPATIBILITY.md).
 
 On Linux, verify with `sha256sum -c <archive>.sha256`; on macOS, use `shasum -a 256 -c <archive>.sha256`. Extract the ZIP and open its directory. Run the following as the account that owns your Hermes installation, adjusting the paths:
 

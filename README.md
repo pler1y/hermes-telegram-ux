@@ -9,15 +9,17 @@ A Telegram interaction plugin for [Hermes Agent](https://github.com/NousResearch
 [![Release](https://img.shields.io/github/v/release/pler1y/hermes-telegram-ux)](https://github.com/pler1y/hermes-telegram-ux/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Quick start](#quick-start) · [Usage](#usage) · [Documentation](#documentation) · [简体中文](README.zh-CN.md)
+[Install stable](#quick-start) · [Download 1.8.2](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.2) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
 
 </div>
 
 ---
 
-Local development candidate: **1.8.3-rc.1** (based on 1.8.2). See [candidate validation](docs/VALIDATION-1.8.3-rc.1.md) and [catalog readiness](docs/CATALOG.md). The commands below still pin the published 1.8.2 release.
-
 Keep working with Hermes without wondering whether your message arrived. Get an immediate acknowledgement, follow progress in a single message, and add instructions while the task is running. Answers and generated files arrive in the same chat.
+
+**Current stable release: 1.8.2.** The quick start below installs this version. Check its [supported cores](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md) before upgrading Hermes.
+
+Use this project with **Hermes Agent**. For **OpenClaw**, use [OpenClaw Telegram UX](https://github.com/pler1y/openclaw-telegram-ux). The plugins install separately; each has its own features and compatibility requirements.
 
 ## Features
 
@@ -47,7 +49,7 @@ Progress lines update the same temporary message, which is cleaned up when the a
 ### Requirements
 
 - Hermes with a working model login and Telegram bot, on Linux or macOS.
-- A [supported Hermes core](docs/COMPATIBILITY.md). Selected 0.21.0 and 0.21.2 revisions are tested; not every revision is compatible. The installer checks before enabling the plugin.
+- A [Hermes core supported by 1.8.2](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md). Selected 0.21.0 and 0.21.2 revisions are tested; not every revision is compatible. The installer checks before enabling the plugin.
 - Hermes' Python environment with PyYAML 6.x and `python-telegram-bot` 22.x.
 
 ### Install with Hermes
@@ -94,18 +96,22 @@ Stop phrases are matched as whole messages. A request to stop does not undo comp
 
 ## Documentation
 
+The [documentation index and repository map](docs/README.md) group installation, development, and release records.
+
 | Guide | What's inside |
 |---|---|
 | [Native installation](docs/NATIVE-INSTALL.md) | Install, update and remove through Hermes |
 | [ZIP installation](docs/INSTALLATION.en.md) | Downloadable editions and manual setup |
 | [Configuration](docs/CONFIGURATION.md) | Language, display presets and progress settings |
-| [Compatibility](docs/COMPATIBILITY.md) | Supported cores and upgrade checks |
+| [Stable compatibility](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md) | Cores supported by 1.8.2 and upgrade checks |
 | [Recovery](docs/RECOVERY.md) | Backups and interrupted installations |
 | [Changelog](CHANGELOG.md) | Changes by release |
 
 Some detailed guides are currently in Chinese. Both README pages cover installation and everyday use.
 
 ## Contributing
+
+The development branch is **1.8.3-rc.1**, an unpublished candidate based on 1.8.2. Its added core support is documented in the [development compatibility table](docs/COMPATIBILITY.md) and [candidate validation](docs/VALIDATION-1.8.3-rc.1.md).
 
 Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and what to include in a report. Check [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions) for regression and upstream compatibility results.
 
