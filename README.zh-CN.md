@@ -110,7 +110,7 @@ UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
 
 ## 参与贡献
 
-当前开发分支为 **1.8.3-rc.1** 候选，基于 1.8.2，尚未发布。候选新增的核心支持见[开发分支兼容表](docs/COMPATIBILITY.md)和[候选验证](docs/VALIDATION-1.8.3-rc.1.md)。
+当前开发分支为 **1.8.3-rc.2 Full** 候选，尚未发布。Full 使用受兼容检查保护的 Hermes 运行时集成，保持完整 Telegram 体验，与 Catalog-safe 分开维护。支持范围见[兼容表](docs/COMPATIBILITY.md)，本轮验证见[Full 维护进度](docs/FULL-PROGRESS.md)。
 
 欢迎提交问题反馈和范围明确的 Pull Request。开发流程与反馈所需信息见 [CONTRIBUTING.md](CONTRIBUTING.md)。回归测试和上游兼容检查结果见 [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions)。
 

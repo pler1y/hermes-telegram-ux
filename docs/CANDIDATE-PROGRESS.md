@@ -1,3 +1,7 @@
+# Current Full development
+
+Current Full work and validation are recorded in [FULL-PROGRESS.md](FULL-PROGRESS.md). The 2026-09-14 catalog preparation below is historical; it is not the release route for Full.
+
 # Catalog candidate — 2026-09-14
 
 Goal completed locally: prepare 1.8.2 behavior as the new **1.8.3-rc.1** candidate,

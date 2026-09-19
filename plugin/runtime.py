@@ -27,6 +27,7 @@ from .controls import ALIASES
 from .i18n import package_language, localize, tr
 from .intake import IntakeFeedback
 from .bindings import Overrides, Handlers
+from .full_adapter import FullAdapter, current_turn, source_key, serialized_hook
 
 # Tool catalogue and skill loading are implementation setup, not user-facing search/read work.
 _SETUP_TOOLS = SETUP_TOOLS
@@ -47,6 +48,7 @@ class InteractionRuntime:
         self.language = selected_language if selected_language in {"zh", "en"} else package_language()
         self.emoji = bool(ctx.get_config("status_emoji", True))
         self.registry = TurnRegistry()
+        self.native = FullAdapter()
         self.intake = IntakeFeedback(self)
         self.actions = ActionStore()
         self.telegram = TelegramActions(ctx, self.actions)
@@ -70,6 +72,7 @@ class InteractionRuntime:
         self._status_cooldowns = {}
         self._stream_overrides = weakref.WeakKeyDictionary()
         self._child_roots = {}
+        self._child_states = {}
         self._children = {}
         self._background_lock = threading.RLock()
         self._background_tasks = {}
@@ -228,7 +231,8 @@ class InteractionRuntime:
         async def send_ack(runner, event, adapter, message):
             if not runtime.is_telegram(event.source):
                 return await runtime._original_send_ack(runner,event,adapter,message)
-            state=runtime._state_for_source(event.source)
+            runtime.native.remember_runner(runner, event.source)
+            state=runtime._state_for_source(event.source, adapter=adapter)
             if state:
                 runtime.registry.receipt(state.session_id, getattr(event, "text", ""), message=message)
                 state.activity=message
@@ -240,9 +244,14 @@ class InteractionRuntime:
         async def idle_stop(runner,event):
             if not runtime.is_telegram(event.source):
                 return await runtime._original_idle_stop(runner,event)
-            entry=await runner.async_session_store.get_or_create_session(event.source)
-            stopped=runtime._stop_owned_children(entry.session_id)
-            state=runtime.registry.by_key(entry.session_key)
+            state = None
+            stopped = 0
+            try:
+                entry=await runner.async_session_store.get_or_create_session(event.source)
+                state=runtime.registry.by_key(entry.session_key)
+                stopped=runtime._stop_children_safely(entry.session_id)
+            except Exception as error:
+                logger.warning("Background stop lookup failed (%s); native stop continues", type(error).__name__)
             if stopped and state:
                 state.status_closed=True
                 runtime.registry.finish(state.session_id, failed=False, interrupted=True, completed=False)
@@ -275,7 +284,7 @@ class InteractionRuntime:
                 snapshot = state.progress.snapshot()
                 finding, activity = snapshot["finding"], snapshot["activity"]
             if state:
-                runtime._stop_owned_children(state.session_id)
+                runtime._stop_children_safely(state.session_id)
                 # Capture and retire this turn before native stop yields. A successor
                 # admitted during platform cleanup must keep its own state and bubble.
                 state.status_closed=True
@@ -322,6 +331,7 @@ class InteractionRuntime:
         self._runner_cls = None
         self._wired.clear()
         self._raw_sends.clear()
+        self.native.clear()
         self._status_cooldowns.clear()
         for consumer, (original_ref, installed_ref, active, owned) in list(self._stream_overrides.items()):
             active[0] = False
@@ -334,6 +344,7 @@ class InteractionRuntime:
         for task in self._background_tasks.values():
             task.cancel()
         self._background_tasks.clear()
+        self._child_states.clear()
 
     def _root(self,sid):
         with self._background_lock:
@@ -343,19 +354,26 @@ class InteractionRuntime:
         with self._background_lock:
             return bool(self._children.get(sid))
 
+    @serialized_hook
     def child_start(self,parent_session_id="",child_session_id="",**kwargs):
         root=self._root(parent_session_id)
-        if not child_session_id or self.registry.get(root) is None:
+        state = self._event_state(parent_session_id, **kwargs)
+        if not child_session_id or state is None:
             return
         with self._background_lock:
             self._child_roots[child_session_id]=root
+            self._child_states[child_session_id]=state
             self._children.setdefault(root,set()).add(child_session_id)
 
+    @serialized_hook
     def child_stop(self,parent_session_id="",child_session_id="",**kwargs):
         root=self._root(child_session_id)
+        state = self._event_state(child_session_id, **kwargs)
+        if state is None:
+            return
         with self._background_lock:
             self._children.get(root,set()).discard(child_session_id)
-        state=self.registry.get(root)
+            self._child_states.pop(child_session_id, None)
         if state and state.progress is not None:
             with self.registry._lock:
                 state.progress.close_owner(child_session_id)
@@ -364,8 +382,17 @@ class InteractionRuntime:
             state.activity="后台步骤已结束，正在核对结果。"
             state.last_event_at=time.monotonic()
 
-    def _state_for_source(self,source):
-        return self._state_for_chat(source.chat_id,getattr(source,"thread_id",None))
+    def _state_for_source(self, source, adapter=None):
+        with self.registry._lock:
+            candidates = []
+            for state in self.registry._states.values():
+                if state.ended or state.status_closed or (adapter is not None and state.adapter is not adapter):
+                    continue
+                key = self.native.session_key(source, state.adapter)
+                matches = state.session_key == key if key is not None else source_key(state.source) == source_key(source)
+                if matches:
+                    candidates.append(state)
+            return candidates[0] if len(candidates) == 1 else None
 
     def _state_for_chat(self,chat_id,thread,adapter=None):
         with self.registry._lock:
@@ -373,7 +400,41 @@ class InteractionRuntime:
                 (adapter is None or s.adapter is adapter) and
                 str(getattr(s.source,"chat_id",None))==str(chat_id) and
                 str(getattr(s.source,"thread_id",None))==str(thread)]
-        return states[0] if len(states)==1 else None
+        owner = current_turn.get()
+        if owner is not None:
+            return owner if (any(state is owner for state in states)
+                             and not owner.ended and not owner.status_closed) else None
+        # A group send has no sender identity. A unique active member is not proof
+        # that another member's outgoing message belongs to that task.
+        if len(states) == 1 and getattr(states[0].source, "chat_type", "dm") in {"dm", "private"}:
+            return states[0] if not str(chat_id).startswith("-") else None
+        return None
+
+    def _event_state(self, session_id, /, **event):
+        """Resolve hook ownership before any state or button mutation."""
+        root = self._root(session_id)
+        state = self.registry.get(root)
+        if state is None or state.ended or state.status_closed:
+            return None
+        if root != session_id:
+            return state if self._child_states.get(session_id) is state else None
+        if event.get("platform") and event["platform"] != "telegram":
+            return None
+        owner = current_turn.get()
+        turn_id = str(event.get("turn_id") or "")
+        if owner is not None:
+            if owner is not state:
+                return None
+        elif state.gateway_bound:
+            # Hook callbacks scheduled in another context need a previously bound
+            # agent identity. Never let the first late hook claim a new generation.
+            if not turn_id or turn_id != state.hook_turn_id:
+                return None
+        if turn_id:
+            if state.hook_turn_id and turn_id != state.hook_turn_id:
+                return None
+            state.hook_turn_id = turn_id
+        return state
 
     def _wire_send(self,adapter):
         if adapter in self._raw_sends:return
@@ -435,20 +496,35 @@ class InteractionRuntime:
         except asyncio.CancelledError:
             pass
 
+    def _stop_children_safely(self, sid):
+        try:
+            return self._stop_owned_children(sid)
+        except Exception as error:
+            logger.warning("Background cancellation failed (%s); native stop continues", type(error).__name__)
+            return 0
+
     def _stop_owned_children(self,sid):
         from tools.delegate_tool_registry import list_active_subagents,interrupt_subagent
         owned=owned_children(sid,list_active_subagents())
         stopped=0
         for record in owned:
-            if interrupt_subagent(record['subagent_id']):
+            try:
+                interrupted = interrupt_subagent(record['subagent_id'])
+            except Exception as error:
+                logger.warning("Could not interrupt a background child (%s); continuing stop", type(error).__name__)
+                continue
+            if interrupted:
                 stopped+=1
                 if record.get('delegation_id'):
                     self._cancelled_delegations[record['delegation_id']]={
                         'owner':record.get('owner_agent_session_id') or sid,'at':time.time()}
-        if stopped:self._save_cancellations()
         if stopped:
             with self._background_lock:
                 self._children.pop(sid,None)
+                for child, state in list(self._child_states.items()):
+                    if state.session_id == sid:
+                        self._child_states.pop(child, None)
+            self._save_cancellations()
         return stopped
 
     def _save_cancellations(self):
@@ -456,7 +532,12 @@ class InteractionRuntime:
         retained={k:v for k,v in self._cancelled_delegations.items() if v.get('at',0)>=cutoff}
         self._cancelled_delegations=dict(list(retained.items())[-512:])
         if self._state_store is not None:
-            self._state_store.set('cancelled_delegations',self._cancelled_delegations)
+            try:
+                self._state_store.set('cancelled_delegations',self._cancelled_delegations)
+            except Exception as error:
+                # Keep the in-memory tombstone: native foreground interruption
+                # must succeed even if persistence is temporarily unavailable.
+                logger.warning("Could not persist background cancellations (%s)", type(error).__name__)
 
     @staticmethod
     def is_telegram(source):
@@ -477,18 +558,21 @@ class InteractionRuntime:
         self.actions.invalidate_session_id(old_session_id)
         self.actions.clear_pending(old_session_id)
 
+    @serialized_hook
     def approval_wait(self, session_key="", **_kwargs):
         state = self.registry.by_key(session_key)
-        if state:
+        if state and self._event_state(_kwargs.get("session_id") or state.session_id, **_kwargs) is state:
             if state.approval_phase is None:
                 state.approval_phase = state.phase
             text = ("正在检查操作权限。" if _kwargs.get("surface") == "smart" else
                     "等待你确认：请先处理聊天中的操作确认请求。")
             self.registry.update(state.session_id, text)
 
+    @serialized_hook
     def approval_done(self, session_key="", **_kwargs):
         state = self.registry.by_key(session_key)
-        if state and state.approval_phase is not None:
+        if (state and self._event_state(_kwargs.get("session_id") or state.session_id, **_kwargs) is state
+                and state.approval_phase is not None):
             previous, state.approval_phase = state.approval_phase, None
             self.registry.update(state.session_id, previous)
 
@@ -505,9 +589,10 @@ class InteractionRuntime:
                                                 "_clean_for_display" in vars(consumer))
             consumer._clean_for_display = cleaned
 
+    @serialized_hook
     def narration_request(self, request, session_id="", platform="", **_kwargs):
         root = self._root(session_id)
-        state = self.registry.get(root)
+        state = self._event_state(session_id, platform=platform, **_kwargs)
         if (state is None or state.ended or state.progress is None
                 or (root == session_id and platform != "telegram")):
             return None
@@ -531,6 +616,7 @@ class InteractionRuntime:
                 self._narration_nulls = dict(list(self._narration_nulls.items())[-256:])
         return {"request": updated, "source": "hermes-interaction", "reason": "public action status"} if updated else None
 
+    @serialized_hook
     def narration_arguments(self, tool_name, args, session_id="", api_request_id="", tool_call_id="", **_kwargs):
         if not isinstance(args, dict) or PROGRESS_FIELD not in args:
             return None
@@ -544,17 +630,18 @@ class InteractionRuntime:
         for key in optional_args:
             if cleaned.get(key, object()) is None:
                 cleaned.pop(key)
-        state = self.registry.get(self._root(session_id))
+        state = self._event_state(session_id, **_kwargs)
         if state and not state.ended and state.progress and (note or continuation) and tool_name not in SETUP_TOOLS | UI_TOOLS:
             state.progress.propose(session_id, api_request_id, safe_status_text(note), [(tool_call_id, tool_name)])
         return {"args": cleaned, "source": "hermes-interaction", "reason": "remove public status metadata"}
 
+    @serialized_hook
     def pre_api(self, session_id="", **_kwargs):
         root=self._root(session_id)
-        if root == session_id and _kwargs.get("platform") and _kwargs["platform"] != "telegram":
+        state = self._event_state(session_id, **_kwargs)
+        if state is None:
             return
         self.registry.model_request(root)
-        state=self.registry.get(root)
         if state:
             state.internal_status = ""
             self._wire_stream(state)
@@ -564,12 +651,15 @@ class InteractionRuntime:
             if state.progress is not None:
                 state.progress.request_started(session_id, _kwargs.get("api_request_id", ""))
 
+    @serialized_hook
     def post_api(self, session_id="", **_kwargs):
         owner = session_id
+        state = self._event_state(session_id, **_kwargs)
+        if state is None:
+            return
         session_id=self._root(session_id)
         if owner == session_id and _kwargs.get("platform") and _kwargs["platform"] != "telegram":
             return
-        state = self.registry.get(session_id)
         if state and not state.ended and state.progress:
             note = tool_note(_kwargs.get("assistant_message"))
             if note:
@@ -578,18 +668,24 @@ class InteractionRuntime:
         if state and state.tool_count and not state.active_tools:
             self.registry.update(session_id, ANALYZE)
 
+    @serialized_hook
     def api_error(self, session_id="", **_kwargs):
-        state = self.registry.get(self._root(session_id))
+        state = self._event_state(session_id, **_kwargs)
+        if state is None:
+            return
         if state:
             state.internal_status = ""
         self.registry.update(self._root(session_id), RETRY)
 
+    @serialized_hook
     def pre_tool(self, tool_name="", args=None, session_id="", **_kwargs):
         if tool_name in _SETUP_TOOLS:
             return None
+        state = self._event_state(session_id, **_kwargs)
+        if state is None:
+            return None
         original_session_id=session_id
         session_id=self._root(session_id)
-        state=self.registry.get(session_id)
         if state:
             state.internal_status = ""
         if state and original_session_id==session_id and tool_name not in {TOOL_SCHEMA['name'],PROGRESS_SCHEMA['name']}:
@@ -609,8 +705,11 @@ class InteractionRuntime:
         self.registry.tool_started(session_id, original_session_id, _kwargs.get("tool_call_id", ""), tool_name, args)
         return None
 
+    @serialized_hook
     def post_tool(self, tool_name="", session_id="", result=None, **_kwargs):
         if tool_name in _SETUP_TOOLS:
+            return
+        if self._event_state(session_id, **_kwargs) is None:
             return
         owner = session_id
         session_id=self._root(session_id)
@@ -618,20 +717,24 @@ class InteractionRuntime:
             self.registry.tool_finished(session_id, result, owner=owner,
                 call_id=_kwargs.get("tool_call_id", ""), name=tool_name, status=_kwargs.get("status", ""))
 
+    @serialized_hook
     def model_end(self,session_id="",assistant_response="",**kwargs):
         if self._root(session_id)!=session_id:return
-        state=self.registry.get(session_id)
+        state=self._event_state(session_id, **kwargs)
         if state and state.receipt_turn and self._has_background(session_id) and isinstance(assistant_response,str):
             if len(assistant_response)<=320 and 'http://' not in assistant_response and 'https://' not in assistant_response:
                 state.receipt_text=assistant_response.strip()
 
+    @serialized_hook
     def session_end(self, session_id="", failed=False, interrupted=False, completed=False, **_kwargs):
         if _kwargs.get("platform") and _kwargs["platform"] != "telegram":
             return
         if self._root(session_id) != session_id:
             return
+        state = self._event_state(session_id, **_kwargs)
+        if state is None:
+            return
         if self._has_background(session_id) and not failed and not interrupted:
-            state=self.registry.get(session_id)
             if state:
                 state.ended=False
             return
@@ -737,11 +840,13 @@ class InteractionRuntime:
     async def _noop_lifecycle(self) -> None:
         return None
 
+    @serialized_hook
     def prepare_status_lifecycle(self, runner, turn_ctx, executor_holder):
         source = turn_ctx.source
         adapter = runner._adapter_for_source(source)
         if not adapter or not turn_ctx.session_id or not turn_ctx.session_key:
             return self._noop_lifecycle()
+        self.native.remember_runner(runner, source)
         state = TurnState(
             session_id=turn_ctx.session_id, session_key=turn_ctx.session_key,
             source=source, adapter=adapter, generation=turn_ctx.run_generation,
@@ -750,8 +855,9 @@ class InteractionRuntime:
             loop=asyncio.get_running_loop(), soft_wait=self.soft_wait,
             progress=TaskProgress(),
             language=self.language, emoji=self.emoji,
+            gateway_bound=True,
         )
-        early = self.intake.take(source)
+        early = self.intake.take(source, adapter)
         previous=self.registry.get(state.session_id)
         if previous and (previous.status_closed or (
                 previous.foreground_active and previous.generation != state.generation
@@ -776,6 +882,14 @@ class InteractionRuntime:
         self.actions.invalidate_session(state.session_key)
         self.actions.clear_pending(state.session_id)
         self.registry.bind(state)
+        if previous is not None and not previous.status_closed and self._has_background(state.session_id):
+            with self._background_lock:
+                for child, owner in list(self._child_states.items()):
+                    if owner is previous:
+                        self._child_states[child] = state
+        # Native notify is called synchronously before the executor task is
+        # created; its copied context now carries this exact state object.
+        current_turn.set(state)
         return self._run_status_lifecycle(turn_ctx, executor_holder, state)
 
     async def status_lifecycle(self, runner, turn_ctx, executor_holder) -> None:
@@ -826,5 +940,7 @@ class InteractionRuntime:
                     if removed is state:
                         with self._background_lock:
                             for child,root in list(self._child_roots.items()):
-                                if root==state.session_id:self._child_roots.pop(child,None)
+                                if root==state.session_id:
+                                    self._child_roots.pop(child,None)
+                                    self._child_states.pop(child,None)
                             self._children.pop(state.session_id,None)

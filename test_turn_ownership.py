@@ -123,3 +123,132 @@ class TurnOwnershipTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(new.interrupted)
         self.assertFalse(new.status_closed)
         self.adapter.delete_message.assert_awaited_once_with("1", "background-message")
+
+    async def test_old_native_executor_hooks_cannot_claim_or_finish_successor(self):
+        """Exercise the actual gateway's notify → copied executor context seam."""
+        import threading
+        from gateway.run import GatewayRunner
+        from plugin.full_adapter import current_turn
+
+        self.runtime._patch_runner()
+        self.runner._get_executor = lambda: None
+        old_lifecycle = GatewayRunner._run_agent_notify_long_running(self.runner, None, self.turn(10), [None])
+        old_lifecycle.close()
+        old = self.runtime.registry.get("session")
+        ready, release = asyncio.Event(), threading.Event()
+        loop = asyncio.get_running_loop()
+
+        def old_worker():
+            self.assertIs(current_turn.get(), old)
+            self.runtime.pre_api("session", turn_id="session:task:old-uuid", api_request_id="session:task:old-uuid:api:1")
+            loop.call_soon_threadsafe(ready.set)
+            if not release.wait(3):
+                raise AssertionError("test did not release old worker")
+            event = dict(session_id="session", turn_id="session:task:old-uuid")
+            self.runtime.pre_api(**event, api_request_id="session:task:old-uuid:api:2")
+            self.runtime.api_error(**event)
+            self.runtime.pre_tool("terminal", {"command": "false"}, **event, tool_call_id="late")
+            self.runtime.post_tool("terminal", result={"exit_code": 1}, **event, tool_call_id="late")
+            self.runtime.approval_wait("key", session_id="session")
+            self.runtime.child_start(parent_session_id="session", child_session_id="late-child")
+            self.runtime.session_end(**event, interrupted=True)
+
+        worker = asyncio.create_task(GatewayRunner._run_in_executor_with_context(self.runner, old_worker))
+        try:
+            await asyncio.wait_for(ready.wait(), 2)
+            new_lifecycle = GatewayRunner._run_agent_notify_long_running(self.runner, None, self.turn(12), [None])
+            new_lifecycle.close()
+            new = self.runtime.registry.get("session")
+            self.runtime.pre_api("session", turn_id="session:task:new-uuid", api_request_id="session:task:new-uuid:api:1")
+            self.runtime.pre_tool("read_file", {}, "session", tool_call_id="new-read", turn_id="session:task:new-uuid")
+            expected_phase = new.phase
+            actions = self.runtime.actions.remember("session", [{"label": "继续", "prompt": "继续处理"}])
+            release.set()
+            await asyncio.wait_for(worker, 2)
+            self.assertEqual(new.hook_turn_id, "session:task:new-uuid")
+            self.assertEqual(new.phase, expected_phase)
+            self.assertEqual(new.tool_count, 1)
+            self.assertEqual(new.tool_errors, 0)
+            self.assertFalse(new.ended)
+            self.assertFalse(new.interrupted)
+            self.assertIsNone(new.approval_phase)
+            self.assertNotIn("late-child", self.runtime._child_roots)
+            self.assertEqual(self.runtime.actions.take_pending("session"), actions)
+
+            # A hook dispatched without inherited context must already know the
+            # current agent turn ID; unknown/old IDs cannot adopt a generation.
+            token = current_turn.set(None)
+            try:
+                self.runtime.session_end("session", interrupted=True, turn_id="session:task:old-uuid")
+                self.assertFalse(new.ended)
+                self.runtime.session_end("session", completed=True, turn_id="session:task:new-uuid")
+                self.assertTrue(new.completed)
+            finally:
+                current_turn.reset(token)
+        finally:
+            release.set()
+            await worker
+
+    async def test_child_owner_survives_background_handoff_but_not_stop(self):
+        from plugin.full_adapter import current_turn
+        from unittest.mock import patch
+        first = self.runtime.prepare_status_lifecycle(self.runner, self.turn(1), [None])
+        first.close()
+        old = self.runtime.registry.get("session")
+        self.runtime.child_start(parent_session_id="session", child_session_id="child")
+        old.foreground_active = False
+        second = self.runtime.prepare_status_lifecycle(self.runner, self.turn(2), [None])
+        second.close()
+        new = self.runtime.registry.get("session")
+        token = current_turn.set(old)  # an existing background worker retains its original context
+        try:
+            self.runtime.pre_tool("read_file", {}, "child", tool_call_id="background-read")
+            self.assertEqual(new.tool_count, 1)
+            self.runtime.child_stop(parent_session_id="session", child_session_id="child")
+            self.assertEqual(new.active_tools, 0)
+            before = new.last_event_at
+            self.runtime.post_tool("read_file", "late", "child", tool_call_id="background-read")
+            self.assertEqual(new.last_event_at, before)
+        finally:
+            current_turn.reset(token)
+        self.runtime.child_start(parent_session_id="session", child_session_id="stopped-child")
+        record = {"subagent_id": "stopped-child", "owner_agent_session_id": "session"}
+        with patch("tools.delegate_tool_registry.list_active_subagents", return_value=[record]), \
+                patch("tools.delegate_tool_registry.interrupt_subagent", return_value=True):
+            self.runtime._stop_owned_children("session")
+        self.runtime.pre_tool("read_file", {}, "stopped-child", tool_call_id="too-late")
+        self.assertEqual(new.tool_count, 1)
+
+    async def test_busy_stop_still_calls_native_when_child_lookup_or_persistence_fails(self):
+        from gateway.run import GatewayRunner
+        from unittest.mock import Mock, patch
+        self.runtime._patch_runner()
+        self.runtime._original_stop = AsyncMock(return_value="Stopped")
+        state = self.state(1)
+        self.runtime.registry.bind(state)
+        event = SimpleNamespace(source=self.source)
+        with patch("tools.delegate_tool_registry.list_active_subagents", side_effect=RuntimeError("unavailable")):
+            await GatewayRunner._busy_stop_command(self.runner, event, "key", self.source)
+        self.runtime._original_stop.assert_awaited_once()
+
+        self.runtime._original_stop.reset_mock()
+        self.runtime.registry.bind(self.state(2))
+        self.runtime._state_store = SimpleNamespace(set=Mock(side_effect=OSError("disk full")))
+        records = [dict(subagent_id="bad", owner_agent_session_id="session"),
+                   dict(subagent_id="good", owner_agent_session_id="session", delegation_id="cancelled")]
+        with patch("tools.delegate_tool_registry.list_active_subagents", return_value=records), \
+                patch("tools.delegate_tool_registry.interrupt_subagent", side_effect=[RuntimeError("child failed"), True]) as interrupt:
+            await GatewayRunner._busy_stop_command(self.runner, event, "key", self.source)
+        self.assertEqual(interrupt.call_count, 2)
+        self.runtime._original_stop.assert_awaited_once()
+        self.assertEqual(self.runtime._cancelled_delegations["cancelled"]["owner"], "session")
+
+    async def test_idle_stop_still_calls_native_when_background_lookup_fails(self):
+        from gateway.run import GatewayRunner
+        self.runtime._patch_runner()
+        self.runtime._original_idle_stop = AsyncMock(return_value="Stopped")
+        runner = SimpleNamespace(async_session_store=SimpleNamespace(
+            get_or_create_session=AsyncMock(side_effect=OSError("store unavailable"))))
+        result = await GatewayRunner._handle_stop_command(runner, SimpleNamespace(source=self.source))
+        self.assertEqual(result, "Stopped")
+        self.runtime._original_idle_stop.assert_awaited_once()

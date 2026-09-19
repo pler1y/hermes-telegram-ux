@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.3-rc.2 — Full runtime maintenance candidate, 2026-09-18
+
+- Keep native stop reachable when child interruption or cancellation-record persistence fails.
+- Bind lifecycle hooks to their originating gateway turn; stale worker events cannot close a successor or consume its follow-up buttons. Align intake and busy feedback with native user, topic and adapter scope.
+- Track progress evidence per operation and attempt, so unrelated success and late results cannot erase a current failure.
+- Preserve native installation language on reconfiguration and isolate YAML aliases when updating or restoring Telegram settings.
+- Add a narrow Full adapter for native session identity and worker context, retaining exact source guards and reversible runtime integration. Full remains separate from the Catalog-safe edition.
+
+This is a local test candidate. See [Full progress](docs/FULL-PROGRESS.md) for completed validation and [runtime boundaries](docs/FULL-RUNTIME.md) for the maintained integration contract.
+
 ## 1.8.3-rc.1 — Unpublished catalog candidate, 2026-09-14
 
 - Preserve 1.8.2 feedback and natural stop behavior; keep both native manifests in sync with the two actually registered middleware handlers. Add exact capability and official missing-declaration regression checks.

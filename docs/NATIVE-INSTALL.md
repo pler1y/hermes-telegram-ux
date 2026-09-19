@@ -1,7 +1,7 @@
 # Native Hermes installation · 原生安装
 
 **Published version 1.8.2** remains available for direct installation. The local
-**1.8.3-rc.1** candidate has separate [validation evidence](VALIDATION-1.8.3-rc.1.md);
+**1.8.3-rc.2 Full** candidate has separate [validation evidence](FULL-PROGRESS.md);
 its changes are not included in the published SHA below. No upstream action is
 part of this candidate preparation.
 Use an isolated test bot first. Use the [v1.8.2 compatibility table](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md) for the stable installation below; a Hermes version number alone is insufficient.
@@ -9,7 +9,7 @@ The [development compatibility table](COMPATIBILITY.md) separately identifies su
 Linux and macOS are supported by the setup helper. Have a working Telegram adapter
 and model login before installing. Use the Python environment that runs Hermes.
 
-1.8.2 可直接安装；本地 1.8.3-rc.1 候选尚未发布或提交。请先在独立测试环境验证；安装 1.8.2 时以其稳定版兼容表为准。
+1.8.2 可直接安装；本地 1.8.3-rc.2 Full 候选尚未发布。请先在独立测试环境验证；安装 1.8.2 时以其稳定版兼容表为准。
 原生安装由 Hermes 管理代码和固定版本，本项目的 `configure` 只管理交互配置及其备份。
 已经通过 ZIP 安装的实例继续使用对应的安装器；迁移前先卸载受管理的 ZIP 版本，并确认没有恢复出的旧插件占用同名目录。
 

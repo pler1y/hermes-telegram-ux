@@ -91,7 +91,7 @@ class IntakeTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.intake.begin(self.source, "one", self.adapter)
         old = self.runtime.intake.take(self.source)
         await self.runtime.intake.begin(self.source, "two", self.adapter)
-        await self.runtime.intake.retire(source_key(self.source), old)
+        await self.runtime.intake.retire(source_key(self.source, self.adapter), old)
         self.assertTrue(self.runtime.intake.pending)
         self.assertEqual([e[0] for e in self.adapter.events], ["send", "send"])
 
@@ -99,8 +99,8 @@ class IntakeTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.intake.begin(self.source, "one", self.adapter)
         other = SessionSource(Platform.TELEGRAM, "123", user_id="v", thread_id="9")
         await self.runtime.intake.begin(other, "two", self.adapter)
-        await self.runtime.intake.retire(source_key(self.source), self.runtime.intake.pending[source_key(self.source)])
-        self.assertIn(source_key(other), self.runtime.intake.pending)
+        await self.runtime.intake.retire(source_key(self.source, self.adapter), self.runtime.intake.pending[source_key(self.source, self.adapter)])
+        self.assertIn(source_key(other, self.adapter), self.runtime.intake.pending)
 
     async def test_native_authorization_must_be_definite_before_early_feedback(self):
         app = NS(add_handler=lambda handler, group: setattr(app, "handler", handler))
@@ -118,13 +118,14 @@ class IntakeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_hygiene_event_starts_before_work_and_cleanup_runs_on_failure(self):
         feedback = self.runtime.intake
+        adapter = self.adapter
         observed = []
         class Gateway:
             async def _hmwa_hygiene_plan(self, *args): return NS(needs_compress=True)
             async def _hmwa_hygiene_notify(self, *args): pass
             async def _hmwa_run_session_hygiene(self, event, source):
                 await self._hmwa_hygiene_plan()
-                observed.append(feedback.pending[source_key(source)].internal_status)
+                observed.append(feedback.pending[source_key(source, adapter)].internal_status)
                 raise RuntimeError("fixture failed before model start")
             async def _handle_message_with_agent(self, event, source):
                 return await self._hmwa_run_session_hygiene(event, source)
@@ -189,3 +190,45 @@ class IntakeTests(unittest.IsolatedAsyncioTestCase):
         previous = list(self.adapter.events)
         await scheduled.pop(0)
         self.assertEqual(self.adapter.events, previous)
+
+    async def test_another_group_member_receives_own_bubble_when_one_member_is_running(self):
+        from plugin.status import TurnState
+        from plugin.progress import TaskProgress
+        first = SessionSource(Platform.TELEGRAM, "-100", user_id="alice", chat_type="group")
+        second = SessionSource(Platform.TELEGRAM, "-100", user_id="bob", chat_type="group")
+        state = TurnState("alice-session", "alice-key", first, self.adapter, 1, [None], [], None, None,
+                          progress=TaskProgress(), language="en")
+        self.runtime.registry.bind(state)
+        await self.runtime.intake.begin(second, "My own task", self.adapter)
+        self.assertEqual(len(self.adapter.events), 1)
+        self.assertEqual(self.adapter.events[0][:2], ("send", "-100"))
+        self.assertIn(source_key(second, self.adapter), self.runtime.intake.pending)
+        self.assertIsNone(state.status_message_id)
+
+    async def test_same_source_on_two_bots_gets_separate_pending_receipts(self):
+        other_bot = Adapter()
+        await self.runtime.intake.begin(self.source, "hello", self.adapter)
+        await self.runtime.intake.begin(self.source, "hello", other_bot)
+        self.assertEqual(len(self.runtime.intake.pending), 2)
+        self.assertEqual(len(self.adapter.events), 1)
+        self.assertEqual(len(other_bot.events), 1)
+        self.assertIsNone(self.runtime.intake.take(self.source), "an adapter-less lookup cannot choose a bot")
+        first = self.runtime.intake.take(self.source, self.adapter)
+        self.assertIs(first.adapter, self.adapter)
+        self.assertIn(source_key(self.source, other_bot), self.runtime.intake.pending)
+
+    async def test_gateway_wrapper_restores_worker_owner_even_when_native_turn_fails(self):
+        from plugin.full_adapter import current_turn
+        marker = object()
+        class Gateway:
+            _hmwa_hygiene_plan = AsyncMock()
+            _hmwa_run_session_hygiene = AsyncMock()
+            _hmwa_hygiene_notify = AsyncMock()
+            async def _handle_message_with_agent(self, event, source):
+                current_turn.set(marker)
+                raise RuntimeError("native failed")
+        self.runtime.intake.patch_gateway(Gateway)
+        before = current_turn.get()
+        with self.assertRaisesRegex(RuntimeError, "native failed"):
+            await Gateway()._handle_message_with_agent(None, self.source)
+        self.assertIs(current_turn.get(), before)

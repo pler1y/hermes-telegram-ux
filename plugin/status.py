@@ -96,6 +96,8 @@ class TurnState:
     language: str = "zh"
     emoji: bool = False
     internal_status: str = ""
+    gateway_bound: bool = False
+    hook_turn_id: str = ""
 
     def render(self, now: float, slow_after: float = 45.0) -> str:
         priority = self.ended or self.approval_phase or self.phase == RETRY

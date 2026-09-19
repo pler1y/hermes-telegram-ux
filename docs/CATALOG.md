@@ -1,4 +1,8 @@
-# Official catalog candidate
+# Historical catalog preparation
+
+Full uses guarded private runtime integration and is maintained separately from Catalog-safe. This page preserves the 1.8.3-rc.1 submission-preparation record; it does not claim Full is an admissible public-API-only plugin. Current work: [Full progress](FULL-PROGRESS.md).
+
+# 1.8.3-rc.1 preparation record
 
 **1.8.3-rc.1** is an unpublished local candidate based on 1.8.2. This preparation
 creates no upstream PR, updates no existing PR, and publishes no release. Earlier

@@ -38,8 +38,68 @@ class _LifecycleFixture(unittest.TestCase):
     def install(self, **kwargs):
         return lifecycle.install(self.home, **kwargs)
 
+    def shared_platform_config(self):
+        self.path.write_text("""platforms:
+  telegram: &connection
+    reactions: false
+    extra:
+      disable_link_previews: false
+  discord: *connection
+display:
+  platforms:
+    telegram: &display
+      streaming: true
+      tool_progress: all
+      runtime_footer: &footer
+        enabled: true
+        template: keep
+    discord: *display
+    matrix:
+      runtime_footer: *footer
+""")
+        return self.config()
+
 
 class LifecycleTests(_LifecycleFixture):
+    def test_aliased_platforms_are_isolated_and_preview_matches_actual_changes(self):
+        baseline = self.shared_platform_config()
+        self.assertIs(baseline["platforms"]["telegram"], baseline["platforms"]["discord"])
+        before = self.path.read_bytes()
+        preview = self.install(dry_run=True)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertFalse((self.home / "plugins").exists())
+        self.install()
+        installed = self.config()
+        self.assertFalse(installed["display"]["platforms"]["telegram"]["streaming"])
+        self.assertFalse(installed["display"]["platforms"]["telegram"]["runtime_footer"]["enabled"])
+        self.assertTrue(installed["platforms"]["telegram"]["extra"]["disable_link_previews"])
+        self.assertEqual(installed["platforms"]["discord"], baseline["platforms"]["discord"])
+        for platform in ("discord", "matrix"):
+            self.assertEqual(installed["display"]["platforms"][platform],
+                             baseline["display"]["platforms"][platform])
+
+        def leaves(mapping, prefix=()):
+            for key, value in mapping.items():
+                if isinstance(value, dict):
+                    yield from leaves(value, prefix + (key,))
+                else:
+                    yield ".".join(prefix + (key,)), value
+        old, new = dict(leaves(baseline)), dict(leaves(installed))
+        missing = object()
+        actual = {path for path in old.keys() | new.keys() if old.get(path, missing) != new.get(path, missing)}
+        self.assertEqual(set(preview["changed_paths"]), actual)
+        lifecycle.uninstall(self.home)
+        self.assertEqual(self.config(), baseline)
+
+    def test_switching_zip_language_edition_keeps_its_language_default(self):
+        with patch.dict(lifecycle.SETTINGS, language="en"):
+            self.install()
+        with patch.dict(lifecycle.SETTINGS, language="zh"):
+            self.install()
+        self.assertEqual(lifecycle.get_value(self.config(), lifecycle.LANGUAGE_PATH)["value"], "zh")
+        lifecycle.uninstall(self.home)
+        self.assertEqual(self.config(), self.original)
+
     def test_upgrade_preview_reports_restored_global_settings_without_writing(self):
         self.original["agent"] = {"gateway_notify_interval": 180}
         self.save(self.original)
@@ -281,6 +341,24 @@ class CompatibilityTests(unittest.TestCase):
 
 
 class ConfigurationScopeTests(unittest.TestCase):
+    def test_restore_detaches_aliases_created_after_installation(self):
+        baseline = {"display": {"platforms": {"telegram": {"streaming": True}}}}
+        installed, records = lifecycle.plan_install(baseline, None, "recommended")
+        platforms = installed["display"]["platforms"]
+        platforms["discord"] = platforms["telegram"]
+        discord = deepcopy(platforms["discord"])
+        restored, conflicts = lifecycle.plan_restore(installed, records)
+        self.assertEqual(conflicts, [])
+        self.assertEqual(restored["display"]["platforms"]["telegram"], {"streaming": True})
+        self.assertEqual(restored["display"]["platforms"]["discord"], discord)
+        self.assertEqual(installed["display"]["platforms"]["telegram"], discord)
+
+    def test_path_copy_does_not_expand_unrelated_recursive_yaml_alias(self):
+        config = yaml.safe_load("shared: &shared\n  self: *shared\ndisplay: {}\n")
+        configured, _ = lifecycle.plan_install(config, None, "recommended")
+        self.assertIs(configured["shared"], configured["shared"]["self"])
+        self.assertIs(config["shared"], config["shared"]["self"])
+
     def test_recommended_settings_do_not_change_global_notification_policy(self):
         base = {"agent": {"gateway_notify_interval": 180},
                 "display": {"busy_ack_enabled": False, "busy_steer_ack_enabled": False}}
@@ -314,6 +392,71 @@ class NativeConfigurationTests(_LifecycleFixture):
 
     def tree_bytes(self, target):
         return {str(p.relative_to(target)): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+
+    def test_native_reconfigure_preserves_language_and_explicit_option_switches_it(self):
+        self.native_tree()
+        first = lifecycle.configure(self.home, language="en")
+        before = self.path.read_bytes()
+        preview = lifecycle.configure(self.home, dry_run=True)
+        self.assertEqual(preview["changed_paths"], [])
+        self.assertEqual(self.path.read_bytes(), before)
+        lifecycle.configure(self.home)
+        self.assertEqual(lifecycle.get_value(self.config(), lifecycle.LANGUAGE_PATH)["value"], "en")
+        lifecycle.configure(self.home, language="zh")
+        self.assertEqual(lifecycle.get_value(self.config(), lifecycle.LANGUAGE_PATH)["value"], "zh")
+        state = json.loads((self.home / lifecycle.STATE_DIR / "state.json").read_text())
+        self.assertEqual(state["baseline_backup"], first["backup"])
+        lifecycle.uninstall(self.home, config_only=True)
+        self.assertEqual(self.config(), self.original)
+
+    def test_native_default_and_manual_language_edits_survive_unqualified_configure(self):
+        self.native_tree()
+        with patch.dict(lifecycle.SETTINGS, language="zh"):
+            lifecycle.configure(self.home)
+        self.assertEqual(lifecycle.get_value(self.config(), lifecycle.LANGUAGE_PATH)["value"], "zh")
+        edited = self.config()
+        lifecycle.put_value(edited, lifecycle.LANGUAGE_PATH, {"exists": True, "value": "en"})
+        self.save(edited)
+        lifecycle.configure(self.home)
+        self.assertEqual(self.config(), edited)
+        result = lifecycle.uninstall(self.home, config_only=True)
+        self.assertEqual(lifecycle.get_value(self.config(), lifecycle.LANGUAGE_PATH)["value"], "en")
+        self.assertIn(".".join(lifecycle.LANGUAGE_PATH), result["preserved_user_changes"])
+
+    def test_explicit_language_overrides_a_manual_edit(self):
+        self.native_tree()
+        lifecycle.configure(self.home, language="zh")
+        edited = self.config()
+        lifecycle.put_value(edited, lifecycle.LANGUAGE_PATH, {"exists": True, "value": "en"})
+        self.save(edited)
+        preview = lifecycle.configure(self.home, language="zh", dry_run=True)
+        self.assertIn(".".join(lifecycle.LANGUAGE_PATH), preview["changed_paths"])
+        self.assertEqual(self.config(), edited)
+        lifecycle.configure(self.home, language="zh")
+        self.assertEqual(lifecycle.get_value(self.config(), lifecycle.LANGUAGE_PATH)["value"], "zh")
+
+    def test_native_alias_configuration_rolls_back_exactly_and_restores_cleanly(self):
+        target = self.native_tree()
+        checkout = self.tree_bytes(target)
+        baseline = self.shared_platform_config()
+        before = self.path.read_bytes()
+        real_write = lifecycle.atomic_write
+        def fail_state(path, data, mode=0o600):
+            if path == self.home / lifecycle.STATE_DIR / "state.json":
+                self.assertEqual(self.config()["platforms"]["discord"], baseline["platforms"]["discord"])
+                self.assertEqual(self.config()["display"]["platforms"]["discord"],
+                                 baseline["display"]["platforms"]["discord"])
+                raise OSError("state write failure")
+            return real_write(path, data, mode)
+        with patch.object(lifecycle, "atomic_write", side_effect=fail_state):
+            with self.assertRaisesRegex(OSError, "state write failure"):
+                lifecycle.configure(self.home, language="en")
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(self.tree_bytes(target), checkout)
+        lifecycle.configure(self.home, language="en")
+        lifecycle.uninstall(self.home, config_only=True)
+        self.assertEqual(self.config(), baseline)
+        self.assertEqual(self.tree_bytes(target), checkout)
 
     def test_configure_restore_preserves_native_checkout_and_user_edits(self):
         target = self.native_tree()

@@ -111,7 +111,7 @@ Some detailed guides are currently in Chinese. Both README pages cover installat
 
 ## Contributing
 
-The development branch is **1.8.3-rc.1**, an unpublished candidate based on 1.8.2. Its added core support is documented in the [development compatibility table](docs/COMPATIBILITY.md) and [candidate validation](docs/VALIDATION-1.8.3-rc.1.md).
+The development branch is the unpublished **1.8.3-rc.2 Full** candidate. Full preserves the complete Telegram experience through guarded Hermes runtime integration and is maintained separately from Catalog-safe. See the [compatibility table](docs/COMPATIBILITY.md), [Full progress](docs/FULL-PROGRESS.md) and [runtime boundaries](docs/FULL-RUNTIME.md).
 
 Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and what to include in a report. Check [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions) for regression and upstream compatibility results.
 

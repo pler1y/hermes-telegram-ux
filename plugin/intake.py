@@ -12,14 +12,10 @@ import time
 from .i18n import greeting, tr
 from .status import TurnState
 from .bindings import Overrides
+from .full_adapter import source_key, current_turn
 
 logger = logging.getLogger(__name__)
 _preparing = ContextVar("hermes_ux_preparing", default=None)
-
-
-def source_key(source):
-    return tuple(str(getattr(source, name, None) or "") for name in
-                 ("chat_id", "thread_id", "user_id"))
 
 
 class IntakeFeedback:
@@ -30,13 +26,12 @@ class IntakeFeedback:
         self.patches = Overrides()
 
     async def begin(self, source, text, adapter):
-        key = source_key(source)
-        current = self.runtime._state_for_source(source)
+        key = source_key(source, adapter)
+        current = self.runtime._state_for_source(source, adapter)
         if current and not current.ended:
             # Native busy dispatch still decides steer/queue/redirect. This only acknowledges receipt.
-            if source_key(current.source) == key:
-                self.runtime.registry.receipt(current.session_id, text, message="收到这条消息了。")
-                await self.runtime._send_status(current, current.render(time.monotonic(), self.runtime.slow_after))
+            self.runtime.registry.receipt(current.session_id, text, message="收到这条消息了。")
+            await self.runtime._send_status(current, current.render(time.monotonic(), self.runtime.slow_after))
             return
         state = self.pending.get(key)
         if state is None:
@@ -55,8 +50,14 @@ class IntakeFeedback:
                 if state.status_message_id:
                     logger.info("Hermes Interaction: intake acknowledgement age=%.3fs", time.monotonic() - state.created_at)
 
-    def take(self, source):
-        key = source_key(source)
+    def _pending_key(self, source, adapter=None):
+        if adapter is not None:
+            return source_key(source, adapter)
+        keys = [key for key, state in self.pending.items() if source_key(state.source) == source_key(source)]
+        return keys[0] if len(keys) == 1 else None
+
+    def take(self, source, adapter=None):
+        key = self._pending_key(source, adapter)
         state = self.pending.pop(key, None)
         timer = self.expiry.pop(key, None)
         if timer:
@@ -85,8 +86,8 @@ class IntakeFeedback:
         except asyncio.CancelledError:
             pass
 
-    async def internal(self, source, message):
-        state = self.pending.get(source_key(source)) or self.runtime._state_for_source(source)
+    async def internal(self, source, message, adapter=None):
+        state = self.pending.get(self._pending_key(source, adapter)) or self.runtime._state_for_source(source, adapter)
         if state is None or state.status_closed or state.ended:
             return
         state.internal_status = message
@@ -131,15 +132,18 @@ class IntakeFeedback:
             async def wrapped(runner, event, source, *args, **kwargs):
                 if not self.runtime.is_telegram(source):
                     return await original(runner, event, source, *args, **kwargs)
-                key = source_key(source)
+                adapter = self.runtime.native.remember_runner(runner, source)
+                key = self._pending_key(source, adapter)
                 early = self.pending.get(key)
                 if early:
                     early.admitted = True
-                token = _preparing.set(source)
+                token = _preparing.set((source, adapter))
+                turn_token = current_turn.set(None)
                 try:
                     return await original(runner, event, source, *args, **kwargs)
                 finally:
                     _preparing.reset(token)
+                    current_turn.reset(turn_token)
                     if early:
                         await self.retire(key, early)
             return wrapped
@@ -148,9 +152,9 @@ class IntakeFeedback:
             @wraps(original)
             async def wrapped(runner, *args, **kwargs):
                 result = await original(runner, *args, **kwargs)
-                source = _preparing.get()
-                if source and getattr(result, "needs_compress", False):
-                    await self.internal(source, "🧠 正在整理前面的聊天，稍等一下。")
+                preparing = _preparing.get()
+                if preparing and getattr(result, "needs_compress", False):
+                    await self.internal(preparing[0], "🧠 正在整理前面的聊天，稍等一下。", preparing[1])
                 return result
             return wrapped
 
@@ -160,7 +164,8 @@ class IntakeFeedback:
                 try:
                     return await original(runner, event, source, *args, **kwargs)
                 finally:
-                    state = self.pending.get(source_key(source))
+                    adapter = self.runtime.native.remember_runner(runner, source)
+                    state = self.pending.get(self._pending_key(source, adapter))
                     if state and state.internal_status:
                         # Do not claim compression succeeded: Hermes can continue with old history.
                         state.internal_status = ""
@@ -199,7 +204,8 @@ class IntakeFeedback:
         def status(runner, kind, message):
             ctx = runner._ctx
             state = self.runtime.registry.get(getattr(ctx, "session_id", ""))
-            if state and self.runtime.is_telegram(ctx.source) and runner._status_live():
+            if (state and state.generation == getattr(ctx, "run_generation", None)
+                    and self.runtime.is_telegram(ctx.source) and runner._status_live()):
                 if message in {COMPACTION_STATUS, COMPACTION_HEARTBEAT_STATUS}:
                     text = "🧠 正在整理前面的聊天，稍等一下。"
                 elif kind == "compacted" and message == COMPACTION_DONE_STATUS:
@@ -209,7 +215,7 @@ class IntakeFeedback:
 
                 async def deliver():
                     if self.runtime.registry.get(state.session_id) is state and not state.ended:
-                        await self.internal(state.source, text)
+                        await self.internal(state.source, text, state.adapter)
                 runner._schedule(deliver(), "UX internal status delivery")
                 return
             return original_status(runner, kind, message)

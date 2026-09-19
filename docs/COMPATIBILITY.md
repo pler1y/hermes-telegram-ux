@@ -2,7 +2,7 @@
 
 **稳定安装请选择 1.8.2。** [1.8.2 发布包的兼容清单](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/plugin/compatibility.json)支持下面前四套核心基线；README 与原生安装指南固定安装这个版本。
 
-当前开发分支为基于 1.8.2 的 **1.8.3-rc.1 候选**，增加第五套核心基线，尚未发布。不要把候选新增的支持范围用于判断 1.8.2 是否兼容。
+当前开发分支为 **1.8.3-rc.2 Full 候选**，沿用 1.8.3-rc.1 的五套核心基线，尚未发布。本轮验证见 [Full 维护进度](FULL-PROGRESS.md)。不要把候选新增的支持范围用于判断 1.8.2 是否兼容。
 
 | Hermes | 核心提交 | 1.8.2 稳定版 | 1.8.3-rc.1 候选的验证范围 |
 |---|---|---|---|
@@ -12,7 +12,7 @@
 | 0.21.2 | `044a77b3b6af4ce16138d42762f812a20b9f7a89` | 支持 | 上述检查；审查失败回合持久化和恢复变更 |
 | 0.21.2 | `5eb99eb2844b22ebb723711b8e6a0bbb80bb5f04` | 不支持 | 2026-09-14 固定的官方 main；原生 install/validate/enable、未配置加载、声明负例及回归，见 [候选验证](VALIDATION-1.8.3-rc.1.md) |
 
-以下源码保护和验证细节描述当前 1.8.3-rc.1 候选；稳定版的实现边界见 [v1.8.2 文档](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。
+表中验证范围记录 1.8.3-rc.1 的历史基线；以下源码保护继续用于当前 Full 候选；稳定版的实现边界见 [v1.8.2 文档](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。
 
 `plugin/compatibility.json` 为每套基线记录 23 个文件的原始 SHA-256 和完整 Python 语法树指纹。原始字节不同时，只有完整语法树仍与同一基线一致才接受，并在 `format_only_files` 中列出。注释、空白、换行格式和不改变语法树的排版可以变化；作用域、表达式、字面量值、默认值、装饰器和 docstring 仍受检查。检查过程只解析源码，不导入或执行待检查代码；各基线仍不能混搭。
 
