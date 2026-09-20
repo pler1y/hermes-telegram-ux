@@ -1,17 +1,39 @@
-# Hermes完整版发布
+# Release identity and verification
 
-当前发布线为 `main`，版本 **1.8.3**，标签 `v1.8.3`。本版将已完成验收的 rc.2 修复交付给用户。Hermes插件版在 `catalog-safe` 分支、`catalog-v*` 标签下独立发布，规则见 [EDITIONS.md](EDITIONS.md)。
+Hermes Telegram UX v2.0.0 is identified by the commit behind the official [v2.0.0 tag](https://github.com/pler1y/hermes-telegram-ux/tree/v2.0.0) and [Release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.0.0). Release notes state the full 40-character commit. The internal plugin ID is `hermes-telegram-ux-catalog`.
 
-## 发布检查
+## Pin the commit, not a moving branch
 
-对五套受支持核心执行 `scripts/run_tests.py`、`check_compatibility.py`、`check_runtime.py`、`check_native_install.py` 与 `check_editions.py`。旧 0.21.0 无官方 validator，其余核心使用 `--require-validator`。保留严格兼容保护，未知核心探测失败不等于已支持核心的回归失败，也不能据此宣称新增兼容。
+Use the tag-resolution command in [the migration guide](MIGRATION-v2.md). It prefers the peeled commit for annotated tags and accepts lightweight tags. A missing tag or malformed SHA stops the procedure. Hermes' `--ref` expects the full commit, not `v2.0.0` itself. Compare the result with the official Release notes before installing.
 
-`scripts/build_release.py` 从允许列表生成确定性的中英文 ZIP、SHA256 与源码清单；修改源码或文档后重建，并用 `--check` 校验。安装生命周期必须针对最终打包内容通过。仅上传发行包、校验文件和不含本机信息的来源记录。
+## Assets and provenance
 
-合并主线后核对精确提交，创建轻量 `v*` 标签并发布 Release。原生安装说明从该固定标签解析完整 SHA；标签发布后不移动。GitHub Latest 保留给完整版稳定版，插件版发行不得覆盖此入口。
+The official assets are:
 
-## 实机证据
+- `hermes-telegram-ux-catalog-2.0.0.zip`
+- `hermes-telegram-ux-catalog-2.0.0.zip.sha256`
+- `PROVENANCE.json`, also present inside the ZIP
+- `RUNTIME-MANIFEST.json`, identifying the accepted Python payload by hash
 
-运行时修复的 Telegram 验收来自 2026-09-18，见 [FULL-PROGRESS.md](FULL-PROGRESS.md)。发布整理不改变运行逻辑，不把历史验收描述为重新执行。新版核心、群组和其他模型的支持仍需要独立验证。
+Verify the downloaded ZIP against its checksum file, then inspect `PROVENANCE.json`. Its `source_commit` must match the resolved tag commit, `plugin` must be `hermes-telegram-ux-catalog`, and `version` must be `2.0.0`. It lists SHA256 hashes for every distributed file. The Release notes record the final checksum; do not substitute a candidate ZIP built from another commit.
 
-GitHub 发布与官方插件目录申请是两项工作；本页不执行或暗示目录收录。旧目录候选资料见 [CATALOG.md](CATALOG.md)。
+The archive contains only runtime files, manifest, license and user documentation. Historical validation records, operator progress notes, test fixtures and private acceptance evidence are not distributed. The published [validation history](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION.md) remains in Git with its original version labels.
+
+Hermes' installer handles Git/Catalog sources, not ZIP input. Follow [migration](MIGRATION-v2.md) for same-ID replacement or verified manual archive deployment. Keep existing user configuration, plugin-data and backups.
+
+## Reproduce a release archive
+
+In a source checkout at the tag's commit, using the verified Hermes Python environment:
+
+```bash
+python scripts/build_release.py --ref "$TGUX_COMMIT"
+python scripts/build_release.py --verify dist/hermes-telegram-ux-catalog-2.0.0.zip
+```
+
+The builder reads committed Git objects through a reviewed allowlist, uses fixed archive metadata, verifies payload hashes and records the exact source commit. `$TGUX_COMMIT` must be the previously verified tag commit. Historical reports remain unchanged; they are linked rather than copied into the installation archive.
+
+## Validation scope
+
+Release notes link the final main-commit CI and report its unit, contract, boundary, official validate/doctor, native install and package checks. The short Telegram smoke is run on that exact merge-commit payload before tagging. Earlier detailed A–F runs are historical evidence, not renamed release-time tests. All nine Python runtime files must match the accepted `c5b8aef94d1f096fbad9ad782b2ad312e9254d33` implementation.
+
+Full history remains at `legacy/full-1.8.3` and `v1.8.3`. Project publication does not itself imply Hermes Catalog admission; Catalog review and its exact SHA pin are maintained separately.

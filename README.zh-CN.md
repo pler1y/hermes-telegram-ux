@@ -1,134 +1,86 @@
-<div align="center">
-
 # Hermes Telegram UX
 
-**消息即刻回应，进度随时可见，任务途中也能改变方向。**
+[English](README.md)
 
-为 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 提供更自然的 Telegram 交互。
+在 Telegram 等待 Hermes 工作时，用一条临时气泡显示当前任务进度。状态随真实工具动作和结果更新，任务结束后自动清理。安装、启用，然后正常聊天即可。
 
-[![Release](https://img.shields.io/github/v/release/pler1y/hermes-telegram-ux)](https://github.com/pler1y/hermes-telegram-ux/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+**Hermes Telegram UX v2.0.0** 只维护这一套官方公开 Plugin API 实现。正式版本身份以 [v2.0.0 Tag](https://github.com/pler1y/hermes-telegram-ux/tree/v2.0.0) 和 [GitHub Release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.0.0) 指向的准确提交为准。
 
-[安装稳定版](#快速开始) · [下载 1.8.3](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.3) · [文档导航](docs/README.md) · [English](README.md)
+## 使用体验
 
-</div>
+下列状态都在同一个消息上编辑，并结合当前任务生成：
 
----
-
-给 Hermes 发消息后，不必猜它有没有收到。立即获得回应，在同一条消息里查看任务进度，执行中也能补充要求。完成的答案和文件，直接交付到当前聊天。
-
-**当前稳定版：1.8.3。** 以下快速开始安装此版本；升级 Hermes 前请先核对[稳定版兼容范围](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md)。
-
-使用 **Hermes Agent** 请选择本项目；使用 **OpenClaw** 请前往 [OpenClaw Telegram UX](https://github.com/pler1y/openclaw-telegram-ux)。两个插件分别安装，功能与兼容范围以各自文档为准。
-
-## 选择版本
-
-同一仓库维护两条独立更新线，每个 Hermes Gateway 选择其中一种安装。
-
-| 版本 | 开发分支 | 发布与安装包 |
-| --- | --- | --- |
-| **Hermes完整版** | `main`（当前页面） | `v*` 标签；`hermes-telegram-ux-<版本>-zh/en.zip` |
-| **Hermes插件版** | [catalog-safe](https://github.com/pler1y/hermes-telegram-ux/tree/catalog-safe) | `catalog-v*` 标签；`hermes-telegram-ux-catalog-<版本>.zip` |
-
-Hermes插件版只使用公开插件接口，安装包仅包含自身实现，不打包完整版，也不承诺完整版的全部功能。两版独立发布和升级；插件版安装请进入[对应页面](https://github.com/pler1y/hermes-telegram-ux/blob/catalog-safe/README.zh-CN.md)，详细规则见[版本与更新渠道](docs/EDITIONS.md)。
-
-## 功能
-
-- **即时回应**：普通请求到达时立即显示「🤔 思考中…」，不等待模型生成。
-- **同一气泡更新进度**：任务状态持续更新，减少重复消息。
-- **途中补充要求**：添加细节或调整方向；回执会区分补充要求和排队请求。
-- **自然表达停止**：单独说“等一下”“等下”“等等”“停”或“暂停”，即可请求停止。
-- **答案与文件交付**：在 Telegram 中接收完整回复、生成文件和后续操作入口。
-- **中英双语界面**：安装时选择中文或英文。
-
-## 对话示例
-
-以下展示交互流程；具体进度措辞由模型根据任务生成。
-
-> **你** · 帮我按未来 7 天的需求生成补货表。<br>
-> **Hermes** · 🤔 思考中…<br>
-> **进度** · 📄 我先核对库存和日均用量。<br>
-> **你** · 改为 10 天，把在途库存也算进去。<br>
-> **Hermes** · 收到，补充已记下。<br>
-> **进度** · 🧮 接下来按 10 天计算，同时扣除在途库存。<br>
-> **结果** · 完整回复和生成的补货 CSV 文件。
-
-进度行更新同一条临时消息，答案交付后清理。已验证场景见[实机验收记录](docs/ACCEPTANCE-1.7.0.md)。
-
-## 快速开始
-
-### 环境要求
-
-- Linux 或 macOS 上已安装 Hermes，完成模型登录，并接入可正常回复的 Telegram Bot。
-- 使用[1.8.3 支持的 Hermes 核心](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md)。目前验证了 0.21.0 和 0.21.2 的部分修订，并非所有修订都兼容；安装器会在启用前检查。
-- Hermes 的 Python 环境中已具备 PyYAML 6.x 和 `python-telegram-bot` 22.x。
-
-### 使用 Hermes 命令安装
-
-以下适用于**首次安装**。先结束正在执行的任务并停止 Gateway，再由运行 Hermes 的账号执行。将 `HERMES_CORE` 改成实际核心目录，下方为常见路径。
-
-```bash
-export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-HERMES_CORE="$HERMES_HOME/hermes-agent"
-HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
-export PYTHONPATH="$HERMES_CORE"
-
-# 安装已验证的 v1.8.3 发行版。
-UX_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/v1.8.3 | cut -f1)"
-test "${#UX_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
-"$HERMES_PYTHON" -m hermes_cli.main plugins install \
-  https://github.com/pler1y/hermes-telegram-ux \
-  --ref "$UX_COMMIT" --no-enable
+```text
+🤔 正在思考中…
+🔎 正在搜索最近 7 天 OpenAI 的重要公开新闻…
+📊 已找到 10 条搜索结果，正在整理最近 7 天 OpenAI 的重要公开新闻…
+✍️ 正在汇总最近 7 天 OpenAI 的重要公开新闻…
+Hermes 原生最终回答 → 临时状态自动清理
 ```
 
-检查兼容性、配置中文界面并启用插件：
+- 工具实际开始后，显示对应动作与任务对象。
+- 有可靠结果才展示搜索数量、天气数据字段、文件不存在或工具失败。
+- 真正发生后续调用才显示恢复；部分失败不会被说成全部成功。
+- 长时间模型汇总显示任务相关总结，不让旧搜索 Query 一直停留。
+- 单一消息、编辑节流、去重、归属隔离和有限清理。
+- 按本轮消息自动使用中文或英文。
+
+没有完成卡、按钮、欢迎页、个人设置面板或 `/tgux`。不需要进度时，直接通过 Hermes 禁用插件。
+
+## 安装 v2.0.0
+
+需要已经正常使用 Telegram 的 Hermes。已验证基线为 **Hermes 0.21.3**，commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`。CI 也检查 Hermes 当前 main 的 Python 3.11／3.12；请查看要安装的准确发布提交的验证结果。
+
+原生安装器的 `--ref` 接受 **40 位 commit SHA**，不接受分支名。从正式 Tag 解析提交（兼容 annotated tag），与 Release notes 中的 SHA 核对后安装。Tag 不可用时停止，不回退到移动分支：
 
 ```bash
-UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
-"$HERMES_PYTHON" "$UX_DIR/install.py" check --hermes-core "$HERMES_CORE" && \
-"$HERMES_PYTHON" "$UX_DIR/install.py" configure --hermes-core "$HERMES_CORE" --language zh && \
-"$HERMES_PYTHON" -m hermes_cli.main plugins enable hermes-interaction
+TGUX_REPO="https://github.com/pler1y/hermes-telegram-ux.git"
+TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.0.0' 'refs/tags/v2.0.0^{}' | awk '$2 == "refs/tags/v2.0.0^{}" { peeled=$1 } $2 == "refs/tags/v2.0.0" { direct=$1 } END { print peeled ? peeled : direct }')"
+test "${#TGUX_COMMIT}" -eq 40 || { echo "Release tag unavailable; stop here." >&2; exit 1; }
+case "$TGUX_COMMIT" in *[!0-9a-fA-F]*) echo "Invalid release SHA; stop here." >&2; exit 1 ;; esac
+printf '%s\n' "$TGUX_COMMIT"
+hermes plugins install https://github.com/pler1y/hermes-telegram-ux.git --ref "$TGUX_COMMIT" --no-enable
+hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog" --json
+hermes plugins doctor "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog" --ci
+hermes plugins enable hermes-telegram-ux-catalog
 ```
 
-配置成功后，重新启动同一个 Gateway。在 Telegram 发送 `/new`，再发送 `/start`。需要英文界面时，将 `--language zh` 改为 `--language en`。
+重启对应 Gateway，发送普通任务即可。原生扫描器有提示时，先审阅再决定安装。已有安装先阅读 [迁移说明](docs/MIGRATION-v2.md)：固定 SHA 安装需要明确替换，`--no-enable` 不会禁用已经运行的旧插件。
 
-已有安装请看[升级与卸载](docs/NATIVE-INSTALL.md#upgrade-and-remove)。通过 ZIP 安装的用户继续使用 [ZIP 安装指南](docs/INSTALLATION.md)，不要混用两种安装方式。自定义路径、依赖及共享 Gateway 设置见[原生安装指南](docs/NATIVE-INSTALL.md)。
+内部 ID **`hermes-telegram-ux-catalog` 保持不变**，用于兼容安装、配置和状态身份；它不再代表第二个产品版本。详见 [ID 决策与源码依据](docs/PLUGIN-ID.md)。
 
-## 使用
+也可用 `scripts/build_release.py --ref <40位SHA>` 从已审阅提交构建可复现 ZIP，包内有文件哈希和 `PROVENANCE.json`。Hermes 原生安装器不直接接收 ZIP；验证后手工部署和完整替换方法见迁移说明。正式 ZIP 和校验文件以 v2.0.0 Release 附件为准，详见 [发布完整性说明](docs/RELEASE.md)。
 
-照常发送消息、链接或文件即可，不需要用特殊命令启动任务。
+## 配置
 
-| 想做什么 | 发送什么 |
-|---|---|
-| 补充要求 | “把在途库存也算进去。” |
-| 请求停止 | “等一下”“等下”“等等”“停”或“暂停” |
-| 打开菜单 | `/start` |
-| 开始新会话 | `/new` |
+默认无需设置。可选参数位于 `plugins.entries.hermes-telegram-ux-catalog.settings`：
 
-停止短句按整条消息匹配，“不要停”“等一下再部署”等完整要求不会直接变成停止指令。停止不会撤销已经执行的操作，也不是可以从原位置恢复的暂停。界面语言由配置决定，不随每条消息的语言自动切换。
+```yaml
+language: auto
+update_interval: 1.5
+status_ttl: 600
+cleanup_delay: 1.0
+```
 
-## 文档
+- `language`：`auto / zh / en`。自动读取当前消息，忽略代码、URL 和路径；纯数字或仅媒体输入回退中文。升级保留原先明确指定的语言。
+- `update_interval`：最小编辑间隔，1–30 秒。
+- `status_ttl`：显示无活动超时，30–3600 秒，不取消 Hermes 任务。
+- `cleanup_delay`：回合结束后的清理等待，0–5 秒。
 
-[完整文档与目录导航](docs/README.md)按安装使用、开发维护和版本记录整理。
+修改配置后重启。没有用户／聊天／Topic 偏好系统或内部进度、表情开关。旧菜单偏好不再读取，无需删除用户旧文件。
 
-| 指南 | 内容 |
-|---|---|
-| [原生安装](docs/NATIVE-INSTALL.md) | 通过 Hermes 安装、更新和移除 |
-| [ZIP 安装](docs/INSTALLATION.md) | 下载版本与手动安装 |
-| [从零开始](docs/FRESH-INSTALL.md) | 新环境准备 |
-| [配置说明](docs/CONFIGURATION.md) | 语言、显示预设和进度设置 |
-| [稳定版兼容说明](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md) | 1.8.3 支持的核心与升级检查 |
-| [故障恢复](docs/RECOVERY.md) | 备份与中断恢复 |
-| [更新日志](CHANGELOG.md) | 各版本变化 |
+## 职责与边界
 
-## 参与贡献
+执行、Session、Context、审批、`/stop`、中断、流式输出、最终回答、附件及原生投递恢复仍由 Hermes 负责。插件只观察公开事件，维护自己创建的进度消息，不替代 Hermes、不修改 core、不 monkey patch、不改写最终回答、不读取隐藏思维链。
 
-Hermes完整版 1.8.3 包含已验证的 rc.2 修复，完整功能在 `main` 维护；Hermes插件版在 `catalog-safe` 独立维护。支持范围见[兼容表](docs/COMPATIBILITY.md)，验证见[维护记录](docs/FULL-PROGRESS.md)。
+运行代码只依赖标准库、官方公开插件接口及提供的公开 adapter。路由不确定时不输出状态，不猜测聊天归属、不读取私有任务状态补充信息。初始反馈发生在可安全关联的公开回合事件之后，鉴权前不发消息。
 
-欢迎提交问题反馈和范围明确的 Pull Request。开发流程与反馈所需信息见 [CONTRIBUTING.md](CONTRIBUTING.md)。回归测试和上游兼容检查结果见 [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions)。
+回合结束不是 Telegram 最终投递回执。清理采用有限尝试，删除失败可能留下状态，原生投递较慢时也可能晚于清理。长模型请求可以保持同一条真实汇总状态。官方验证通过不代表已进入官方 Catalog。
 
-敏感问题请按 [SECURITY.md](SECURITY.md) 处理。官方插件目录申请单独记录在[收录状态](docs/CATALOG.md)中。
+## Legacy Full 历史实现
 
-## 许可证
+v1.8.3 及以前的 Full 使用较深的 Hermes 内部接入，现已停止维护。历史保留在 [legacy/full-1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/legacy/full-1.8.3) 和 [v1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/v1.8.3)。它们只作历史参考，不是推荐安装选项。不要在同一 Gateway 同时启用 Full 和 v2。
 
-采用 [MIT](LICENSE) 许可证。依赖与来源说明见 [NOTICE.md](NOTICE.md)。
+[迁移](docs/MIGRATION-v2.md) · [更新记录](CHANGELOG.md) · [v2 验证](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION-v2.md) · [历史真实验收](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION.md) · [测试方法](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/TESTING.md) · [公开 API](docs/PUBLIC-API.md)
+
+MIT License。

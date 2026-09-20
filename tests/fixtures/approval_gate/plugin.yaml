@@ -1,0 +1,9 @@
+name: catalog-acceptance-gate
+version: 0.0.1
+description: Live-test-only policy requesting native approval for marked harmless commands.
+author: pler1y
+license: MIT
+requires_hermes: ">=0.21.3"
+provides_tools: []
+provides_hooks: [pre_tool_call]
+provides_middleware: []

@@ -1,89 +1,35 @@
-# 测试方法
+# Reproduce validation
 
-## 安装器单元测试
-
-只需 Python 3.11+ 和 PyYAML，不读取真实凭据或配置：
+Use the exact official baseline from `PUBLIC-API.md`. Keep Hermes core and dependencies outside the plugin checkout. A configured model and Telegram are not needed for automated checks.
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m unittest test_install -v
+git clone https://github.com/NousResearch/hermes-agent.git /tmp/catalog-core
+git -C /tmp/catalog-core checkout --detach 3c3ab69abb9b08683b5eb15b4e2b8be1198c875f
+(cd /tmp/catalog-core && uv sync --frozen --no-dev --no-install-project --extra messaging --python 3.11)
 ```
 
-测试覆盖首次安装、重复安装、升级恢复旧插件、卸载、用户新配置保留、两个预设、dry-run、版本拒绝、错误 YAML、符号链接、并发锁、写入失败回滚和中断事务恢复。故障通过测试层注入，不需要破坏真实系统。
-
-## 真实 Hermes 环境回归
-
-在受支持的 Hermes Python 环境中，从项目目录执行：
+From the reviewed v2 release checkout:
 
 ```bash
-export PYTHONPATH="$HERMES_CORE"
-"$HERMES_PYTHON" scripts/run_tests.py
-"$HERMES_PYTHON" scripts/check_runtime.py
-"$HERMES_PYTHON" scripts/check_editions.py
+CATALOG_PYTHON=/tmp/catalog-core/.venv/bin/python
+export PYTHONPATH="$PWD:/tmp/catalog-core"
+export HERMES_HOME="$(mktemp -d)"
+"$CATALOG_PYTHON" -m unittest discover -s tests/unit -v
+"$CATALOG_PYTHON" -m unittest discover -s tests/contract -v
+"$CATALOG_PYTHON" scripts/check_boundary.py
+"$CATALOG_PYTHON" -m hermes_cli.main plugins validate . --json
+"$CATALOG_PYTHON" -m hermes_cli.main plugins doctor . --ci
+"$CATALOG_PYTHON" scripts/check_native.py --core /tmp/catalog-core --ref HEAD
+"$CATALOG_PYTHON" scripts/check_upgrade.py --core /tmp/catalog-core --ref HEAD
+"$CATALOG_PYTHON" scripts/build_release.py --ref HEAD
 ```
 
-两个脚本都会在导入 Hermes 前创建临时 `HERMES_HOME`，结束后删除。完整回归若存在跳过测试，会以失败状态退出；因此不会把缺少核心或 Telegram SDK 的跳过误报成验收通过。
+The last three commands read committed Git objects; commit the reviewable candidate first. They never package uncommitted changes. Builds have fixed ZIP metadata, a reviewed allowlist, per-file hashes and a source SHA. `check_native.py` exercises native Git installation and verified ZIP extraction at that SHA, actual validators, disabled/enabled discovery, disable/remove, unrelated-config preservation and before/after hashes of all tracked Hermes files. Its deliberately undeclared hook must fail the official validator. ZIP extraction is manual deployment, not a ZIP feature of the Hermes installer. Removal deletes code/install metadata, not user configuration or external plugin-data.
 
-`check_runtime.py` 经原生插件发现、工具与 prompt 注册、中间件分发，另验证 Codex 请求发送转换以及 xAI 请求中的状态字段。它不调用付费模型，也不发送 Telegram 消息；真实模型/平台验收另行完成。
+`check_upgrade.py` installs the real historical menu-bearing `1.9.0-catalog.1` revision in disposable homes, then tests same-ID pinned replacement with the exact v2 SHA. It checks both old Git and old ZIP origins, single-plugin registration, retained configuration and old state, removed menus, the public progress lifecycle through synthetic transport, enable/disable/remove and unchanged core. No production installation or live Telegram account is involved. See `docs/PLUGIN-ID.md` and `docs/VALIDATION-v2.md` for the identity decision and exact result scope.
 
-## Telegram 实机验收
+The native Git harness acknowledges scanner caution for its own reviewed local fixture using the documented `--force` flag. Scanning is not disabled; dangerous findings remain blocked. Official validation/doctor are mandatory, and tests must not be skipped to get a green run. Never copy this fixture trust flag into an unreviewed public installation command.
 
-使用独立测试 Bot、模型登录和运行账号。不要对正在工作的生产会话进行停止试验。将 `acceptance/` 中的合成样本复制到临时目录，确保 `material-b.txt` 不存在。
+`tests/contract` uses the real current-core PluginManager and its bounded callback workers. Only the transport is synthetic. Runtime imports zero Hermes modules. The AST guard permits only Python standard-library and local runtime imports, and rejects external SDK/Hermes imports, private attributes, dynamic execution/rebinding and foreign-object mutation; it is an extra guard, not proof that code is safe. Human review still checks data flow and public API intent.
 
-1. `/new` 开始新会话；若 Hermes 要求原生确认，选本次确认。`/start` 打开首页，点击“更多设置”和“返回”，再关闭。
-2. 请模型运行 `slow_inventory.py` 读取库存，生成未来 7 天补货 CSV；执行期间追加“改为 10 天，计入在途、缺口降序、文件名 ten-day.csv”。观察收到补充的反馈与后续实际应用，最终应只交付修订版。
-3. 独立读取 CSV，验证封箱胶 14、打印纸 14、收纳袋 10、墨盒 7、信封 2，降序排列，标签纸不列入。
-4. 请模型读取 material-a.txt 与缺失的 material-b.txt，生成 notice.txt。应保留日期和人数，将地点、报名截止标为待补充；核对文件实际送达和内容。
-5. 启动一个合成前台任务，先写 started 标记，等待 45 秒后写 done 标记。确认开始后发送“停一下”。检查任务停止、无迟到状态、等待超过原定完成时点后没有 done 标记。
-6. 明确要求后台委派，做独立可控任务。期间继续询问和补充，观察所属进度；再停止，独立核对后台账本/进程、完成事件被消费、没有再次唤醒。
-7. 停止 Gateway，重复安装、卸载还原、再次安装；重新启动后重复收发与首页检查。将配置语义与原版基线比较，确认模型、权限与其他服务保持正常。
-
-1.7.0 的接话延迟用 `intake acknowledgement age` 日志测量，起点是插件开始处理 Telegram 入口事件，终点是发送成功，不是用户按下发送到客户端显示的端到端时间。任务阶段的 `status age` 从任务状态生命周期开始计时。日志中的同一 message id 对应同气泡更新。还必须查看实际 Telegram 客户端，不能只凭日志或模型自述判定界面通过。
-
-CI 执行自动回归和原生注册检查，不使用任何模型或 Telegram 凭据。真实 Telegram 验收需要维护者在隔离测试账号中执行，结果写入 ACCEPTANCE.md。
-
-## 官方目录准备检查
-
-1.8.0 的 CI 对三套固定核心分别执行完整回归、ZIP 生命周期及 `scripts/check_native_install.py`。后者将候选源码放入临时 Git 仓库，通过真实 `hermes plugins install --ref` 安装，再验证配置、原生启用、发现、实际 Telegram adapter 接线及恢复、配置还原和原生移除；全部使用临时配置和合成数据，不连接 Telegram。
-
-当前 0.21.2 基线运行 `scripts/check_native_install.py --require-validator`，要求官方 `plugins validate` 实际成功，不能因缺少验证器静默跳过。旧 0.21.0 没有该命令，其余原生路径仍必须成功。另一个 CI job 检查每次运行时的 main 是否仍匹配受保护接口。
-
-原生配置测试覆盖保留 Git/catalog 元数据、配置失败后恢复、恢复期间的独立插件升级、模式混用拒绝及用户修改保留。兼容测试检查文档等无关提交可继续使用、已变更接口拒绝以及不同基线文件不能混搭。
-
-新的核心支持仍需单独实机验收。候选准备及上游当前限制见 [CATALOG.md](CATALOG.md)。
-
-完整实机流程结束后可运行 `python acceptance/verify_artifacts.py --root 你的测试目录` 独立核对生成产物。测试中的等待时长仅用于观察取消行为，不是性能测试或默认延迟设置。
-
-## 1.7.0 追加验收
-
-- 两种版本分别发送问候与任务，检查即时接话、公开进度、菜单及按钮的语言；在新会话中验证模型公开状态使用所选语言。
-- 只在独立实验环境中暂时降低 `compression.hygiene_hard_message_limit`，在已有至少四条历史消息的会话触发真实压缩，观察整理提示、继续执行与失败/延后通知。完成后恢复原配置。
-- 自动测试同时覆盖回合前压缩提示、异常清理和原生通知类型。回合中压缩由原生状态回调驱动；不要通过自行发送一条状态消息冒充真实压缩验收。
-
-## 状态反馈回归
-
-`test_delivery.py` 使用真实状态发送入口、受控时钟和模拟 Telegram 返回，验证服务器等待时间、同机器人多任务共享冷却、网络失败退避、恢复后发送最新状态，以及关闭后的气泡不会因重试复活。这些测试不调用 Telegram 网络。
-
-原生忙碌回执测试分别检查中英文的排队、补充和切换要求；安静模式测试使用实际的 `TaskProgress` 与入口接话，确认普通等待不会发气泡，真实操作、上下文整理、审批和失败仍然可见。它们随 `scripts/run_tests.py` 一起运行。
-
-## 1.8.0 任务替换回归
-
-`test_turn_ownership.py` 通过真实状态生命周期和原生停止入口验证：旧轮询退出、不取走新任务按钮、不复用仍由旧任务清理的气泡，前台及后台停止收尾不关闭新任务。这些是受控异步交错测试，不冒充 Telegram 实机验收。
-
-## 1.8.1 集成回归
-
-`test_integration_safety.py` 覆盖多个 Bot 的按钮发送和回调隔离、第三方后置包装保留、卸载后旧包装失效、加载失败回滚、重复接线及流消费者回收。安装器测试覆盖不再修改的全局设置及升级恢复时保留用户选择。
-
-`python scripts/check_compatibility.py --hermes-core /path/to/core` 会先验证真实核心，再把受保护文件复制到临时目录：纯注释变化应接受，新增可执行语句应拒绝。CI 分别用 Python 3.11 和 3.12 检查，不修改原核心。新的代码变化、作用域变化、常量变化及非法语法均有拒绝测试。
-
-新版完整 Telegram/模型实机验收尚未记录，不能将上述检查当作实机演示。
-
-## 1.8.3-rc.1 目录候选
-
-CI 已扩展为五套固定核心，并在当前 main 通过完整源码保护后继续执行官方 validate 与原生 enable/discovery。`check_native_install.py --report native-report.json` 保留 source、payload、installed 三份官方 JSON 报告与缺少 tool_request 的拒绝报告；校验必须零警告且实际执行 capability probe。开启前和禁用后还会在新进程中验证插件没有加载。
-
-`test_catalog.py` 核对两处 manifest 与真实 register 的完整能力集合，以及未提供可选 state 的注册环境；检查源码归档、核心版本变化、缺少版本文件、损坏/不完整基线。子进程在 `python -O` 下加载修改过的核心，确认未导入 UX runtime 或 gateway、没有调用任何 ctx 注册接口。
-
-`test_catalog_preparation.py` 使用临时 Git 仓库验证精确 SHA 的草案生成、未发布状态和两周成熟期，防止旧发布时间让新提交提前成熟。`test_controls.py` 使用真实 Telegram observer 验证消费消息只观察一次，保留原消息身份；深链接、未处理文本和不满足群聊条件的消息继续交给 PTB，观察器失败也不会重复执行停止。
-
-新增核心的上游测试及实际本地命令结果见 [VALIDATION-1.8.3-rc.1.md](VALIDATION-1.8.3-rc.1.md)。这些仍是隔离集成验证，不是 Telegram 客户端实机录像。
+The GitHub workflow repeats these checks against the fixed baseline and current main on Python 3.11 and 3.12. Main is intentionally mutable for compatibility detection; installs remain pinned. Actual Telegram/model acceptance is separately recorded using `ACCEPTANCE.md`.
