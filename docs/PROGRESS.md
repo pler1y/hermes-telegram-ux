@@ -6,6 +6,7 @@ Current goal: preserve the accepted runtime, prepare v2 metadata and migration, 
 - Old main `3b2175199d8d9dbafaa39e13c1f5dafd4bf0cfcb` is preserved by `legacy/full-1.8.3`; original `v1.8.3` is unchanged.
 - Integration `6103f23f65d15d1a0f125b13be817eb7a4e1de90` has both histories as parents and the exact accepted candidate tree.
 - Release branch `release/v2.0.0` uses version `2.0.0` with unchanged plugin ID `hermes-telegram-ux-catalog`. Runtime inference/lifecycle stays frozen; release automation and migration checks are the only new executable code.
+- Release preparation adds 161-unit/7-contract validation, native Git/ZIP lifecycles and two real historical-install upgrade paths. Exact final source, package identity and CI results are bound by commit-specific receipts; see the release validation record.
 - Current validation belongs in [VALIDATION-v2.md](VALIDATION-v2.md). Historical Telegram tests below keep their original version and source identity; they are not relabelled as new v2 runs.
 - Catalog PR #108887 was checked read-only: open, last updated 2026-09-15T04:58:25Z. No Catalog comment or update is part of this task.
 

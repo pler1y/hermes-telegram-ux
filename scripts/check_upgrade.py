@@ -242,9 +242,9 @@ def main():
                 if edition == "zip":
                     run(cli + ["disable", NAME], temp, env)
                     row["old_disabled_probe"] = child_probe("disabled", old["version"], temp, env)
-                    row["activation_path"] = "stop old process; disable; reinstall --no-enable; verify disabled; enable"
+                    row["activation_path"] = "old probe unloaded/exited; disable; reinstall --no-enable; verify disabled; enable"
                 else:
-                    row["activation_path"] = "stop old process; enabled config retained by reinstall --no-enable"
+                    row["activation_path"] = "old probe unloaded/exited; enabled config retained by reinstall --no-enable"
                 before_config = config_path.read_bytes()
                 before_yaml = yaml.safe_load(before_config)
                 assert_single_directory(home)
@@ -276,7 +276,10 @@ def main():
                 assert not target.exists()
                 row["removed_probe"] = child_probe("removed", new["version"], temp, env)
                 after_yaml = yaml.safe_load(config_path.read_text())
-                before_yaml["plugins"]["enabled"] = []
+                # Native disable moves this ID from the allow-list into the
+                # explicit deny-list; remove keeps that activation preference.
+                before_yaml["plugins"]["enabled"] = sorted(set(before_yaml["plugins"]["enabled"]) - {NAME})
+                before_yaml["plugins"]["disabled"] = sorted(set(before_yaml["plugins"].get("disabled", [])) | {NAME})
                 assert after_yaml == before_yaml, (after_yaml, before_yaml)
                 assert state_path.read_bytes() == state_bytes and external.read_bytes() == external_bytes
                 row.update({"single_directory_and_registration": True, "configuration_bytes_preserved_on_upgrade": True,
