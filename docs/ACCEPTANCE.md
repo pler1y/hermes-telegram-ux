@@ -5,7 +5,7 @@ Use an isolated Telegram test bot and a fixed official Hermes core. Record exact
 | # | Task | Check |
 |---|---|---|
 | 1 | Pure conversation with an exact marker | Model reply arrives; no unnecessary count footer |
-| 2 | One terminal calculation | Tool/API status, correct answer and count |
+| 2 | One terminal calculation | Natural tool/API status, correct answer, optional counts in details |
 | 3 | Read two test files then summarize | Multiple tool transitions; original answer preserved |
 | 4 | Generate a small CSV in the test directory | File delivered by native Hermes |
 | 5 | Read a deliberately absent test file | Honest failure state; final explanation survives |
@@ -25,3 +25,7 @@ For reproducible human-approval cases, the source checkout includes
 approval for harmless marked `printf` commands. This exercises the real Gateway,
 approval buttons and outcome hooks without depending on shell-risk heuristics.
 Remove the fixture after testing; it is excluded from the release archive.
+
+## 1.9 experience scenarios
+
+Open `/tgux`; test home/help/settings navigation, language switching, per-user display preferences, native command reply keyboards, optional final statistics, details and close. Run a bounded calculation and deliver a small CSV, then select a suggested follow-up request. Check that every edited status retains its controls, closing a live card does not stop work, and native `/stop` still allows a later conversation. Download the generated CSV and check its contents, not only the attachment name. Native approval automation in the maintainer harness may approve once only when the entire command exactly matches a previously reviewed bounded test fixture; never approve arbitrary model-generated commands.

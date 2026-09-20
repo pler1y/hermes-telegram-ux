@@ -6,7 +6,13 @@ Baseline: official Hermes `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`, Python 3.1
 - Official doctor: discovery/import/registration passed; 17 hooks, one tool, no middleware.
 - Real-host contracts: six passed, including the registered progress tool, authenticated command-context menu path, SDK callback cleanup, native reply preservation and disabled/unloaded behavior.
 - Unit/boundary: 54 tests passed, including cross-user/topic isolation, expired/mismatched callbacks, preference persistence/failure, native command keyboards, live-card dismiss, subagent correlation and SDK import boundaries and atomic text/button edits.
-- Native install lifecycle and Telegram acceptance results are recorded after candidate packaging; prior release evidence below does not validate this candidate.
+- Native Git and ZIP install/enable/disable/remove passed at runtime source `d0ff0a83ab4136d4b5279237b296ba95ff9c6299`; official validators passed, an undeclared hook was rejected, unrelated config was preserved, and tracked core file hashes stayed unchanged.
+- Remote CI passed on the fixed core and current upstream main, Python 3.11 and 3.12, for both push and PR runs: [PR run](https://github.com/pler1y/hermes-telegram-ux/actions/runs/35494525972), [push run](https://github.com/pler1y/hermes-telegram-ux/actions/runs/35494524454).
+- Live Telegram on 2026-09-20: all 14 checks passed on the existing private test bot. Home, language toggle, statistics off, native usage command, a one-time native approval for the exact bounded test command, answer and CSV delivery, clean final answer, natural progress notes, details, user-sent follow-up, dismiss without cancellation, native stop/recovery, downloaded CSV contents and persistent buttons during updates.
+- Installed source `d0ff0a83ab4136d4b5279237b296ba95ff9c6299`; ZIP SHA256 `56a07fea08891155e0b564634c2f6c2ab148a1afef2017858c00ff5963eb7105`. Service enabled/running with Telegram connected, zero active agents and installed file hashes matching provenance after acceptance.
+- Live coverage is a private chat on the fixed core. Group/topic isolation, SDK unload and subagent correlation were verified automatically, not claimed as live group or real-model delegation acceptance. Model guidance is not a deterministic guarantee. Follow-up controls are offered on status cards; disabling progress suppresses those cards.
+
+Local maintainer evidence is retained in `Telegram测试工具/reports/catalog-experience-20260920.json` and `catalog-experience-deployment-20260920.json` in the parent workspace. Reports are not bundled with user packages.
 
 ## Prior release validation (1.8.3-catalog.1)
 
