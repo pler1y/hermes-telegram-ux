@@ -5,10 +5,8 @@ from threading import RLock
 
 
 CHOICES = {
-    "language": ("zh", "en"), "display": ("brief", "detail"),
-    "progress": (True, False), "final_summary": (False, True),
-    "emoji": (True, False), "wait_hint": (True, False),
-    "conversation_style": (True, False), "followups": (True, False),
+    "language": ("zh", "en"),
+    "progress": (True, False), "emoji": (True, False),
 }
 DEFAULTS = {key: values[0] for key, values in CHOICES.items()}
 

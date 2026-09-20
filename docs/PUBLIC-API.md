@@ -1,64 +1,92 @@
 # Catalog-safe public capability inventory
 
-Checked 2026-09-16 against official main **`3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`**, Hermes **0.21.3**. The Full baseline is `8e38243614c1ecc37e0cdcbd4e6e223f920ec895` (1.8.3-rc.1). Its private integration is absent from this branch and every Catalog payload.
+Source rechecked on 2026-09-20 against official Hermes **`3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`**, Hermes **0.21.3**. This document describes the current temporary-progress candidate, not a new deployment or compatibility test result. The Full baseline is `8e38243614c1ecc37e0cdcbd4e6e223f920ec895`; its private integration is absent from the Catalog runtime.
 
-Primary references at the exact checked revision:
+Primary references at the checked revision:
 
-- [Public hook catalog and payloads](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/website/docs/user-guide/features/hooks.md)
-- [Native plugin API and platform handler factory](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/website/docs/developer-guide/plugins/index.md)
-- [PluginContext and VALID_HOOKS public definitions](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/hermes_cli/plugins.py)
-- [Public BasePlatformAdapter send/edit/delete signatures and SendResult](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/gateway/platforms/base.py)
-- [Observer ID/status contract](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/website/docs/developer-guide/observer-hooks.md)
+- [Hook catalog](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/website/docs/user-guide/features/hooks.md)
+- [PluginContext and public hook names](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/hermes_cli/plugins.py)
+- [Public adapter transport](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/gateway/platforms/base.py)
+- [Observer IDs and statuses](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/website/docs/developer-guide/observer-hooks.md)
 - [Official admission validator](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/hermes_cli/plugin_validate.py)
 
-## Feature → hook → fallback
+## Registered hooks
 
-| Hook / capability | Timing and fields consumed | Return / behavior | Missing-data fallback |
-|---|---|---|---|
-| `pre_gateway_dispatch` | Before authorization; `event.source` (platform/chat/user/thread/profile), `event.message_id`, `event.internal` | Always `None`; capture a plugin-owned ticket only | No network before authorization; skip invalid ingress |
-| `pre_llm_call` | Turn starts; `session_id`, `turn_id`, `platform`, `sender_id`, `parent_session_id` | Per-turn context with display/conversation guidance after matching the execution identity; create bounded state | No live route or guidance without a matching ticket; skip subagents |
-| `pre_tool_call` | Before execution; session/turn/tool-call IDs, tool name | Always `None` | No argument rewrite, block, approve, or ID guessing |
-| `post_tool_call` | Tool settles, including blocked/cancelled; IDs, name, `status`; bounded arguments only for this plugin's successful progress tool | Always `None` | Other tool arguments/results are not retained; a blocked progress tool does not update public notes |
-| `pre_api_request` | Each provider attempt; session/turn/request IDs and native retry count | Always `None` | Missing attempt ID not counted; retry labels describe the current request |
-| `post_api_request` | Provider attempt returned | Always `None` | Does not mean the overall task completed |
-| `api_request_error` | Provider attempt failed | Always `None` | Shows observed request failure; does not invent retry progress |
-| `pre_approval_request` | Before prompted/smart approval; `turn_id`, `tool_call_id`, `surface` | Always `None`; prompted wait differs from smart evaluation | No ambiguous cross-session join; native approval remains authoritative |
-| `post_approval_response` | Choice/timeout/withdrawal/notification failure; IDs, `choice` | Always `None` | Unknown choice never treated as approval |
-| `on_interim_message` | Off-path observer, streaming or non-streaming; session/turn/iteration | Always `None`; generic stage acknowledgement | Never resends text, including already-streamed text |
-| `transform_llm_output` | Before successful final delivery; text, session/platform and additive turn ID | Nonempty original text plus optional counts, or `None` | Empty/silent/media/code-fence-sensitive replies pass through; exceptions return `None` |
-| `on_session_end` | Turn finalization; session/turn IDs, completed/failed/interrupted | Always `None`; finish panel and release turn state | Reduced legacy exit payload cannot assert precise outcome |
-| `on_session_finalize` / `on_session_reset` | Session teardown/reset; outgoing session ID | Always `None`; discard only matching state/panels | No cross-session cleanup from absent IDs |
-| `ctx.register_platform_handler("telegram", factory)` | Connect-time `(native, adapter)` | Public adapter send/edit/delete plus scoped `tgux2:` SDK callbacks; import only four reviewed SDK types inside the factory | Reconnect cancels old panels, invalidates old tickets |
-| `ctx.get_config` | Plugin-relative settings on registration | Read own namespace only | Invalid values use bounded defaults |
-| `ctx.register_command("tgux", handler)` | Native command dispatch, raw args | Owned menu after a same-ticket authorized `pre_command`; localized text fallback | No private conversation lookup or native handler dispatch |
-| `ctx.spawn_task` / `ctx.on_unload` | Supervised async work / reverse cleanup | Nonblocking panel worker; stop and clear on unload | Missing event loop fails only the isolated factory; native Telegram continues |
+The runtime declares 17 hooks. `post_llm_call` replaces `transform_llm_output`; the plugin does not transform final answers.
 
-All registered callbacks accept additive keyword fields. Event processing is in-memory and bounded (128 concurrent turns, 512 counted events per turn, idle expiry); at most 256 live UI cards with one-hour expiry. Personal preferences use quota-bounded public `ctx.state`. Counts use opaque IDs; session keys are never parsed. Only intentional public notes from the plugin's own successful progress tool are retained; other tool arguments/results, raw child summaries and approval commands are never copied to the panel.
+| Hook | Public inputs consumed | Current use and fallback |
+|---|---|---|
+| `pre_gateway_dispatch` | `event.source` platform/chat/user/thread/profile, message ID, internal flag | Capture a single-use ingress ticket; return `None`. Never send before authorization. |
+| `pre_llm_call` | Session/turn/platform/sender/parent IDs, `user_message` | Match the ticket and schedule initial feedback before task extraction. Reduce the current public message to a task subject. Return narrowly scoped public-progress guidance. Missing route or subagent execution receives no live panel. |
+| `pre_tool_call` | Session/turn/call IDs, `tool_name`, selected `args` | Identify the actual action and a safe target: query, filename, domain or command class. Return `None`; no rewrite, veto or approval. |
+| `post_tool_call` | Same IDs, name, args, `status`, `result` | Observe outcome and recognized bounded result structures. Retain concise labels/facts, not raw arguments/results. Accept notes from this plugin's successful progress tool. |
+| `pre_api_request` | Session/turn/request IDs, API iteration and retry count | Observe current model request without modifying it or inspecting private prompts. |
+| `post_api_request` | Request identity and public tool-call shape/count | Observe returned request versus tool phase. It is not Telegram delivery; response/reasoning text is not copied. |
+| `api_request_error` | Request identity | Show observed request failure; do not invent a retry. |
+| `pre_approval_request` | Turn/tool-call identity, surface | Reflect prompted/smart waiting. Native approval remains authoritative. |
+| `post_approval_response` | Identity and choice | Reflect observed outcome; unknown choice is not approval. |
+| `on_interim_message` | Session/turn/iteration | Deduplicate public interim events without copying text or replacing a newer tool phase. |
+| `post_llm_call` | Session/turn identity | Enter finalizing after the tool loop. Ignore answer text; no final-answer transform/send. |
+| `on_session_end` | Session/turn identity, completed/failed/interrupted | Set terminal presentation, request cleanup, release turn state. Normal completion shows finalizing, not a permanent completion card. |
+| `on_session_finalize` / `on_session_reset` | Outgoing session identity | Discard matching plugin state/messages; no absent-ID cross-session cleanup. |
+| `subagent_start` / `subagent_stop` | Explicit parent session/turn and child session IDs | Observe correlated child lifecycle only; no task-tree lookup, cancellation or raw child summaries. |
+| `pre_command` | Surface/platform/canonical command | Authorize only the matching ticket for native `/tgux` dispatch; no directive or private dispatch. |
 
-## Middleware
+Callbacks accept additive keyword fields. State is bounded to 128 active turns and 512 observed event identities per turn. Only known `(session_id, turn_id)` pairs affect a turn. Approval events without a session ID require a unique matching turn ID. Terminal state prevents late events from reopening progress.
 
-**None registered or required.** The [official middleware contract](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/website/docs/developer-guide/middleware.md) supports request dictionaries and `next_call` execution wrappers, with fail-open exceptions. None is necessary for observational UX; the implementation does not touch requests, guardrails, tool execution or approvals. `provides_middleware` is empty. The single declared `telegram_ux_update` tool accepts bounded public milestones and optional follow-up suggestions; it cannot execute requests or change routing. The official probe checks both declarations.
+## Task context and evidence
 
-## Routing and transport boundary
+`pre_llm_call` provides `user_message`, `conversation_history`, `is_first_turn`, `session_id`, `task_id`, `turn_id`, `model`, `platform`, `parent_session_id` and `sender_id` in `agent/turn_context.py`. This plugin uses the current public message, not hidden reasoning or private session history.
 
-The public ingress hook supplies normalized message fields. The platform registrar supplies the read-only adapter handle; only its public `send(chat_id, content, reply_to, metadata)`, `edit_message(chat_id, message_id, content)` and `delete_message(chat_id, message_id)` methods are called. The supplied native Telegram SDK Application registers one prefix-scoped callback handler and its Bot sends/edits plugin-owned cards and reply keyboards. The hook documentation explicitly permits side-channel replies through public adapter sends. No gateway object, session store, bot token, private transport field or Hermes import is used.
+The reducer prefers a specific action/subject, falls back to a partial target such as a safe filename/domain, and finally uses a generic truthful action. A small grammatical reduction removes request phrasing and secondary advice. It makes no extra LLM call and does not guarantee a semantic summary of arbitrary prose.
 
-Python ContextVar propagation is an **optional optimization, not a promised Hermes lifecycle contract**. A single-use ticket is shared only through the actual execution context; it expires after 60 seconds and is consumed atomically. Matching public sender/profile fields and active transport generation are required before sending. Absent propagation disables live display. The actual host dispatcher/context behavior is covered by a contract test on the pinned core and current-main CI. This approach cannot guarantee a rolling panel for delayed/reconstructed queue turns; restoring that guarantee requires an explicit public route/turn hook.
+Selected public tool arguments identify the action actually starting. Commands are classified without echoing shell text; mixed/unknown commands stay generic. Result parsing accepts recognized dictionary/JSON structures, not assertions in arbitrary prose: for example validated search-result lists and numeric temperature/humidity/wind fields. Missing humidity cannot become a humidity-data claim. A zero process exit supports “test command completed”, not “all tests passed”. Errors take precedence over success facts.
 
-Only calls for a known `(session_id, turn_id)` affect state. Approval events lacking session ID require a unique matching turn ID. Unknown events are ignored. No lookup into gateway/session databases or internal runtime state fills gaps. The original final reply remains owned by Hermes even after transport failure.
+`telegram_ux_update` is a registered public tool for bounded `goal`, `action`, `finding` and `next` notes. It does not execute work. An explicit model action note can supply concise wording when observed evidence is insufficient; claimed findings and intended next steps are not promoted to verified execution. The four fields are not dumped into the bubble. Guidance concerns public progress only, not general answer style.
 
+Only safe labels and structural facts survive handling. Secret-like values, hidden-reasoning tags, delivery directives, full paths/URLs and raw code are excluded from displayed labels. This conservative filter is not a universal sanitizer for arbitrary untrusted input.
 
-## Additional public surfaces in 1.9.0-catalog.1
+## Initial-feedback timing and routing
 
-- `pre_command`: observes only authorized gateway `/tgux` dispatch. The ingress ticket must still match the command text, profile, transport generation and expiry. No directive is returned, and no menu is sent from the pre-auth hook.
-- `subagent_start` / `subagent_stop`: require exact parent session/turn and child session IDs. Only observed status counts are shown. Child goals, summaries and tool histories are not copied; late starts cannot resurrect ended children.
-- `register_tool`: one schema-bounded public progress tool, handled through its successful `post_tool_call` event. No tool overrides or execution middleware.
-- `ctx.state.get/set`: hashed user/chat/topic keys store only display preferences. No global settings writes, credentials, conversation text or private session database access.
-- Telegram SDK factory imports: `InlineKeyboardButton`, `InlineKeyboardMarkup`, `ReplyKeyboardMarkup`, `CallbackQueryHandler`. Each card uses an opaque token and validates its original user, chat, topic, message and expiry. Unload/reconnect removes the exact SDK handler. SDK use remains optional when the native object is unavailable.
-- Follow-ups and native command shortcuts use selective, one-time reply keyboards. The user sends the request through native ingress; no `inject_message`, private command dispatcher or guessed session key is required. Command permissions stay with Hermes.
+Initial status is scheduled immediately after route validation in `pre_llm_call`, before task extraction. The checked core has no reliable ordinary-message hook combining a route and post-authentication timing earlier than that:
 
-## Omitted lifecycle coverage
+- `pre_gateway_dispatch` precedes authentication in `gateway/run_inbound.py`.
+- Authenticated `gateway_platform_event` currently covers Telegram reactions/edited messages, not ordinary new messages.
+- `on_session_start` lacks a complete route and is not per user message.
 
-No intake acknowledgement, busy interception, natural-language stop matching, custom stop implementation, completion-group renderer, session/database polling or Full adapter import. Public `agent_loop_stopped` currently exists as an observer, but its routing key does not provide this adapter's turn correlation; it is deliberately unused. Interruption labels come only from correlated `on_session_end(interrupted=True)`.
+Initial-feedback delay is therefore a public lifecycle limitation. No pre-auth reply, private auth helper or monkey patch is used.
 
-The original [PR #108887](https://github.com/NousResearch/hermes-agent/pull/108887) was OPEN when checked on 2026-09-16. Its [maintainer follow-up](https://github.com/NousResearch/hermes-agent/pull/108887#issuecomment-5674969935) requires eliminating private rebinds and using public extensions. Official Catalog admission is separate from this repository's independent releases. Admission remains subject to review; passing validation alone does not establish acceptance.
+ContextVar propagation is an **optional optimization, not a promised Hermes lifecycle contract**. A single-use ticket travels through the actual execution context, expires after 60 seconds, and requires matching sender/profile and transport generation. Missing propagation or reconstructed/delayed queue context disables live display. No session-key parsing or gateway/database lookup fills gaps.
+
+## Transport and cleanup
+
+`ctx.register_platform_handler("telegram", factory)` supplies a read-only adapter. Ordinary progress uses only public `send`, `edit_message` and `delete_message`. One acknowledged initial send establishes the message ID; later updates edit that ID. Duplicate text is skipped, updates coalesce, uncertain initial sends are not retried, and edit failure never creates a replacement bubble.
+
+Normal `on_session_end` requests finalizing and cleanup. `cleanup_delay` defaults to 1 second, clamped to 0–5 seconds. The worker deletes its own known message with bounded attempts; deletion failure is isolated but can leave a message behind. A turn completed before its worker starts does not create a late bubble. An in-flight send uses its acknowledgement for cleanup when available; an unknown outcome cannot provide a deletable ID.
+
+`on_session_end` reports Agent completion, not successful Telegram answer delivery. Neither it nor `post_llm_call` is a post-delivery receipt. A short cleanup window cannot establish ordering against a slow native send. There is no private cleanup-ID list, delivery callback or second answer-delivery mechanism.
+
+Final answers, streaming, attachments, approvals, `/stop`, interruptions, task timeouts and recovery remain native. Plugin idle expiry ends its display, not the underlying task.
+
+## Independent menu and preferences
+
+`ctx.register_command("tgux", ...)` opens a separately requested menu after authorized command observation. The platform factory locally imports the reviewed Telegram SDK types: `InlineKeyboardButton`, `InlineKeyboardMarkup`, `ReplyKeyboardMarkup`, `CallbackQueryHandler`. Scoped `tgux2:` callbacks validate user/chat/topic/message/expiry and operate only on owned menu messages. The SDK menu is not attached to status messages.
+
+`ctx.state.get/set` stores hashed user/chat/topic keys. Choices are language, progress and emoji; old detail/statistics/elapsed/style/follow-up preferences are ignored. Native command shortcuts remain user-sent reply-keyboard messages through ordinary ingress. No `inject_message` or private command method is called. `ctx.spawn_task` supervises async display work; `ctx.on_unload` cleans up registrations, menu callbacks and active work.
+
+## Evaluated public interfaces not used
+
+| Interface | Reason |
+|---|---|
+| `on_stream_start` / `on_stream_delta` / `on_stream_end` | Individual provider attempts, not final delivery. Each hook/callback has an independent asynchronous queue; cross-hook order is not guaranteed. Token text is unnecessary for this event-based UI. No stream hooks are registered. |
+| `llm_request` / `tool_request` middleware | Observing inputs/results does not require altering model requests, tool arguments or execution. No middleware is registered. |
+| `transform_llm_output` | Removed from registration; final answer bytes stay native. |
+| `agent_loop_stopped` | Its session-key payload does not provide this adapter's exact session/turn correlation. Use correlated `on_session_end`. |
+| `gateway_platform_event` | Current Telegram types do not supply ordinary-message intake or final-delivery events. |
+| Adapter processing callbacks / internal delivery coordination | Not public plugin completion registration with this plugin's correlation data. The plugin does not replace adapter methods or access private lifecycle state. |
+
+Stream deltas can contain `kind="reasoning"` when the operator opts in. This plugin does not subscribe. `post_api_request` can expose assistant content before all scratchpad checks, so it is not used as progress prose. Interim text is public commentary but can arrive late, so it is not republished.
+
+The [official middleware contract](https://github.com/NousResearch/hermes-agent/blob/3c3ab69abb9b08683b5eb15b4e2b8be1198c875f/website/docs/developer-guide/middleware.md) and stream APIs were evaluated; not using them is an implementation choice, not a claim that they are private or unavailable.
+
+No Hermes runtime imports, monkey patches, task-manager replacement or global configuration writes are needed. Independent distribution and successful validation do not establish official Plugin Catalog admission.

@@ -1,6 +1,6 @@
 name: hermes-telegram-ux-catalog
 version: 1.9.0-catalog.1
-description: Natural Telegram progress, task menus, follow-up entry points and personal display preferences through public Hermes APIs.
+description: Task-aware temporary Telegram progress with automatic cleanup through public Hermes APIs.
 author: pler1y
 license: MIT
 homepage: https://github.com/pler1y/hermes-telegram-ux
@@ -19,7 +19,7 @@ provides_hooks:
   - pre_approval_request
   - post_approval_response
   - on_interim_message
-  - transform_llm_output
+  - post_llm_call
   - on_session_end
   - on_session_finalize
   - on_session_reset
@@ -35,30 +35,10 @@ config_schema:
     type: bool
     default: true
     description: Show a separate status message for reliably correlated Telegram turns.
-  final_summary:
-    type: bool
-    default: false
-    description: Append observed tool and API counts to text replies that used tools.
-  display:
-    type: str
-    default: brief
-    description: Default progress detail, brief or detail. Users can override in their own chat/topic.
   emoji:
     type: bool
     default: true
     description: Show emoji in plugin status messages; does not change native reactions.
-  wait_hint:
-    type: bool
-    default: true
-    description: Show elapsed time after twenty seconds without claiming a completion percentage.
-  conversation_style:
-    type: bool
-    default: true
-    description: Add concise task communication guidance to correlated Telegram turns.
-  followups:
-    type: bool
-    default: true
-    description: Offer user-sent follow-up requests on completed status cards.
   update_interval:
     type: float
     default: 1.5
@@ -67,3 +47,7 @@ config_schema:
     type: float
     default: 600
     description: Stop showing live status after this many seconds without an event (30 to 3600).
+  cleanup_delay:
+    type: float
+    default: 1.0
+    description: Seconds before removing the owned status after turn completion (0 to 5); not a final-delivery receipt.

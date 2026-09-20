@@ -14,7 +14,7 @@ from threading import RLock
 import time
 
 from .model import Turn, identity
-from .presentation import LABELS, annotate_reply, status_text
+from .presentation import LABELS, status_text
 from .telegram import Route, TelegramPanels
 from .experience import TOOL, SCHEMA, progress_tool, turn_guidance
 from .preferences import Preferences
@@ -24,9 +24,9 @@ LOG = logging.getLogger("hermes-telegram-ux-catalog")
 OBSERVERS = (
     "pre_tool_call", "post_tool_call", "pre_api_request", "post_api_request",
     "api_request_error", "pre_approval_request", "post_approval_response", "on_interim_message",
-    "subagent_start", "subagent_stop",
+    "subagent_start", "subagent_stop", "post_llm_call",
 )
-HOOKS = ("pre_gateway_dispatch", "pre_llm_call", *OBSERVERS, "transform_llm_output",
+HOOKS = ("pre_gateway_dispatch", "pre_llm_call", *OBSERVERS,
          "on_session_end", "on_session_finalize", "on_session_reset", "pre_command")
 
 
@@ -57,10 +57,10 @@ class HermesCatalogAdapter:
         language = ctx.get_config("language", "zh")
         self.language = language if language in ("zh", "en") else "zh"
         self.progress = ctx.get_config("progress", True) is True
-        self.final_summary = ctx.get_config("final_summary", False) is True
         self.preferences = Preferences(ctx)
         self.interval = bounded_number(ctx.get_config("update_interval", 1.5), 1.5, 1, 30)
         self.ttl = bounded_number(ctx.get_config("status_ttl", 600), 600, 30, 3600)
+        self.cleanup_delay = bounded_number(ctx.get_config("cleanup_delay", 1), 1, 0, 5)
         self.lock = RLock()
         self.turns, self.routes = {}, {}
         self.transport = None
@@ -75,7 +75,7 @@ class HermesCatalogAdapter:
         self.ctx.register_platform_handler("telegram", self.wire_telegram)
         self.ctx.register_command("tgux", self.help_command, description="Telegram UX Catalog-safe help")
         self.ctx.register_tool(name=TOOL, toolset="telegram_ux", schema=SCHEMA, handler=progress_tool,
-                               description="Public Telegram task progress and follow-up suggestions")
+                               description="Public task milestones for one temporary Telegram status message")
         self.ctx.on_unload(self.close)
 
     def help_command(self, raw_args=""):
@@ -116,9 +116,9 @@ class HermesCatalogAdapter:
                 from telegram.ext import CallbackQueryHandler
                 sdk = {"button": InlineKeyboardButton, "markup": InlineKeyboardMarkup,
                        "keyboard": ReplyKeyboardMarkup, "handler": CallbackQueryHandler}
-                self.interface = TelegramInterface(self.ctx, native, sdk, self.preferences, self.hide_status)
+                self.interface = TelegramInterface(self.ctx, native, sdk, self.preferences)
             self.transport = TelegramPanels(self.ctx, adapter, self.interval, self.ttl, self.expire,
-                                             self.interface, self.heartbeat)
+                                             cleanup_delay=self.cleanup_delay)
 
     def pre_gateway_dispatch(self, event=None, **kwargs):
         # This hook precedes auth: record only. No network, no reply, no directive.
@@ -161,7 +161,7 @@ class HermesCatalogAdapter:
         except Exception:
             return None
 
-    def pre_llm_call(self, session_id="", turn_id="", platform="", sender_id="", parent_session_id="", **kwargs):
+    def pre_llm_call(self, session_id="", turn_id="", platform="", sender_id="", parent_session_id="", user_message="", **kwargs):
         if self.closed or platform != "telegram" or parent_session_id:
             return None
         key = (identity(session_id), identity(turn_id))
@@ -177,7 +177,10 @@ class HermesCatalogAdapter:
             turn.preferences = self.preferences.read(route)
             if route and self.transport:
                 self.routes[key] = route
+                # Earliest reliable public per-turn stage after authorization.
+                # Schedule the initial feedback before any task-text analysis.
                 self.publish(key, turn)
+                turn.set_task(user_message)
         return turn_guidance(turn.preferences) if route else None
 
     def find_key(self, data):
@@ -210,57 +213,21 @@ class HermesCatalogAdapter:
     def publish(self, key, turn, ending=None):
         route = self.routes.get(key)
         if route and self.transport and turn.preferences.get("progress", self.progress):
-            text, view = self.render(turn, ending)
-            self.transport.publish(key, route, text, bool(ending), view)
+            self.transport.publish(key, route, self.render(turn, ending), bool(ending))
 
     def render(self, turn, ending=None):
         language = turn.preferences.get("language", self.language)
         now = self.clock()
-        return status_text(turn, language, ending, now), {
-            "detail": status_text(turn, language, ending, now, detailed=True),
-            "followups": list(turn.note.get("followups", [])), "terminal": bool(ending),
-        }
-
-    def heartbeat(self, key):
-        with self.lock:
-            turn = self.turns.get(key)
-            return self.render(turn) if turn and key in self.routes else None
-
-    def hide_status(self, key):
-        if key is None:
-            return
-        with self.lock:
-            self.routes.pop(key, None)
-            if self.transport:
-                self.transport.discard(key)
-
-    def transform_llm_output(self, response_text="", platform="", **kwargs):
-        if self.closed or platform != "telegram":
-            return None
-        try:
-            with self.lock:
-                self.prune()
-                key = self.find_key(kwargs)
-                # Older transform payloads omit turn_id; only one active turn is unambiguous.
-                if key is None and not kwargs.get("turn_id"):
-                    session = identity(kwargs.get("session_id"))
-                    matches = [candidate for candidate in self.turns if candidate[0] == session]
-                    key = matches[0] if len(matches) == 1 else None
-                if key:
-                    turn = self.turns[key]
-                    if turn.preferences.get("final_summary", self.final_summary):
-                        return annotate_reply(response_text, turn, turn.preferences.get("language", self.language))
-                return None
-        except Exception as exc:
-            LOG.warning("Catalog reply annotation omitted (%s)", type(exc).__name__)
-            return None
+        return status_text(turn, language, ending, now)
 
     def on_session_end(self, completed=False, failed=False, interrupted=False, **kwargs):
         with self.lock:
             key = self.find_key(kwargs)
             if key is None:
                 return None
-            ending = "interrupted" if interrupted else "failed" if failed else "ended" if completed else "unknown_end"
+            # Agent completion is not a Telegram delivery receipt. The transport
+            # uses a short bounded window, then removes only its own message.
+            ending = "interrupted" if interrupted else "failed" if failed else "finalizing" if completed else "unknown_end"
             self.publish(key, self.turns[key], ending)
             self.turns.pop(key, None)
             self.routes.pop(key, None)

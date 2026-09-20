@@ -36,7 +36,9 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.prior = {key: os.environ.get(key) for key in ("HERMES_HOME", "HERMES_BUNDLED_PLUGINS")}
         os.environ["HERMES_HOME"] = str(home)
         os.environ["HERMES_BUNDLED_PLUGINS"] = str(home / "bundled")
-        (home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": [NAME], "entries": {NAME: {"settings": {"final_summary": True}}}}}))
+        # Legacy final_summary must not bring answer rewriting back. A short
+        # cleanup window keeps the actual host lifecycle test deterministic.
+        (home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": [NAME], "entries": {NAME: {"settings": {"final_summary": True, "cleanup_delay": 0.005}}}}}))
         self.manager = PluginManager()
         self.manager.discover_and_load()
         self.sent, self.edits, self.deleted = [], [], []
@@ -86,19 +88,26 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text())
         self.assertEqual(set(manifest["provides_hooks"]), set(HOOKS))
         self.assertTrue(all(self.manager.has_hook(name) for name in HOOKS))
+        self.assertFalse(self.manager.has_hook("transform_llm_output"))
+        self.assertTrue(self.manager.has_hook("post_llm_call"))
         await self.begin()
         self.assertEqual(len(self.sent), 1)
         self.assertEqual(self.sent[0]["metadata"], {"thread_id": "42"})
-        # Real host callback execution, not a fake ctx: final reply is transformed through dispatch.
+        # Real host callback execution, not a fake ctx: public observations must
+        # never register a transformer or resend the native final answer.
         self.assertEqual(self.invoke("pre_tool_call", session_id="s", turn_id="t", tool_call_id="c", tool_name="read_file", args={}), [])
         self.invoke("post_tool_call", session_id="s", turn_id="t", tool_call_id="c", tool_name="read_file", status="ok", result="confidential")
         result = self.invoke("transform_llm_output", session_id="s", turn_id="t", platform="telegram", response_text="Final answer")
-        self.assertEqual(len(result), 1)
-        self.assertTrue(result[0].startswith("Final answer"))
-        self.assertNotIn("confidential", result[0])
+        self.assertEqual(result, [])
+        self.assertEqual(self.invoke("post_llm_call", session_id="s", turn_id="t", platform="telegram", assistant_response="Final answer"), [])
         self.invoke("on_session_end", session_id="s", turn_id="t", completed=True)
         await asyncio.sleep(0.04)
-        self.assertIn("已结束", self.edits[-1]["content"])
+        self.assertIn("正在整理最终回答", self.edits[-1]["content"])
+        self.assertEqual(self.deleted, [{"chat_id": "10", "message_id": "77"}])
+        self.assertEqual(len(self.sent), 1)
+        self.assertFalse(any("reply_markup" in item for item in self.sent + self.edits))
+        self.assertNotIn("confidential", repr(self.sent + self.edits))
+        self.assertNotIn("Final answer", repr(self.sent + self.edits))
         self.assertEqual(self.invoke("transform_llm_output", session_id="s", turn_id="t", platform="telegram", response_text="Later"), [])
 
     async def test_unload_removes_hooks_and_cancels_owned_messages(self):
@@ -123,13 +132,13 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
     async def test_public_transport_signatures(self):
         from gateway.platforms.base import BasePlatformAdapter
         inspect.signature(BasePlatformAdapter.send).bind(None, chat_id="1", content="hello", reply_to="2", metadata={"thread_id": "3"})
-        inspect.signature(BasePlatformAdapter.edit_message).bind(None, chat_id="1", message_id="2", content="hello")
+        inspect.signature(BasePlatformAdapter.edit_message).bind(None, chat_id="1", message_id="2", content="hello", finalize=True)
         inspect.signature(BasePlatformAdapter.delete_message).bind(None, chat_id="1", message_id="2")
 
     async def test_registered_progress_tool_works_and_is_removed_on_unload(self):
         from tools.registry import registry
         from catalog.experience import TOOL
-        result = registry.dispatch(TOOL, {"goal": "Public progress", "followups": ["Explain the result"]}, scope=self.manager.scope_key)
+        result = registry.dispatch(TOOL, {"goal": "Public progress", "action": "Checking current results"}, scope=self.manager.scope_key)
         parsed = json.loads(result)
         self.assertTrue(parsed["ok"])
         self.assertEqual(parsed["note"]["goal"], "Public progress")

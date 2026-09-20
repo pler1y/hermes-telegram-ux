@@ -102,21 +102,21 @@ class PreferenceTests(unittest.TestCase):
         self.assertEqual(len(note["goal"]), 180)
         self.assertNotIn("finding", note)
         self.assertNotIn("hidden", note)
-        self.assertEqual(note["followups"], ["Continue"])
+        self.assertNotIn("followups", note)
         self.assertNotIn("\u202e", note["next"])
 
-    def test_elapsed_and_retry_feedback_does_not_invent_completion(self):
+    def test_status_stays_brief_without_elapsed_time_or_statistics(self):
         turn = Turn("s", "t", 10)
         turn.observe("pre_api_request", {"api_request_id": "a", "retry_count": 2}, 20)
         text = status_text(turn, "zh", now=80)
-        self.assertIn("1 分 10 秒", text)
-        self.assertIn("重试 2 次", text)
+        self.assertNotIn("分", text)
+        self.assertLessEqual(len(text.splitlines()), 2)
         self.assertNotIn("%", text)
         self.assertNotIn("完成", text)
 
     def test_no_emoji_does_not_remove_words_from_plain_status(self):
         turn = Turn("s", "t", time.monotonic(), preferences={"emoji": False})
-        self.assertTrue(status_text(turn, "en", "unknown_end").startswith("Turn ended"))
+        self.assertFalse(status_text(turn, "en", "unknown_end")[0].isspace())
         self.assertFalse(status_text(turn, "zh").startswith("⏳"))
 
 
@@ -129,6 +129,7 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         self.native, self.telegram = Native(), TelegramStub()
         self.ctx.factory(self.native, self.telegram)
         self.adapter.transport.interval = .001
+        self.adapter.transport.cleanup_delay = .001
 
     async def asyncTearDown(self):
         self.adapter.close()
@@ -192,7 +193,7 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         await self.click(card, "set_language")
         result = await self.begin()
         self.assertIn("telegram_ux_update", result["context"])
-        self.assertIn("Working", self.telegram.sent[-1]["content"])
+        self.assertIn("Thinking", self.telegram.sent[-1]["content"])
         self.assertEqual(self.ctx.settings, {})
 
     async def test_save_failure_is_visible_and_leaves_setting_unchanged(self):
@@ -202,50 +203,74 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Action failed", query.answers[-1][0][0])
         self.assertFalse(query.edits)
 
-    async def test_hide_only_stops_plugin_display_not_turn(self):
+    async def test_standalone_menu_close_does_not_touch_running_status(self):
+        card = await self.menu()
         await self.begin()
-        card = list(self.adapter.interface.cards.values())[0]
         query = await self.click(card, "close")
-        await self.settle()
         self.assertTrue(query.deleted)
         self.assertIn(("s1", "t1"), self.adapter.turns)
-        self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id="a", tool_name="read_file")
+        self.assertIn(("s1", "t1"), self.adapter.routes)
+        self.assertFalse(self.telegram.deleted)
+
+    async def test_normal_status_never_creates_a_menu(self):
+        await self.begin()
+        self.assertFalse(self.adapter.interface.cards)
+        self.assertFalse(self.native.messages or self.native.markups or self.native.edits)
+        self.assertNotIn("reply_markup", self.telegram.sent[0])
+
+    async def test_weather_task_lifecycle_edits_one_message_then_cleans(self):
+        self.adapter.pre_gateway_dispatch(event=event())
+        start(self.adapter, user_message="帮我查一下上海未来7天天气，看看温度、湿度和风速")
+        await self.settle()
+        self.assertEqual(self.telegram.sent[0]["content"], "🤔 正在思考中…")
+        ids = {"session_id": "s1", "turn_id": "t1"}
+        self.adapter.observe("pre_tool_call", **ids, tool_name="web_search", tool_call_id="search",
+                             args={"query": "上海未来7天天气"})
+        await self.settle()
+        self.assertIn("搜索上海", self.telegram.edits[-1]["content"])
+        self.adapter.observe("post_tool_call", **ids, tool_name="web_search", tool_call_id="search", status="ok",
+                             result={"data": {"web": [{"title": "Forecast", "url": "https://example.test"}]}})
+        await self.settle()
+        self.assertIn("1 条搜索结果", self.telegram.edits[-1]["content"])
+        self.adapter.observe("pre_tool_call", **ids, tool_name="web_extract", tool_call_id="read",
+                             args={"urls": ["https://example.test/weather"]})
+        await self.settle()
+        self.assertIn("上海", self.telegram.edits[-1]["content"])
+        self.adapter.observe("post_tool_call", **ids, tool_name="web_extract", tool_call_id="read", status="ok",
+                             result={"daily": {"temperature_2m_max": [25, 26], "wind_speed_10m_max": [4, 5]}})
+        await self.settle()
+        self.assertIn("温度、风速", self.telegram.edits[-1]["content"])
+        self.assertNotIn("湿度", self.telegram.edits[-1]["content"])
+        self.adapter.observe("post_llm_call", **ids, assistant_response="The untouched native answer")
+        self.adapter.on_session_end(**ids, completed=True)
         await self.settle()
         self.assertEqual(len(self.telegram.sent), 1)
-        self.assertNotIn(("s1", "t1"), self.adapter.routes)
+        self.assertTrue(all(item["message_id"] == "1" for item in self.telegram.edits + self.telegram.deleted))
+        self.assertEqual(len(self.telegram.deleted), 1)
+        self.assertFalse(self.native.messages or self.native.markups or self.native.edits)
+        self.assertFalse(self.adapter.turns or self.adapter.transport.panels)
+        self.assertTrue(all("untouched native answer" not in item["content"] for item in self.telegram.edits))
 
-    async def test_status_details_menu_does_not_replace_live_card(self):
-        await self.begin()
-        card = list(self.adapter.interface.cards.values())[0]
-        query = await self.click(card, "details")
-        self.assertFalse(query.edits)
-        self.assertIn("工具", self.native.messages[-1]["text"])
-        self.assertEqual(len(self.adapter.interface.cards), 2)
-
-    async def test_public_progress_tool_and_correlated_children_update_card(self):
+    async def test_public_progress_note_is_brief_without_child_or_followup_cards(self):
         await self.begin()
         data = dict(session_id="s1", turn_id="t1", tool_name=TOOL, tool_call_id="p",
-                    args={"goal": "整理报告", "finding": "确认两项结果", "followups": ["请展开第一项"]})
+                    args={"goal": "整理报告", "action": "比较报告中的两项结果", "finding": "确认两项结果"})
+        self.adapter.observe("pre_tool_call", **data)
         self.adapter.observe("post_tool_call", **data, status="ok")
         self.adapter.observe("subagent_start", parent_session_id="s1", parent_turn_id="t1", child_session_id="child")
         self.adapter.observe("subagent_stop", parent_session_id="s1", parent_turn_id="t1", child_session_id="child", child_status="completed", child_summary="not copied")
         self.adapter.observe("subagent_start", parent_session_id="other", parent_turn_id="t1", child_session_id="wrong")
         await self.settle()
-        text = self.native.edits[-1]["text"]
-        self.assertIn("整理报告", text)
-        self.assertIn("确认两项结果", text)
-        self.assertIn("完成 1", text)
+        text = self.telegram.edits[-1]["content"]
+        self.assertIn("结果", text)
         self.assertNotIn("not copied", text)
+        self.assertLessEqual(len(text.splitlines()), 2)
         self.assertEqual(self.adapter.turns[("s1", "t1")].counts()[0], 0)
+        self.assertNotIn("wrong", self.adapter.turns[("s1", "t1")].children)
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         await self.settle()
-        card = list(self.adapter.interface.cards.values())[0]
-        self.assertTrue(card.view["terminal"])
-        await self.click(card, "followups")
-        keyboard = self.native.messages[-1]["reply_markup"]
-        self.assertEqual(keyboard.keyboard[0][0].text, "请展开第一项")
-        self.assertTrue(keyboard.one_time_keyboard)
-        self.assertTrue(keyboard.selective)
+        self.assertEqual(len(self.telegram.deleted), 1)
+        self.assertFalse(self.adapter.interface.cards)
 
     async def test_blocked_progress_tool_never_claims_its_note(self):
         await self.begin()
@@ -253,31 +278,45 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
                              tool_call_id="p", args={"finding": "should not appear"}, status="blocked")
         self.assertFalse(self.adapter.turns[("s1", "t1")].note)
 
-    async def test_progress_edits_keep_buttons_and_terminal_controls_atomically(self):
+    async def test_progress_edits_have_no_buttons_and_completion_deletes(self):
         await self.begin()
-        self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id="a", tool_name="read_file")
+        self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id="a", tool_name="read_file", args={"path": "/project/catalog/telegram.py"})
         await self.settle()
-        edit = self.native.edits[-1]
-        self.assertIn("正在阅读文件", edit["text"])
-        self.assertIn("关闭提示", [b.text for row in edit["reply_markup"].inline_keyboard for b in row])
-        self.assertFalse(self.telegram.edits)
+        self.assertIn("telegram.py", self.telegram.edits[-1]["content"])
+        self.assertFalse(self.native.markups or self.native.edits)
+        self.assertTrue(all("reply_markup" not in call for call in self.telegram.sent + self.telegram.edits))
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         await self.settle()
-        edit = self.native.edits[-1]
-        self.assertIn("继续处理", [b.text for row in edit["reply_markup"].inline_keyboard for b in row])
+        self.assertEqual(len(self.telegram.sent), 1)
+        self.assertEqual(len(self.telegram.deleted), 1)
+        self.assertFalse(self.adapter.interface.cards)
+        self.assertTrue(all("已结束" not in call["content"] for call in self.telegram.sent + self.telegram.edits))
 
-    async def test_final_reply_default_is_unchanged(self):
+    async def test_native_reply_is_never_transformed_even_with_old_preference(self):
+        self.ctx.settings["final_summary"] = True
         await self.begin()
-        self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_name="read_file", tool_call_id="c")
-        self.assertIsNone(self.adapter.transform_llm_output(response_text="Answer", platform="telegram", session_id="s1", turn_id="t1"))
+        self.assertNotIn("transform_llm_output", self.ctx.hooks)
+        self.adapter.observe("post_llm_call", session_id="s1", turn_id="t1", assistant_response="native answer not copied")
+        await self.settle()
+        self.assertNotIn("native answer not copied", self.telegram.edits[-1]["content"])
 
     async def test_progress_off_still_allows_menu_and_native_answer(self):
         card = await self.menu()
         await self.click(card, "set_progress")
-        await self.begin()
+        self.assertIsNone(await self.begin())
         self.assertFalse(self.telegram.sent)
         self.assertIn(("s1", "t1"), self.adapter.turns)
-        self.assertIsNone(self.adapter.transform_llm_output(response_text="Answer", platform="telegram", session_id="s1", turn_id="t1"))
+        self.assertNotIn("transform_llm_output", self.ctx.hooks)
+
+    async def test_settings_do_not_offer_removed_card_features(self):
+        card = await self.menu()
+        query = await self.click(card, "settings")
+        buttons = [button.text for row in query.edits[-1]["reply_markup"].inline_keyboard for button in row]
+        text = " ".join(buttons)
+        for obsolete in ("详情", "耗时", "答案统计", "后续操作", "对话优化", "进度详略"):
+            self.assertNotIn(obsolete, text)
+        self.assertIn("语言", text)
+        self.assertIn("进度提示", text)
 
     async def test_native_commands_are_user_sent_and_not_injected(self):
         card = await self.menu()

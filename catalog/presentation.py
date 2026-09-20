@@ -1,105 +1,146 @@
-"""Small bilingual status vocabulary and lossless, optional final annotations."""
+"""Concise task-aware rendering of public observations, with safe fallbacks."""
 import re
-import time
-
-TOOL_ACTIONS = {
-    "web_search": ("正在检索资料", "Searching for information"),
-    "web_extract": ("正在阅读网页", "Reading web pages"),
-    "browse": ("正在浏览网页", "Browsing web pages"),
-    "read_file": ("正在阅读文件", "Reading files"),
-    "write_file": ("正在写入文件", "Writing files"),
-    "patch": ("正在修改文件", "Editing files"),
-    "terminal": ("正在运行任务", "Running the task"),
-    "delegate_task": ("正在处理子任务", "Working with subagents"),
-    "search_files": ("正在查找文件", "Searching files"),
-    "image_generate": ("正在生成图片", "Generating an image"),
-}
 
 LABELS = {
     "zh": {
-        "working": "⏳ 正在处理", "tool": "🛠 正在调用工具：{detail}",
-        "api": "🤔 正在请求模型", "approval": "🔐 等待审批，请使用 Hermes 的审批消息",
-        "smart": "🔐 正在评估审批", "interim": "📝 已收到阶段说明，任务继续处理中",
-        "tool_error": "⚠️ 工具返回异常，等待后续处理", "api_error": "⚠️ 模型请求失败，等待 Hermes 后续处理",
+        "working": "🤔 正在思考中…", "api": "🤔 正在处理你的问题…",
+        "approval": "🔐 等待审批，请使用 Hermes 的审批消息",
+        "smart": "🔐 正在评估审批", "interim": "🤔 正在处理你的问题…",
+        "tool_error": "⚠️ 这一步没有成功，等待后续处理",
+        "tool_cancelled": "↩️ 这一步已取消",
+        "api_error": "⚠️ 模型请求失败，等待 Hermes 后续处理",
         "approval_timeout": "⌛ 审批已超时", "approval_failed": "⚠️ 审批通知发送失败",
         "approval_cancelled": "↩️ 审批请求已撤回", "approval_denied": "🚫 审批未通过",
-        "ended": "✓ 本轮处理已结束", "failed": "⚠️ 本轮运行异常结束",
-        "interrupted": "⏹ 本轮运行已中断", "unknown_end": "本轮运行已结束，结果以 Hermes 回复为准",
+        "finalizing": "✍️ 正在整理最终回答…", "failed": "⚠️ 本轮运行异常结束",
+        "interrupted": "⏹ 本轮运行已中断", "unknown_end": "正在清理临时状态…",
         "expired": "⌛ 状态更新已超时，请以 Hermes 后续回复为准",
-        "stats": "工具 {tools} 次 · 模型请求 {apis} 次", "errors": " · 工具异常 {errors} 次",
-        "partial": "（仅统计已收到的事件）", "footer": "本轮记录：",
-        "help": "Hermes Telegram UX · Catalog-safe\n显示可关联的工具、模型和审批状态，最终回复可附执行统计。\n/new、/stop、审批按钮和后台结果由 Hermes 处理。\n配置位于 plugins.entries.hermes-telegram-ux-catalog.settings；修改后重启 Gateway。",
+        "help": "Hermes Telegram UX · Catalog-safe\n用一条临时气泡显示当前任务进度，回合结束后自动清理。\n/new、/stop、审批、最终回答和附件由 Hermes 处理。",
     },
     "en": {
-        "working": "⏳ Working", "tool": "🛠 Running tool: {detail}",
-        "api": "🤔 Requesting the model", "approval": "🔐 Awaiting approval — use the Hermes approval message",
-        "smart": "🔐 Evaluating approval", "interim": "📝 Interim update received; work continues",
-        "tool_error": "⚠️ Tool reported a problem; awaiting further handling", "api_error": "⚠️ Model request failed; awaiting Hermes handling",
+        "working": "🤔 Thinking…", "api": "🤔 Working on your request…",
+        "approval": "🔐 Awaiting approval — use the Hermes approval message",
+        "smart": "🔐 Evaluating approval", "interim": "🤔 Working on your request…",
+        "tool_error": "⚠️ This step did not succeed; awaiting further handling",
+        "tool_cancelled": "↩️ This step was cancelled",
+        "api_error": "⚠️ Model request failed; awaiting Hermes handling",
         "approval_timeout": "⌛ Approval timed out", "approval_failed": "⚠️ Approval notification failed",
         "approval_cancelled": "↩️ Approval request withdrawn", "approval_denied": "🚫 Approval denied",
-        "ended": "✓ Turn processing ended", "failed": "⚠️ Turn ended with an error",
-        "interrupted": "⏹ Turn interrupted", "unknown_end": "Turn ended; see Hermes for the result",
+        "finalizing": "✍️ Preparing the final answer…", "failed": "⚠️ Turn ended with an error",
+        "interrupted": "⏹ Turn interrupted", "unknown_end": "Clearing temporary status…",
         "expired": "⌛ Status updates expired; see subsequent Hermes replies",
-        "stats": "Tools: {tools} · Model requests: {apis}", "errors": " · Tool issues: {errors}",
-        "partial": " (observed events only)", "footer": "Turn record: ",
-        "help": "Hermes Telegram UX · Catalog-safe\nShows correlated tool, model and approval events, plus optional reply statistics.\nHermes handles /new, /stop, approval buttons and background results.\nSettings: plugins.entries.hermes-telegram-ux-catalog.settings. Restart the Gateway after changes.",
+        "help": "Hermes Telegram UX · Catalog-safe\nShows task progress in one temporary bubble, removed when the turn ends.\nHermes handles /new, /stop, approvals, final answers and attachments.",
     },
 }
 
 
-def statistics(turn, language):
-    labels = LABELS[language]
-    tools, apis, errors = turn.counts()
-    result = labels["stats"].format(tools=tools, apis=apis)
-    if errors:
-        result += labels["errors"].format(errors=errors)
-    if turn.capped:
-        result += labels["partial"]
-    return result
+def action_text(info, task, language):
+    stage, subject = info.get("stage"), info.get("subject", "")
+    english = language == "en"
+    if stage == "search":
+        target = subject or task
+        return ("🔎 Searching for " + target + "…" if target else "🔎 Searching for information…") if english else ("🔎 正在搜索" + target + "…" if target else "🔎 正在搜索相关资料…")
+    if stage == "read_web":
+        return ("📖 Reading " + subject + "…" if subject else "📖 Reading web pages…") if english else ("📖 正在阅读" + subject + "相关资料…" if subject else "📖 正在阅读网页…")
+    if stage == "read":
+        return ("📖 Reading " + subject + "…" if subject else "📖 Reading files…") if english else ("📖 正在检查" + subject + "…" if subject else "📖 正在阅读文件…")
+    if stage == "write":
+        return ("✏️ Updating " + subject + "…" if subject else "✏️ Updating files…") if english else ("✏️ 正在修改" + subject + "…" if subject else "✏️ 正在修改文件…")
+    if stage == "locate":
+        return ("🔍 Looking for " + subject + " in the project…" if subject else "🔍 Searching the project…") if english else ("🔍 正在定位" + subject + "…" if subject else "🔍 正在查找项目中的相关代码…")
+    if stage == "test":
+        return "🧪 Running project tests…" if english else "🧪 正在运行项目测试…"
+    if stage == "calculate":
+        return "🧮 Calculating…" if english else "🧮 正在进行计算…"
+    if stage == "create":
+        return "🎨 Generating an image…" if english else "🎨 正在生成图片…"
+    if stage == "delegate":
+        return ("⚙️ Working on " + subject + "…" if subject else "⚙️ Subtask in progress…") if english else ("⚙️ 正在处理" + subject + "…" if subject else "⚙️ 子任务正在处理中…")
+    return "⚙️ Executing the current step…" if english else "⚙️ 正在执行当前步骤…"
+
+
+def result_text(info, task, language):
+    if info.get("status") != "ok":
+        return ""
+    facts, subject = info.get("facts", {}), info.get("subject") or task
+    english = language == "en"
+    fields = facts.get("weather_fields", ())
+    if fields and re.search(r"天气|气温|预报|weather|forecast", task + " " + subject, re.I):
+        names = {"temperature": ("温度", "temperature"), "humidity": ("湿度", "humidity"), "wind": ("风速", "wind speed")}
+        observed = (", " if english else "、").join(names[name][english] for name in fields)
+        return f"📊 Received {observed} data; organizing the weather information…" if english else f"📊 已获取{observed}数据，正在整理天气信息…"
+    if "search_count" in facts:
+        count = facts["search_count"]
+        if count == 0:
+            return "🔎 This search returned no results" if english else "🔎 这次搜索没有返回结果"
+        suffix = (" for " + subject) if subject else ""
+        return f"📊 Found {count} search results; reviewing information{suffix}…" if english else f"📊 已找到 {count} 条搜索结果，正在整理{subject or '相关资料'}…"
+    if facts.get("test_completed"):
+        return "🧪 Test command completed; reviewing the result…" if english else "🧪 测试命令已执行完，正在整理执行结果…"
+    return ""
+
+
+def note_text(turn, language):
+    """An explicitly public model report, never treated as verified tool evidence."""
+    action = turn.note.get("action")
+    goal = turn.note.get("goal")
+    if action:
+        # Supply a missing object, not an entire original user question. A public
+        # note remains a model report, distinct from structured tool evidence.
+        if goal and language == "zh":
+            match = re.fullmatch(r"(?:正在)?(整理|分析|搜索|查询|阅读|处理)(?:信息|结果|资料|任务)?[。.!…]*", action)
+            if match:
+                return f"📝 正在{match.group(1)}{goal.rstrip('。.!…')}…"
+        if goal and language == "en":
+            match = re.fullmatch(r"(?i)(reviewing|analyzing|searching|reading|processing)(?: information| results| the task)?[.!…]*", action)
+            if match:
+                return f"📝 {match.group(1).capitalize()} {goal.rstrip('.!…')}…"
+        return "📝 " + action.rstrip("。.!…") + "…"
+    if turn.note.get("finding"):
+        return ("📝 Progress note: " if language == "en" else "📝 进度说明：") + turn.note["finding"]
+    if turn.note.get("next"):
+        return ("📝 Next: " if language == "en" else "📝 接下来：") + turn.note["next"]
+    if goal:
+        return ("📝 Task: " if language == "en" else "📝 当前任务：") + goal
+    return ""
 
 
 def status_text(turn, language, ending=None, now=None, detailed=None):
-    phase, detail = (ending, "") if ending else turn.phase()
-    prefs = turn.preferences
-    detailed = prefs.get("display", "brief") == "detail" if detailed is None else detailed
-    text = LABELS[language][phase].format(detail=detail)
-    if phase == "tool":
-        name = detail.split(", ")[0]
-        action = TOOL_ACTIONS.get(name, ("正在使用工具处理任务", "Working with a tool"))[language == "en"]
-        text = "🛠 " + action + (f" · {detail}" if detailed else "")
-    elif phase == "api":
-        text = "🤔 正在整理信息并生成回复" if language == "zh" else "🤔 Preparing the response"
-    lines = [text]
-    if not ending:
-        labels = {"goal": "任务", "action": "当前", "finding": "发现", "next": "接下来"} if language == "zh" else {"goal": "Task", "action": "Now", "finding": "Found", "next": "Next"}
-        for key in ("goal", "action", "finding", "next"):
-            value = turn.note.get(key)
-            if value:
-                lines.append(f"{labels[key]}：{value}" if language == "zh" else f"{labels[key]}: {value}")
-    elapsed = max(0, int((time.monotonic() if now is None else now) - turn.started))
-    if prefs.get("wait_hint", True) and elapsed >= 20:
-        lines.append(f"已用时 {elapsed // 60} 分 {elapsed % 60} 秒" if language == "zh" else f"Elapsed {elapsed // 60}m {elapsed % 60}s")
-    if turn.retries:
-        lines.append(f"本次模型请求重试 {turn.retries} 次" if language == "zh" else f"Retries for this model request: {turn.retries}")
-    if turn.children:
-        counts = {state: list(turn.children.values()).count(state) for state in set(turn.children.values())}
-        running, completed = counts.get("running", 0), counts.get("completed", 0)
-        issues = sum(counts.get(state, 0) for state in ("failed", "error", "interrupted"))
-        lines.append(f"子任务：进行中 {running} · 完成 {completed} · 异常/中断 {issues}" if language == "zh" else f"Subtasks: {running} running · {completed} completed · {issues} failed/interrupted")
-    if detailed:
-        lines.append(statistics(turn, language))
-    if not prefs.get("emoji", True):
-        lines[0] = re.sub(r"^[⏳🛠🤔🔐📝⚠⌛↩🚫✓⏹]\ufe0f?\s*", "", lines[0])
-    return "\n".join(lines)
+    """One line, no elapsed time, log counters, completion card or action controls.
 
-
-def annotate_reply(response, turn, language):
-    if not isinstance(response, str) or not response.strip() or not turn.tools:
-        return None
-    # Delivery directives, media-only replies, and code fences remain completely native.
-    if re.search(r"(?im)^\s*(?:MEDIA:|NO_REPLY\b|HEARTBEAT_OK\b|\[(?:SILENT|NO_REPLY)\])", response):
-        return None
-    if response.count("```") % 2 or response.count("~~~") % 2:
-        return None
-    footer = "\n\n" + LABELS[language]["footer"] + statistics(turn, language)
-    return None if response.endswith(footer) else response + footer
+    ``now``/``detailed`` remain accepted for existing command callers; ordinary
+    progress has the same compact presentation for every display preference.
+    """
+    language = language if language in LABELS else "zh"
+    phase, detail = turn.phase()
+    if ending:
+        phase = "finalizing" if ending == "ended" else ending
+    text = LABELS[language].get(phase, LABELS[language]["working"])
+    if not ending and phase in {"tool", "working", "api"}:
+        info = turn.progress
+        if turn.current_kind == "tool":
+            text = action_text(info, turn.user_task, language)
+        elif turn.current_kind in {"result", "api", "stream", "generating", "note"}:
+            text = note_text(turn, language) if turn.current_kind == "note" else ""
+            if not text:
+                text = result_text(info, turn.user_task, language)
+            if not text:
+                text = note_text(turn, language)
+            if not text and turn.current_kind == "result" and info.get("status") == "ok":
+                text = "📊 Reviewing the current step's result…" if language == "en" else "📊 正在整理这一步的结果…"
+            if not text and turn.current_kind in {"stream", "generating"}:
+                # A stream can still lead to tools; this is deliberately not FINALIZING.
+                text = "🤔 The model is preparing its response…" if language == "en" else "🤔 正在组织回复内容…"
+            if not text and turn.current_kind == "api" and re.search(r"天气|新闻|文档|代码|项目|报告|数据|文件|weather|forecast|news|documentation|\bdocs\b|code|project|report|data|file", turn.user_task, re.I):
+                # A known task is safe context, not proof that searching/reading has begun.
+                text = f"🤔 Working on {turn.user_task}…" if language == "en" else f"🤔 正在处理{turn.user_task}…"
+            if not text:
+                text = LABELS[language]["working"]
+    if not turn.preferences.get("emoji", True):
+        text = re.sub(r"^[^\w\u3400-\u9fff]+\s*", "", text)
+    limit = 110 if language == "en" else 60
+    if len(text) > limit:
+        shortened = text[:limit - 1].rstrip(" ，,。.!…")
+        if language == "en" and " " in shortened[int(limit * .65):]:
+            shortened = shortened.rsplit(" ", 1)[0]
+        text = shortened + "…"
+    return text
