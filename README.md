@@ -1,80 +1,60 @@
-# Hermes Telegram UX · Plugin edition
+# Hermes Telegram UX
 
-**1.8.3-catalog.1 — public-API Plugin edition.** [Download](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1) [中文使用说明](README.zh-CN.md)
+[中文说明](README.zh-CN.md)
 
-See tool execution, model requests and approval status in Telegram through public Hermes plugin events. A separate status message is edited as events arrive. Hermes continues to deliver interim messages, approvals, final answers and files. Text answers that used tools can include a short record of observed calls.
+One temporary Telegram message shows what Hermes is doing for your current task. It appears when work starts, follows actual tool activity and results, and is removed when the turn ends. Install, enable, then send your usual messages.
 
-This edition is developed independently on [`catalog-safe`](https://github.com/pler1y/hermes-telegram-ux/tree/catalog-safe), with `catalog-v*` release tags. Full stays on `main`; neither package includes the other edition. Official Plugin Catalog admission remains pending.
+This public-plugin implementation is the project's only future maintained product. The former Full implementation is historical reference; its Git history and tags remain intact. This checkout is an unpublished convergence candidate. Repository/default-branch changes and a new release have not been performed. The existing plugin identifier `hermes-telegram-ux-catalog` is retained for installation compatibility, not a second edition.
 
-## Scope versus Full
+## What it does
 
-| Feature | Catalog-safe | Full 1.8.3 |
-|---|---|---|
-| Tool / API / approval events | Public-hook status panel | Integrated progress |
-| Interim messages | Native; panel shows that an update arrived | Integrated narration |
-| Final output | Original text plus optional counts | Integrated delivery |
-| Immediate intake receipt | Starts at execution, not ingress | Supported |
-| Busy acknowledgement / steering | Native Hermes | Custom UX |
-| Stop | Native `/stop`; observe actual turn end | Custom lifecycle / phrases |
-| Background completion groups | Native Hermes | Custom rendering |
-| One bubble across the whole lifecycle | Not promised | Supported |
-| Custom menu / action buttons | `/tgux` help only | Supported |
-| Private imports / method replacement | None | Guarded integration |
+- Keeps one owned status message, editing the same message ID with throttling and deduplication.
+- Shows the action and task object, such as searching news, inspecting cleanup code or reading weather data.
+- Reports recognized evidence: actual search-result counts, returned data fields, missing files, failures and real subsequent attempts. Raw queries, paths, commands and hidden reasoning are not displayed.
+- Changes completed tool results into task-related synthesis during a subsequent model request. It does not invent new stages to animate a long wait.
+- Deletes its temporary status after completion, reset or unload. Hermes keeps control of execution, approvals, `/stop`, streaming, answers, attachments and native delivery recovery.
 
-Live display requires a single-use, 60-second ingress ticket propagated through Python context plus matching public sender/profile identity. Missing/lost context, ambiguous identity, reconnects, subagents and background starts fall back to native behavior. Queue restarts may lose the ticket. No session-key parsing, internal polling or gateway mutation is used. Thread metadata and reply anchors are preserved. See the [public API inventory](docs/PUBLIC-API.md).
+There are no completion cards, buttons, welcome pages, settings panels or `/tgux` command. Disabling the plugin uses Hermes' native plugin management. Optional public progress notes work alongside automatic tool observations; model participation is not required.
 
-The plugin stores bounded IDs, counts and status categories in memory. It does not copy prompts, tool results, approval commands or interim text to status messages. Counts describe observed events, not billing. Turn-end status is not a delivery receipt. Finished panels remain visible.
+## Install and upgrade
 
-## Install a release
+Requires a Telegram-enabled Hermes installation. The verified official baseline is Hermes **0.21.3**, commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`; later-version compatibility requires validation. No extra runtime Python dependencies or Hermes core changes are needed.
 
-Requires a working Hermes 0.21.3+ Telegram setup and Python 3.11–3.13. Stop active work and the target Gateway first. Use one edition per Gateway; do not enable Full alongside this edition.
-
-Download the ZIP and matching `.zip.sha256` from [this edition’s release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1), then verify and install:
+Use a reviewed ZIP built from the intended commit, verify its SHA256 and `PROVENANCE.json`, then place its contents in `${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog`. Stop the Gateway and back up an existing plugin directory before replacing it. Do not enable the historical Full plugin in the same Gateway.
 
 ```bash
-shasum -a 256 -c hermes-telegram-ux-catalog-1.8.3-catalog.1.zip.sha256
-CATALOG_HOME="${HERMES_HOME:-$HOME/.hermes}"
-CATALOG_DIR="$CATALOG_HOME/plugins/hermes-telegram-ux-catalog"
-test ! -e "$CATALOG_DIR" && mkdir -p "$CATALOG_DIR" && \
-  unzip -q hermes-telegram-ux-catalog-1.8.3-catalog.1.zip -d "$CATALOG_DIR"
-hermes plugins validate "$CATALOG_DIR"
+hermes plugins validate /absolute/path/to/plugins/hermes-telegram-ux-catalog --json
+hermes plugins doctor /absolute/path/to/plugins/hermes-telegram-ux-catalog --ci
 hermes plugins enable hermes-telegram-ux-catalog
 ```
 
-Restart the same Gateway, then send `/tgux`. `PROVENANCE.json` records the complete source SHA and per-file hashes. No additional Python packages, custom installer or core edits are required.
+Restart the Gateway and send a normal task. There is no setup menu. This unpublished candidate is not available from a new release tag; do not install the repository's old default branch expecting this code. See [the repository transition plan](docs/CONVERGENCE.md).
 
-For native Git installation, resolve this edition’s fixed release tag and pin the full SHA:
+For removal, run `hermes plugins disable hermes-telegram-ux-catalog`, restart and verify native chat, then `hermes plugins remove hermes-telegram-ux-catalog` if desired. This version does not read or write personal preference state. Old plugin-owned preference data may remain on disk but is ignored; no migration or destructive cleanup is required.
 
-```bash
-CATALOG_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/catalog-v1.8.3-catalog.1 | cut -f1)"
-test "${#CATALOG_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
-hermes plugins install https://github.com/pler1y/hermes-telegram-ux --ref "$CATALOG_COMMIT" --no-enable
-hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog"
-hermes plugins enable hermes-telegram-ux-catalog
+## Configuration
+
+Defaults work without settings. Optional installation settings live under `plugins.entries.hermes-telegram-ux-catalog.settings`:
+
+```yaml
+language: auto
+update_interval: 1.5
+status_ttl: 600
+cleanup_delay: 1.0
 ```
 
-Use a reviewed `catalog-v*` release for each upgrade. Reinstall with the new SHA and `--force`, validate, then enable. Do not omit `--ref`: the default branch supplies Full. The two editions have independent versions and compatibility scopes.
+`language` accepts `auto`, `zh`, `en`. Auto selects Chinese for Chinese text and English for English text in the current request, ignoring code blocks, URLs and paths. Numeric/media-only input falls back to Chinese; this is a bounded two-language heuristic, not arbitrary language detection. A fixed override is useful for mixed-language tasks. There is no per-user/chat/topic preference store, progress switch or emoji switch.
 
-## Configuration and removal
+The remaining settings are operator controls for edit throttling (1–30s), display inactivity expiry (30–3600s), and cleanup delay (0–5s). Defaults and behavior are unchanged. Expiry ends the plugin's display, never the Hermes task. Restart after changing settings.
 
-Merge settings into `plugins.entries.hermes-telegram-ux-catalog.settings` and restart the Gateway:
+## Boundaries
 
-| Key | Default | Meaning |
-|---|---|---|
-| `language` | `zh` | `zh` or `en` |
-| `progress` | `true` | Show correlated live panels |
-| `final_summary` | `true` | Append counts to text replies with tool activity |
-| `update_interval` | `1.5` | Minimum edit interval, 1–30 seconds |
-| `status_ttl` | `600` | Idle status expiry, 30–3600 seconds |
+Routing requires a matching, single-use ingress ticket and public turn identity. Uncertain routing skips plugin output and preserves native behavior. Authentication, user/chat/topic isolation, late-event protection and owned-message cleanup remain essential infrastructure.
 
-Expiry retires the status panel; it does not cancel the task. Initial send failures are not retried, avoiding duplicate messages after ambiguous network failures. Native progress/streaming settings remain operator-controlled. Streamed final annotation visibility depends on the native delivery path; no streaming messages are intercepted.
+Agent completion is not a Telegram final-delivery receipt. Cleanup is bounded and best effort: failed deletion can leave a status, and slow native delivery can finish after cleanup. Uncertain initial sends are not retried; failed edits do not create replacement bubbles. Native messages may appear independently.
 
-Run `hermes plugins disable hermes-telegram-ux-catalog` and restart to use native Telegram behavior. Run `hermes plugins remove hermes-telegram-ux-catalog` to remove the directory. For upgrades, stop the Gateway, back up the installed directory, verify the new artifact checksum and replace the directory before validating and enabling it. Restore the backup to roll back.
+Runtime code uses Python's standard library, public plugin hooks/tool registration and the supplied public adapter. No Telegram SDK callbacks, Hermes private imports, monkey patches, final-answer transformers or execution takeover are used. Public-API validation does not imply official Catalog admission.
 
-## Development
-
-[Validation results](docs/VALIDATION.md) · [Testing](docs/TESTING.md) · [Acceptance scenarios](docs/ACCEPTANCE.md) · [Progress](docs/PROGRESS.md) · [API contract and fallback rules](docs/PUBLIC-API.md)
-
-Executed checks include 33 unit/boundary tests, 4 real-host contract tests, official validation, clean Git/ZIP lifecycles and 13 live Telegram cases. The CI workflow is configured for the fixed baseline/current main and Python 3.11/3.12; its actual results are linked from the release page. Runtime has no source fingerprint gate. This is not yet an accepted Catalog listing; maintainer review and release maturity remain separate requirements.
+[Validation](docs/VALIDATION.md) · [Testing](docs/TESTING.md) · [Public API inventory](docs/PUBLIC-API.md) · [Acceptance](docs/ACCEPTANCE.md) · [Convergence and Full audit](docs/CONVERGENCE.md)
 
 MIT License.

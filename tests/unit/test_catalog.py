@@ -1,12 +1,10 @@
 import asyncio
-from contextvars import Context, copy_context
-import dataclasses
+from contextvars import Context
 from types import SimpleNamespace
 import unittest
 
 from catalog.adapter import HermesCatalogAdapter, HOOKS
-from catalog.model import Turn
-from catalog.presentation import annotate_reply, status_text
+from catalog.presentation import status_text
 
 
 class ContextStub:
@@ -14,6 +12,7 @@ class ContextStub:
 
     def __init__(self, **settings):
         self.settings, self.hooks, self.tasks = settings, {}, []
+        self.commands = {}
 
     def get_config(self, key, default=None):
         return self.settings.get(key, default)
@@ -25,7 +24,10 @@ class ContextStub:
         self.factory = factory
 
     def register_command(self, name, cb, **kwargs):
-        self.command = cb
+        self.commands[name] = cb
+
+    def register_tool(self, **kwargs):
+        self.tool = kwargs
 
     def on_unload(self, cb):
         self.unload = cb
@@ -76,7 +78,7 @@ def start(adapter, sid="s1", tid="t1", sender="101", **kwargs):
 
 class StateTests(unittest.TestCase):
     def setUp(self):
-        self.ctx = ContextStub()
+        self.ctx = ContextStub(final_summary=True)
         self.adapter = HermesCatalogAdapter(self.ctx)
         self.adapter.register()
         start(self.adapter)
@@ -99,7 +101,8 @@ class StateTests(unittest.TestCase):
         self.feed("post_tool_call", tool_call_id="a", tool_name="read_file", status="error")
         self.feed("pre_tool_call", tool_call_id="a", tool_name="read_file")
         turn = self.adapter.turns[("s1", "t1")]
-        self.assertEqual(turn.counts(), (1, 0, 1))
+        self.assertEqual(turn.tools, {"a": ("read_file", "error")})
+        self.assertFalse(turn.apis)
         self.assertNotEqual(turn.phase()[0], "tool")
 
     def test_api_retries_count_distinct_attempts(self):
@@ -107,17 +110,32 @@ class StateTests(unittest.TestCase):
             self.feed("pre_api_request", api_request_id=rid)
         self.feed("api_request_error", api_request_id="r1", retryable=True)
         self.feed("post_api_request", api_request_id="r2")
-        self.assertEqual(self.adapter.turns[("s1", "t1")].counts(), (0, 2, 0))
+        self.assertEqual(set(self.adapter.turns[("s1", "t1")].apis), {"r1", "r2"})
+        self.assertFalse(self.adapter.turns[("s1", "t1")].tools)
 
-    def test_interim_events_share_the_total_memory_bound(self):
+    def test_activity_hooks_refresh_ttl_without_storing_text_or_changing_progress(self):
+        now = [10.0]
+        self.adapter.clock = lambda: now[0]
+        for index in range(513):
+            self.feed("pre_tool_call", tool_call_id=str(index), tool_name="read_file", args={"path": "/tmp/readme.md"})
         turn = self.adapter.turns[("s1", "t1")]
-        for index in range(511):
-            self.feed("pre_tool_call", tool_call_id=str(index), tool_name="terminal")
-        self.feed("on_interim_message", iteration=1)
-        self.feed("on_interim_message", iteration=2)
-        self.feed("on_interim_message", iteration=True)
-        self.assertEqual(len(turn.interims), 1)
-        self.assertTrue(turn.capped)
+        progress = dict(turn.progress)
+        containers = (len(turn.tools), len(turn.apis), len(turn.approvals), len(turn.note_calls))
+        self.assertEqual(containers, (512, 0, 0, 0))
+        self.assertNotIn("512", turn.tools)
+        now[0] = 11.0
+        self.feed("on_interim_message", iteration=1, text="native interim must not be copied")
+        self.assertEqual(turn.touched, 11.0)
+        now[0] = 12.0
+        self.adapter.observe("subagent_stop", parent_session_id="s1", parent_turn_id="t1",
+                             child_session_id="child", child_status="completed", child_summary="private child summary")
+        self.assertEqual(turn.touched, 12.0)
+        self.assertEqual(turn.progress, progress)
+        self.assertEqual((len(turn.tools), len(turn.apis), len(turn.approvals), len(turn.note_calls)), containers)
+        self.assertNotIn("native interim", repr(turn))
+        self.assertNotIn("private child", repr(turn))
+        self.adapter.observe("subagent_start", parent_session_id="wrong", parent_turn_id="t1", child_session_id="wrong")
+        self.assertEqual(turn.touched, 12.0)
 
     def test_approvals_correlate_by_unique_turn_not_session_key(self):
         self.ctx.hooks["pre_approval_request"](turn_id="t1", tool_call_id="a", session_key="opaque:route", surface="gateway")
@@ -133,7 +151,7 @@ class StateTests(unittest.TestCase):
     def test_concurrent_sessions_and_late_events(self):
         start(self.adapter, "s2", "t2", "102")
         self.feed("pre_tool_call", tool_call_id="a", tool_name="read_file")
-        self.assertEqual(self.adapter.turns[("s2", "t2")].counts(), (0, 0, 0))
+        self.assertFalse(self.adapter.turns[("s2", "t2")].tools or self.adapter.turns[("s2", "t2")].apis)
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         self.feed("post_tool_call", tool_call_id="a", tool_name="read_file", status="ok")
         self.assertNotIn(("s1", "t1"), self.adapter.turns)
@@ -144,25 +162,24 @@ class StateTests(unittest.TestCase):
         self.ctx.hooks["pre_approval_request"](turn_id="t1", tool_call_id="a")
         self.assertTrue(all(not turn.approvals for turn in self.adapter.turns.values()))
 
-    def test_reply_is_byte_preserving_and_idempotent(self):
+    def test_legacy_summary_setting_cannot_register_final_answer_transform(self):
         self.feed("post_tool_call", tool_call_id="a", tool_name="read_file", status="ok")
-        response = "中文🙂\n```python\nprint(1)\n```\n[文件](https://example.test/a)\n"
-        result = self.adapter.transform_llm_output(response_text=response, platform="telegram", session_id="s1", turn_id="t1")
-        self.assertTrue(result.startswith(response))
-        self.assertIn("工具 1 次", result)
-        self.assertIsNone(self.adapter.transform_llm_output(response_text=result, platform="telegram", session_id="s1", turn_id="t1"))
+        self.assertNotIn("transform_llm_output", self.ctx.hooks)
+        self.assertIn("post_llm_call", self.ctx.hooks)
+        self.assertNotIn("本轮记录", status_text(self.adapter.turns[("s1", "t1")], "zh"))
 
-    def test_native_directives_media_empty_and_unclosed_code_untouched(self):
-        self.feed("pre_tool_call", tool_call_id="a", tool_name="x")
-        turn = self.adapter.turns[("s1", "t1")]
-        for value in ("", " ", "[SILENT]", "NO_REPLY", "HEARTBEAT_OK", "MEDIA:/tmp/file.png", "Files\nMEDIA:/tmp/file.csv", "```python\nx"):
+    def test_post_llm_observation_never_copies_or_rewrites_final_payload(self):
+        for value in ("中文🙂\n```python\nprint(1)\n```", "", " ", "[SILENT]", "NO_REPLY", "HEARTBEAT_OK", "MEDIA:/tmp/file.png", "Files\nMEDIA:/tmp/file.csv", "```python\nx"):
             with self.subTest(value=value):
-                self.assertIsNone(annotate_reply(value, turn, "zh"))
+                self.assertIsNone(self.feed("post_llm_call", assistant_response=value, conversation_history=[{"content": "hidden narrative"}]))
+                self.assertNotIn("hidden narrative", repr(self.adapter.turns))
+                self.assertEqual(status_text(self.adapter.turns[("s1", "t1")], "zh"), "✍️ 正在整理最终回答…")
+        self.assertNotIn("transform_llm_output", self.ctx.hooks)
 
-    def test_pure_chat_and_other_platforms_untouched(self):
-        self.assertIsNone(self.adapter.transform_llm_output(response_text="hello", platform="telegram", session_id="s1", turn_id="t1"))
-        self.feed("pre_tool_call", tool_call_id="a", tool_name="x")
-        self.assertIsNone(self.adapter.transform_llm_output(response_text="hello", platform="cli", session_id="s1", turn_id="t1"))
+    def test_other_platform_cannot_start_a_telegram_status(self):
+        result = self.adapter.pre_llm_call(session_id="cli", turn_id="t2", platform="cli", sender_id="101", user_message="hello")
+        self.assertIsNone(result)
+        self.assertNotIn(("cli", "t2"), self.adapter.turns)
 
     def test_reset_only_discards_outgoing_session(self):
         start(self.adapter, "s2", "t2", "102")
@@ -179,13 +196,14 @@ class StateTests(unittest.TestCase):
             if name not in ("pre_llm_call", "pre_gateway_dispatch"):
                 self.assertIsNone(self.ctx.hooks[name](future_field={"x": 1}))
         self.feed("post_tool_call", tool_call_id={}, tool_name="<b>bad</b>", status="ok")
-        self.assertEqual(self.adapter.turns[("s1", "t1")].counts(), (0, 0, 0))
+        self.assertFalse(self.adapter.turns[("s1", "t1")].tools or self.adapter.turns[("s1", "t1")].apis)
 
     def test_event_storage_is_bounded(self):
         for i in range(900):
             self.feed("pre_tool_call", tool_call_id=str(i), tool_name="x")
         self.assertEqual(len(self.adapter.turns[("s1", "t1")].tools), 512)
-        self.assertTrue(self.adapter.turns[("s1", "t1")].capped)
+        self.assertNotIn("512", self.adapter.turns[("s1", "t1")].tools)
+        self.assertEqual(len(self.adapter.turns[("s1", "t1")].observations), 512)
 
     def test_ttl_is_status_expiry_not_a_task_timeout(self):
         now = [0.0]
@@ -196,8 +214,11 @@ class StateTests(unittest.TestCase):
         self.assertFalse(adapter.turns)
 
     def test_invalid_settings_fall_back_and_unload_clears(self):
-        adapter = HermesCatalogAdapter(ContextStub(language="bad", status_ttl="nan", update_interval="oops"))
-        self.assertEqual((adapter.language, adapter.ttl, adapter.interval), ("zh", 600, 1.5))
+        adapter = HermesCatalogAdapter(ContextStub(language="bad", status_ttl="nan", update_interval="oops", cleanup_delay="nan"))
+        self.assertEqual((adapter.ttl, adapter.interval, adapter.cleanup_delay), (600, 1.5, 1))
+        start(adapter, user_message="Please check the forecast")
+        self.assertEqual(adapter.turns[("s1", "t1")].language, "en")
+        adapter.close()
         self.ctx.unload()
         start(self.adapter, "s3", "t3")
         self.assertFalse(self.adapter.turns)
@@ -205,7 +226,7 @@ class StateTests(unittest.TestCase):
 
 class TransportTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.ctx = ContextStub()
+        self.ctx = ContextStub(cleanup_delay=0.005)
         self.adapter = HermesCatalogAdapter(self.ctx)
         self.adapter.register()
         self.telegram = TelegramStub()
@@ -238,7 +259,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.telegram.sent), 1)
         self.assertEqual(self.telegram.sent[0]["metadata"], {"thread_id": "7"})
         self.assertEqual(self.telegram.sent[0]["reply_to"], "10")
-        self.assertIn("read_file", self.telegram.edits[-1]["content"])
+        self.assertIn("正在检查指定文件", self.telegram.edits[-1]["content"])
 
     async def test_context_loss_falls_back_without_network(self):
         self.adapter.pre_gateway_dispatch(event=event())
@@ -273,6 +294,8 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         await self.settle()
         self.assertEqual(set(self.adapter.turns), {("b", "tb")})
         self.assertIn("已中断", self.telegram.edits[-1]["content"])
+        self.assertEqual(len(self.telegram.deleted), 1)
+        self.assertEqual(set(self.adapter.transport.panels), {("b", "tb")})
 
     async def test_unknown_initial_send_is_never_retried(self):
         self.telegram.failure = TimeoutError("secret")
@@ -283,7 +306,9 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.telegram.sent), 1)
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         await self.settle()
-        self.assertFalse(self.adapter.transport.blocked)
+        self.assertIn(("s1", "t1"), self.adapter.transport.blocked)
+        self.assertFalse(self.adapter.transport.panels)
+        self.assertFalse(self.telegram.deleted)
 
     async def test_edit_failure_never_sends_replacement(self):
         await self.begin()
@@ -292,6 +317,8 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id=str(i), tool_name="read_file")
             await self.settle()
         self.assertEqual(len(self.telegram.sent), 1)
+        self.assertEqual(len(self.telegram.deleted), 1)
+        self.assertFalse(self.adapter.transport.panels)
 
     async def test_finish_during_send_updates_only_owned_message(self):
         self.telegram.send_gate = asyncio.Event()
@@ -300,29 +327,35 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.telegram.send_gate.set()
         await self.settle()
         self.assertEqual(len(self.telegram.sent), 1)
-        self.assertIn("已结束", self.telegram.edits[-1]["content"])
+        self.assertIn("正在整理最终回答", self.telegram.edits[-1]["content"])
         self.assertFalse(self.adapter.turns)
+        self.assertEqual(self.telegram.deleted, [{"chat_id": "101", "message_id": "1"}])
 
     async def test_finish_during_inflight_edit_flushes_terminal_status(self):
         await self.begin()
         self.telegram.edit_gate = asyncio.Event()
-        self.adapter.observe("pre_api_request", session_id="s1", turn_id="t1", api_request_id="a")
+        self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id="a", tool_name="web_search", args={"query": "上海未来7天天气"})
         await self.settle()
-        self.assertIn("正在请求模型", self.telegram.edits[-1]["content"])
+        self.assertIn("上海未来 7 天天气", self.telegram.edits[-1]["content"])
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         await self.settle()
         self.telegram.edit_gate.set()
         await self.settle()
         self.assertEqual(len(self.telegram.sent), 1)
-        self.assertIn("已结束", self.telegram.edits[-1]["content"])
+        self.assertIn("正在整理最终回答", self.telegram.edits[-1]["content"])
         self.assertFalse(self.adapter.transport.panels)
+        self.assertEqual(len(self.telegram.deleted), 1)
 
     async def test_interim_text_is_not_resent(self):
         await self.begin()
+        self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id="a", tool_name="web_search", args={"query": "OpenAI 新闻"})
+        await self.settle()
+        before = list(self.telegram.edits)
         self.adapter.observe("on_interim_message", session_id="s1", turn_id="t1", iteration=1, text="private text", already_streamed=True)
         await self.settle()
         self.assertNotIn("private text", str(self.telegram.edits))
-        self.assertIn("阶段说明", self.telegram.edits[-1]["content"])
+        self.assertEqual(self.telegram.edits, before)
+        self.assertIn("OpenAI 新闻", self.telegram.edits[-1]["content"])
 
     async def test_expiry_cleans_state_without_claiming_task_failed(self):
         self.adapter.transport.ttl = 0.03
@@ -330,6 +363,8 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.05)
         self.assertFalse(self.adapter.turns)
         self.assertIn("状态更新已超时", self.telegram.edits[-1]["content"])
+        self.assertEqual(len(self.telegram.deleted), 1)
+        self.assertFalse(self.adapter.transport.panels)
 
     async def test_reset_and_unload_cancel_owned_panels(self):
         await self.begin()

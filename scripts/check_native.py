@@ -30,6 +30,7 @@ def source_hashes(core):
 
 def probe(enabled):
     from hermes_cli.plugins import PluginManager
+    import yaml
     manager = PluginManager()
     manager.discover_and_load()
     info = next((p for p in manager.list_plugins() if p["name"] == NAME), None)
@@ -37,12 +38,19 @@ def probe(enabled):
     assert info["enabled"] is enabled, info
     if enabled:
         assert info["error"] is None, info
-        assert info["hooks"] == 14 and info["tools"] == 0 and info["middleware"] == 0, info
-        assert manager.has_hook("transform_llm_output")
+        # Check the installed payload's own declaration, not a stale fixed count
+        # or another source checkout imported beside the test script.
+        manifest = yaml.safe_load((Path(os.environ["HERMES_HOME"]) / "plugins" / NAME / "plugin.yaml").read_text())
+        hooks = set(manifest["provides_hooks"])
+        assert info["hooks"] == len(hooks) and info["tools"] == 1 and info["middleware"] == 0 and info["commands"] == 0, info
+        assert all(manager.has_hook(name) for name in hooks)
+        assert manager.has_hook("post_llm_call")
+        assert not manager.has_hook("transform_llm_output")
         assert manager.invoke_hook("pre_llm_call", session_id="smoke", turn_id="turn", platform="telegram") == []
         assert manager.invoke_hook("pre_tool_call", session_id="smoke", turn_id="turn", tool_call_id="c", tool_name="read_file") == []
         result = manager.invoke_hook("transform_llm_output", session_id="smoke", turn_id="turn", platform="telegram", response_text="Preserved final reply")
-        assert len(result) == 1 and result[0].startswith("Preserved final reply"), result
+        assert result == [], result  # No setting may register a final-answer transformer.
+        assert manager.invoke_hook("post_llm_call", session_id="smoke", turn_id="turn", platform="telegram", assistant_response="Preserved final reply") == []
         manager.invoke_hook("on_session_end", session_id="smoke", turn_id="turn", completed=True)
         manager.unload(NAME)
     else:

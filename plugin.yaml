@@ -1,11 +1,12 @@
 name: hermes-telegram-ux-catalog
-version: 1.8.3-catalog.1
-description: Telegram execution progress from public Hermes events, with optional reply statistics.
+version: 1.9.0-catalog.1
+description: Task-aware temporary Telegram progress with automatic cleanup through public Hermes APIs.
 author: pler1y
 license: MIT
 homepage: https://github.com/pler1y/hermes-telegram-ux
 requires_hermes: ">=0.21.3"
-provides_tools: []
+provides_tools:
+  - telegram_ux_update
 provides_middleware: []
 provides_hooks:
   - pre_gateway_dispatch
@@ -18,23 +19,17 @@ provides_hooks:
   - pre_approval_request
   - post_approval_response
   - on_interim_message
-  - transform_llm_output
+  - post_llm_call
   - on_session_end
   - on_session_finalize
   - on_session_reset
+  - subagent_start
+  - subagent_stop
 config_schema:
   language:
     type: str
-    default: zh
-    description: Status language, zh or en. Restart the Gateway after changing settings.
-  progress:
-    type: bool
-    default: true
-    description: Show a separate status message for reliably correlated Telegram turns.
-  final_summary:
-    type: bool
-    default: true
-    description: Append observed tool and API counts to text replies that used tools.
+    default: auto
+    description: Status language, auto / zh / en. Auto uses current message text; ambiguous input falls back to zh. Restart after changing settings.
   update_interval:
     type: float
     default: 1.5
@@ -43,3 +38,7 @@ config_schema:
     type: float
     default: 600
     description: Stop showing live status after this many seconds without an event (30 to 3600).
+  cleanup_delay:
+    type: float
+    default: 1.0
+    description: Seconds before removing the owned status after turn completion (0 to 5); not a final-delivery receipt.

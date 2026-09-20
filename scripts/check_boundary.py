@@ -7,7 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD = ("__init__.py", "catalog/__init__.py", "catalog/adapter.py", "catalog/model.py",
-           "catalog/presentation.py", "catalog/telegram.py")
+           "catalog/presentation.py", "catalog/telegram.py", "catalog/language.py",
+           "catalog/experience.py", "catalog/intelligence.py")
 FORBIDDEN_CALLS = {"setattr", "delattr", "eval", "exec", "compile", "__import__", "globals", "locals", "vars"}
 FORBIDDEN_IMPORTS = {"sys", "importlib", "inspect", "ctypes", "subprocess", "marshal", "pickle"}
 
@@ -64,5 +65,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", nargs="?", type=Path, default=ROOT)
     errors = check(parser.parse_args().path)
-    print("\n".join(errors) if errors else "Catalog boundary: PASS (zero Hermes imports; no private access or host mutation)")
+    print("\n".join(errors) if errors else "Catalog boundary: PASS (stdlib-only payload; no Hermes imports, private access or host mutation)")
     raise SystemExit(bool(errors))

@@ -20,6 +20,16 @@ class BoundaryTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertTrue(scan(source, "fixture.py"))
 
+    def test_native_sdk_imports_are_rejected_even_inside_factory(self):
+        for source in (
+            "from telegram import InlineKeyboardButton",
+            "from telegram.ext import CallbackQueryHandler",
+            "def wire_telegram():\n    from telegram import InlineKeyboardButton\n",
+            "def wire_telegram():\n    from telegram.ext import CallbackQueryHandler\n",
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(scan(source, "catalog/adapter.py"))
+
 
 if __name__ == "__main__":
     unittest.main()
