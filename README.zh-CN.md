@@ -1,14 +1,14 @@
-# Hermes Telegram UX · Catalog-safe
+# Hermes Telegram UX · Hermes插件版
 
-**1.8.3-catalog.1 · 本地候选版**
+**1.8.3-catalog.1 · 公开插件版** · [下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1)
 
 在 Telegram 中查看 Hermes 当前正在调用工具、请求模型或等待审批。状态独立显示在一条消息中；最终回复仍由 Hermes 发送，使用工具的文字回复可附简短统计。默认中文，也支持英文。
 
-此发行物仅使用公开插件接口，与 Full 独立维护。目标基线是 Hermes 0.21.3，完整提交见 [公开能力清单](docs/PUBLIC-API.md)。尚未发布到远端，也尚未进入 Plugin Catalog。
+此发行物仅使用公开插件接口，与 Full 独立维护。目标基线是 Hermes 0.21.3，完整提交见 [公开能力清单](docs/PUBLIC-API.md)。源码在同仓库 `catalog-safe` 分支独立更新，发行标签使用 `catalog-v*`；尚未进入官方 Plugin Catalog。
 
 ## 实际能力
 
-| 体验 | Catalog-safe | Full 1.8.3-rc.1 |
+| 体验 | Catalog-safe | Full 1.8.3 |
 |---|---|---|
 | 工具、模型请求反馈 | 根据公开事件更新，合并频繁编辑 | 支持 |
 | 审批等待、拒绝、超时、撤回 | 观察并显示；使用原生审批按钮 | 支持 |
@@ -26,11 +26,11 @@
 
 统计仅代表插件实际观察到的带 ID 事件，不是计费记录。模型请求结束不等于任务完成；本轮结束不等于 Telegram 已确认收到最终消息。状态消息不会复制命令、工具结果、审批命令或模型的中途正文。结束后的状态消息保留供回看。
 
-## 安装本地交付包
+## 安装发布包
 
 需要已能正常使用 Telegram 的 Hermes 0.21.3+、Python 3.11–3.13。先结束活动任务并停止该测试 Gateway。不要在同一 Gateway 同时启用 Full 和 Catalog-safe。
 
-下面使用交付目录中的固定版本 ZIP 和独立 SHA256 校验文件。先确认校验文件来自可信的交付记录，再执行：
+从[本版发行页](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1)下载 ZIP 和同名 `.zip.sha256` 文件，在下载目录校验后安装：
 
 ```bash
 cd /absolute/path/to/delivery
@@ -45,16 +45,17 @@ hermes plugins enable hermes-telegram-ux-catalog
 
 重启同一 Gateway，在 Telegram 发送 `/tgux`，然后发一条普通请求。ZIP 内的 `PROVENANCE.json` 记录完整源码提交及逐文件摘要。无额外 Python 依赖，不需要运行自定义安装脚本或修改 Hermes core。
 
-如从本地 Git 源码安装，使用交付记录中的完整 40 位提交，不选择 `main`：
+也可通过原生 Git 安装固定发布版本：
 
 ```bash
-hermes plugins install file:///absolute/path/to/catalog-safe-checkout \
-  --ref FULL_40_CHARACTER_REVIEWED_COMMIT --no-enable
-hermes plugins validate "$CATALOG_HOME/plugins/hermes-telegram-ux-catalog"
+CATALOG_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/catalog-v1.8.3-catalog.1 | cut -f1)"
+test "${#CATALOG_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
+hermes plugins install https://github.com/pler1y/hermes-telegram-ux --ref "$CATALOG_COMMIT" --no-enable
+hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog"
 hermes plugins enable hermes-telegram-ux-catalog
 ```
 
-这里的路径和 commit 是操作者提供的本地交付位置；远端正式安装命令要等发布后才可使用。不要对本候选执行无固定 ref 的 `plugins update`，仓库默认分支仍是 Full。
+升级继续选择 `catalog-v*` 发布，核对版本后用新 SHA 重装（原生安装加 `--force`），然后验证和启用。不要省略 `--ref`；仓库默认 `main` 提供完整版。两版安装包互不包含，版本号和兼容范围分别维护。
 
 ## 设置
 

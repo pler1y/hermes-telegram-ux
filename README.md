@@ -1,12 +1,14 @@
-# Hermes Telegram UX · Catalog-safe
+# Hermes Telegram UX · Plugin edition
 
-**1.8.3-catalog.1 — local, unpublished candidate.** [中文使用说明](README.zh-CN.md)
+**1.8.3-catalog.1 — public-API Plugin edition.** [Download](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1) [中文使用说明](README.zh-CN.md)
 
 See tool execution, model requests and approval status in Telegram through public Hermes plugin events. A separate status message is edited as events arrive. Hermes continues to deliver interim messages, approvals, final answers and files. Text answers that used tools can include a short record of observed calls.
 
+This edition is developed independently on [`catalog-safe`](https://github.com/pler1y/hermes-telegram-ux/tree/catalog-safe), with `catalog-v*` release tags. Full stays on `main`; neither package includes the other edition. Official Plugin Catalog admission remains pending.
+
 ## Scope versus Full
 
-| Feature | Catalog-safe | Full 1.8.3-rc.1 |
+| Feature | Catalog-safe | Full 1.8.3 |
 |---|---|---|
 | Tool / API / approval events | Public-hook status panel | Integrated progress |
 | Interim messages | Native; panel shows that an update arrived | Integrated narration |
@@ -23,11 +25,11 @@ Live display requires a single-use, 60-second ingress ticket propagated through 
 
 The plugin stores bounded IDs, counts and status categories in memory. It does not copy prompts, tool results, approval commands or interim text to status messages. Counts describe observed events, not billing. Turn-end status is not a delivery receipt. Finished panels remain visible.
 
-## Install the delivered artifact
+## Install a release
 
 Requires a working Hermes 0.21.3+ Telegram setup and Python 3.11–3.13. Stop active work and the target Gateway first. Use one edition per Gateway; do not enable Full alongside this edition.
 
-In the delivery directory, verify the SHA256 file against trusted delivery evidence:
+Download the ZIP and matching `.zip.sha256` from [this edition’s release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1), then verify and install:
 
 ```bash
 shasum -a 256 -c hermes-telegram-ux-catalog-1.8.3-catalog.1.zip.sha256
@@ -41,7 +43,17 @@ hermes plugins enable hermes-telegram-ux-catalog
 
 Restart the same Gateway, then send `/tgux`. `PROVENANCE.json` records the complete source SHA and per-file hashes. No additional Python packages, custom installer or core edits are required.
 
-Native Git installation is also supported: `hermes plugins install file:///absolute/path/to/catalog-safe-checkout --ref FULL_40_CHARACTER_REVIEWED_COMMIT --no-enable`, followed by validation and enablement. Substitute the reviewed local source path and full commit from the delivery report. The candidate is not published: do not install the repository's default branch, which remains Full. Do not run an unpinned `plugins update` against that branch.
+For native Git installation, resolve this edition’s fixed release tag and pin the full SHA:
+
+```bash
+CATALOG_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/catalog-v1.8.3-catalog.1 | cut -f1)"
+test "${#CATALOG_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
+hermes plugins install https://github.com/pler1y/hermes-telegram-ux --ref "$CATALOG_COMMIT" --no-enable
+hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog"
+hermes plugins enable hermes-telegram-ux-catalog
+```
+
+Use a reviewed `catalog-v*` release for each upgrade. Reinstall with the new SHA and `--force`, validate, then enable. Do not omit `--ref`: the default branch supplies Full. The two editions have independent versions and compatibility scopes.
 
 ## Configuration and removal
 
@@ -63,6 +75,6 @@ Run `hermes plugins disable hermes-telegram-ux-catalog` and restart to use nativ
 
 [Validation results](docs/VALIDATION.md) · [Testing](docs/TESTING.md) · [Acceptance scenarios](docs/ACCEPTANCE.md) · [Progress](docs/PROGRESS.md) · [API contract and fallback rules](docs/PUBLIC-API.md)
 
-Executed checks include 33 unit/boundary tests, 4 real-host contract tests, official validation, clean Git/ZIP lifecycles and 13 live Telegram cases. The CI workflow is configured for the fixed baseline/current main and Python 3.11/3.12; it has not run remotely yet. Runtime has no source fingerprint gate. This is not yet an accepted Catalog listing; maintainer review and release maturity remain separate requirements.
+Executed checks include 33 unit/boundary tests, 4 real-host contract tests, official validation, clean Git/ZIP lifecycles and 13 live Telegram cases. The CI workflow is configured for the fixed baseline/current main and Python 3.11/3.12; its actual results are linked from the release page. Runtime has no source fingerprint gate. This is not yet an accepted Catalog listing; maintainer review and release maturity remain separate requirements.
 
 MIT License.
