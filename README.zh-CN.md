@@ -1,44 +1,38 @@
 # Hermes Telegram UX · Hermes插件版
 
-**1.8.3-catalog.1 · 公开插件版** · [下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1)
+**1.9.0-catalog.1 · 公开插件版** · [下载安装包](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.9.0-catalog.1)
 
-在 Telegram 中查看 Hermes 当前正在调用工具、请求模型或等待审批。状态独立显示在一条消息中；最终回复仍由 Hermes 发送，使用工具的文字回复可附简短统计。默认中文，也支持英文。
+让 Telegram 中的 Hermes 任务更容易跟进：自然的实时进度、操作菜单、后续请求入口和个人显示偏好。任务补充、排队、停止、审批以及答案和文件交付继续使用 Hermes 原生能力。
 
-此发行物仅使用公开插件接口，与 Full 独立维护。目标基线是 Hermes 0.21.3，完整提交见 [公开能力清单](docs/PUBLIC-API.md)。源码在同仓库 `catalog-safe` 分支独立更新，发行标签使用 `catalog-v*`；尚未进入官方 Plugin Catalog。
+本版仅使用公开插件接口，目标基线为 Hermes 0.21.3。源码在同仓库 `catalog-safe` 分支独立更新，发行标签使用 `catalog-v*`；尚未进入官方 Plugin Catalog。开发候选的安装包以提交记录为准，发行链接在发布后可用。
 
-## 实际能力
+## 使用体验
 
-| 体验 | Catalog-safe | Full 1.8.3 |
-|---|---|---|
-| 工具、模型请求反馈 | 根据公开事件更新，合并频繁编辑 | 支持 |
-| 审批等待、拒绝、超时、撤回 | 观察并显示；使用原生审批按钮 | 支持 |
-| 中途说明 | 保留原生消息，状态显示收到阶段说明 | 可纳入统一进度 |
-| 最终文字回复 | 保留原文，工具任务可附调用统计 | 支持整合展示 |
-| 收到消息立即响应 | 从执行开始事件出现状态 | 支持 intake 响应 |
-| 忙碌时追加消息 | Hermes 原生行为 | 自定义确认 |
-| 停止 | 使用原生 `/stop`；只观察实际结束结果 | 自然语言停止和自定义回执 |
-| 后台完成组 | Hermes 原生行为 | 自定义渲染 |
-| 单气泡覆盖完整生命周期 | 不承诺；独立状态消息和最终回复 | 支持 |
-| 自定义首页、后续操作按钮 | 不提供；`/tgux` 显示本版说明 | 支持 |
-| 核心源码指纹、私有方法重绑 | 无 | 有严格兼容保护 |
+- **实时任务汇报**：同一条进度消息持续更新，自然描述读文件、检索资料等动作。多步任务可补充目标、当前动作、已确认发现和下一步；可关联子任务显示完成/运行/异常汇总。等待时显示耗时，原生审批和失败有明确提示。
+- **操作面板**：发送 `/tgux` 打开首页、示例任务、常用命令、帮助和设置。按钮只允许打开该卡片的用户操作，一小时后过期，重启后重新打开即可。
+- **结果与继续处理**：完整答案和文件由 Hermes 发送。状态卡结束后可查看详情、关闭或选择后续请求。后续请求由用户点选发送，沿用原生鉴权和排队；插件不会替用户自动执行。
+- **个人偏好**：在当前聊天/话题内保存自己的语言、简洁/详细、进度、统计、表情、耗时提示、对话指引和后续操作偏好。不会改变其他用户或管理员的全局配置，从下一轮生效。
+- **原生控制**：执行中直接补充要求；需要停止时使用 `/stop`。关闭进度提示仅隐藏插件消息。
 
-状态消息依赖可靠的入站消息与执行事件关联：插件使用单次、60 秒有效的 Python 上下文票据，并检查公开 sender/profile 字段。没有上下文传播、缺少身份、过期、重连、子代理或后台启动时，不发送额外状态。排队后重建的执行上下文可能只显示 Hermes 原生进度。这一降级不影响最终回复。群组和话题保留原始回复锚点；应在自己的环境完成验收。
+默认最终答案保持原样，不追加调用统计；可通过设置开启。详情中的计数只代表实际观察到的事件，不是计费记录。插件表情设置不改变 Hermes 原生消息反应。
 
-统计仅代表插件实际观察到的带 ID 事件，不是计费记录。模型请求结束不等于任务完成；本轮结束不等于 Telegram 已确认收到最终消息。状态消息不会复制命令、工具结果、审批命令或模型的中途正文。结束后的状态消息保留供回看。
+进度和菜单需要可靠的入站上下文。插件仅在执行身份匹配后或已授权的 `/tgux` 命令路径使用单次、60 秒有效的票据；鉴权前不发送消息。丢失上下文、重连或无法关联的排队/后台执行沿用原生显示。对话指引是模型指导，公开进度说明不代替实际执行证据。
+
+状态卡显示回合结束，不声称 Telegram 已收到最终答案。卡片可保留或手动关闭；不修改原生答案、流式输出、中途消息或上下文整理流程。可观察的子任务仅在明确父会话/回合关联下汇总，不接管其他后台任务。
 
 ## 安装发布包
 
 需要已能正常使用 Telegram 的 Hermes 0.21.3+、Python 3.11–3.13。先结束活动任务并停止该测试 Gateway。不要在同一 Gateway 同时启用 Full 和 Catalog-safe。
 
-从[本版发行页](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.8.3-catalog.1)下载 ZIP 和同名 `.zip.sha256` 文件，在下载目录校验后安装：
+从[本版发行页](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.9.0-catalog.1)下载 ZIP 和同名 `.zip.sha256` 文件，在下载目录校验后安装：
 
 ```bash
 cd /absolute/path/to/delivery
-shasum -a 256 -c hermes-telegram-ux-catalog-1.8.3-catalog.1.zip.sha256
+shasum -a 256 -c hermes-telegram-ux-catalog-1.9.0-catalog.1.zip.sha256
 CATALOG_HOME="${HERMES_HOME:-$HOME/.hermes}"
 CATALOG_DIR="$CATALOG_HOME/plugins/hermes-telegram-ux-catalog"
 test ! -e "$CATALOG_DIR" && mkdir -p "$CATALOG_DIR" && \
-  unzip -q hermes-telegram-ux-catalog-1.8.3-catalog.1.zip -d "$CATALOG_DIR"
+  unzip -q hermes-telegram-ux-catalog-1.9.0-catalog.1.zip -d "$CATALOG_DIR"
 hermes plugins validate "$CATALOG_DIR"
 hermes plugins enable hermes-telegram-ux-catalog
 ```
@@ -48,7 +42,7 @@ hermes plugins enable hermes-telegram-ux-catalog
 也可通过原生 Git 安装固定发布版本：
 
 ```bash
-CATALOG_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/catalog-v1.8.3-catalog.1 | cut -f1)"
+CATALOG_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/catalog-v1.9.0-catalog.1 | cut -f1)"
 test "${#CATALOG_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
 hermes plugins install https://github.com/pler1y/hermes-telegram-ux --ref "$CATALOG_COMMIT" --no-enable
 hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog"
@@ -68,12 +62,17 @@ plugins:
       settings:
         language: zh       # zh / en
         progress: true
-        final_summary: true
+        display: brief    # brief / detail
+        emoji: true
+        wait_hint: true
+        conversation_style: true
+        followups: true
+        final_summary: false
         update_interval: 1.5
         status_ttl: 600
 ```
 
-设置在 Gateway 启动时读取。`update_interval` 限制在 1–30 秒，`status_ttl` 在 30–3600 秒。长时间没有新事件时显示“状态更新已超时”，只停止插件状态更新，不取消模型或工具。关闭 `final_summary` 可保持最终回复逐字不变。
+管理员默认设置在 Gateway 启动时读取；用户可通过 `/tgux` 设置菜单保存自己的覆盖值。`update_interval` 限制在 1–30 秒，`status_ttl` 在 30–3600 秒。长时间没有新事件时显示“状态更新已超时”，只停止插件状态更新，不取消模型或工具。关闭 `final_summary` 可保持最终回复逐字不变。
 
 安装不会修改 Hermes 的逐字流式输出、工具进度或中途消息开关。已有原生进度可能与插件状态同时显示；按个人喜好配置 Hermes。流式显示是否采用最终文字变换取决于宿主的原生交付路径，本版不接管流式消息。
 
@@ -85,11 +84,11 @@ hermes plugins disable hermes-telegram-ux-catalog
 hermes plugins remove hermes-telegram-ux-catalog
 ```
 
-升级时先停 Gateway、备份插件目录，验证新包 SHA256，再安装新目录并验证、启用。回退使用备份的旧目录和原配置。插件的状态仅保存在内存中，卸载清除注册及活动状态任务，不读写会话数据库。
+升级时先停 Gateway、备份插件目录，验证新包 SHA256，再安装新目录并验证、启用。回退使用备份的旧目录和原配置。活动状态和按钮票据保存在内存中；个人偏好使用公开 `ctx.state` 保存在插件专属数据目录。卸载清除注册、SDK 回调和活动任务，不读写会话数据库；原生 remove 对插件数据的保留策略见 Hermes 提示。
 
 ## 开发与验证
 
-已完成 33 项单元/边界测试和 4 项真实宿主契约测试，以及官方验证、两种干净安装流程和真实 Telegram 验收。具体结果与未覆盖范围见 [VALIDATION.md](docs/VALIDATION.md)。
+本版增加了菜单权限、个人设置、子任务关联、显示关闭和后续请求验证。各项实际验证结果与未覆盖范围见 [VALIDATION.md](docs/VALIDATION.md)。
 
 以 [TESTING.md](docs/TESTING.md) 复现开发验证；当前进度见 [PROGRESS.md](docs/PROGRESS.md)，真实体验场景见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。自动化测试与真实 Telegram 结果分别记录。
 

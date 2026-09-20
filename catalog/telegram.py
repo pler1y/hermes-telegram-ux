@@ -12,6 +12,7 @@ class Route:
     chat_id: str
     message_id: str
     thread_id: str | None = None
+    owner_id: str = ""
 
 
 @dataclass
@@ -23,25 +24,28 @@ class Panel:
     message_id: str | None = None
     wake: asyncio.Event = field(default_factory=asyncio.Event)
     task: object = None
+    view: dict = field(default_factory=dict)
+    token: str | None = None
 
 
 class TelegramPanels:
-    def __init__(self, ctx, adapter, interval, ttl, expire):
+    def __init__(self, ctx, adapter, interval, ttl, expire, interface=None, heartbeat=None):
         self.ctx = ctx
         self.adapter = adapter
         self.loop = asyncio.get_running_loop()
         self.interval = interval
         self.ttl = ttl
         self.expire = expire
+        self.interface, self.heartbeat = interface, heartbeat
         self.panels = {}
         self.blocked = set()
         self.closed = False
 
-    def publish(self, key, route, text, terminal=False):
+    def publish(self, key, route, text, terminal=False, view=None):
         if not self.closed and not self.loop.is_closed():
-            self.loop.call_soon_threadsafe(self.accept, key, route, text, terminal)
+            self.loop.call_soon_threadsafe(self.accept, key, route, text, terminal, view)
 
-    def accept(self, key, route, text, terminal):
+    def accept(self, key, route, text, terminal, view=None):
         if self.closed:
             return
         if terminal:
@@ -62,6 +66,7 @@ class TelegramPanels:
         if panel.terminal:
             return
         panel.text, panel.touched, panel.terminal = text, time.monotonic(), terminal
+        panel.view = dict(view or {})
         panel.wake.set()
 
     async def run(self, key, panel):
@@ -84,6 +89,8 @@ class TelegramPanels:
                         return
                     panel.message_id = str(result.message_id)
                     last_text, last_edit = text, time.monotonic()
+                    if self.interface:
+                        panel.token = await self.interface.attach(key, panel.route, panel.message_id, panel.view)
                 if panel.text != last_text:
                     delay = self.interval - (time.monotonic() - last_edit)
                     if delay > 0 and not panel.terminal:
@@ -102,6 +109,8 @@ class TelegramPanels:
                             continue
                         return
                     last_text, last_edit = text, time.monotonic()
+                if self.interface and panel.token:
+                    await self.interface.refresh(panel.token, panel.view)
                 if panel.terminal:
                     # An ending event can arrive while the preceding edit is in flight.
                     # Only retire after the newest text was actually sent.
@@ -118,9 +127,13 @@ class TelegramPanels:
                 if panel.wake.is_set():
                     continue
                 try:
-                    await asyncio.wait_for(panel.wake.wait(), timeout=idle)
+                    await asyncio.wait_for(panel.wake.wait(), timeout=min(idle, 10))
                 except asyncio.TimeoutError:
-                    pass
+                    # A display tick does not refresh execution TTL or invent activity.
+                    if self.heartbeat and not panel.terminal and time.monotonic() - panel.touched < self.ttl:
+                        refreshed = self.heartbeat(key)
+                        if refreshed:
+                            panel.text, panel.view = refreshed
         except asyncio.CancelledError:
             # Clean up only our own known message; never touch the final reply.
             if panel.message_id:

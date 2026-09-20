@@ -1,11 +1,12 @@
 name: hermes-telegram-ux-catalog
-version: 1.8.3-catalog.1
-description: Telegram execution progress from public Hermes events, with optional reply statistics.
+version: 1.9.0-catalog.1
+description: Natural Telegram progress, task menus, follow-up entry points and personal display preferences through public Hermes APIs.
 author: pler1y
 license: MIT
 homepage: https://github.com/pler1y/hermes-telegram-ux
 requires_hermes: ">=0.21.3"
-provides_tools: []
+provides_tools:
+  - telegram_ux_update
 provides_middleware: []
 provides_hooks:
   - pre_gateway_dispatch
@@ -22,6 +23,9 @@ provides_hooks:
   - on_session_end
   - on_session_finalize
   - on_session_reset
+  - pre_command
+  - subagent_start
+  - subagent_stop
 config_schema:
   language:
     type: str
@@ -33,8 +37,28 @@ config_schema:
     description: Show a separate status message for reliably correlated Telegram turns.
   final_summary:
     type: bool
-    default: true
+    default: false
     description: Append observed tool and API counts to text replies that used tools.
+  display:
+    type: str
+    default: brief
+    description: Default progress detail, brief or detail. Users can override in their own chat/topic.
+  emoji:
+    type: bool
+    default: true
+    description: Show emoji in plugin status messages; does not change native reactions.
+  wait_hint:
+    type: bool
+    default: true
+    description: Show elapsed time after twenty seconds without claiming a completion percentage.
+  conversation_style:
+    type: bool
+    default: true
+    description: Add concise task communication guidance to correlated Telegram turns.
+  followups:
+    type: bool
+    default: true
+    description: Offer user-sent follow-up requests on completed status cards.
   update_interval:
     type: float
     default: 1.5

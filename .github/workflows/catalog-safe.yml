@@ -30,7 +30,7 @@ jobs:
         working-directory: core
         run: |
           python -m pip install uv
-          uv sync --frozen --no-dev --no-install-project --python '${{ matrix.python }}'
+          uv sync --frozen --no-dev --no-install-project --extra messaging --python '${{ matrix.python }}'
       - name: Unit, contract and boundary checks
         working-directory: ux
         run: |

@@ -1,5 +1,19 @@
 """Small bilingual status vocabulary and lossless, optional final annotations."""
 import re
+import time
+
+TOOL_ACTIONS = {
+    "web_search": ("正在检索资料", "Searching for information"),
+    "web_extract": ("正在阅读网页", "Reading web pages"),
+    "browse": ("正在浏览网页", "Browsing web pages"),
+    "read_file": ("正在阅读文件", "Reading files"),
+    "write_file": ("正在写入文件", "Writing files"),
+    "patch": ("正在修改文件", "Editing files"),
+    "terminal": ("正在运行任务", "Running the task"),
+    "delegate_task": ("正在处理子任务", "Working with subagents"),
+    "search_files": ("正在查找文件", "Searching files"),
+    "image_generate": ("正在生成图片", "Generating an image"),
+}
 
 LABELS = {
     "zh": {
@@ -44,9 +58,39 @@ def statistics(turn, language):
     return result
 
 
-def status_text(turn, language, ending=None):
+def status_text(turn, language, ending=None, now=None, detailed=None):
     phase, detail = (ending, "") if ending else turn.phase()
-    return LABELS[language][phase].format(detail=detail) + "\n" + statistics(turn, language)
+    prefs = turn.preferences
+    detailed = prefs.get("display", "brief") == "detail" if detailed is None else detailed
+    text = LABELS[language][phase].format(detail=detail)
+    if phase == "tool":
+        name = detail.split(", ")[0]
+        action = TOOL_ACTIONS.get(name, ("正在使用工具处理任务", "Working with a tool"))[language == "en"]
+        text = "🛠 " + action + (f" · {detail}" if detailed else "")
+    elif phase == "api":
+        text = "🤔 正在整理信息并生成回复" if language == "zh" else "🤔 Preparing the response"
+    lines = [text]
+    if not ending:
+        labels = {"goal": "任务", "action": "当前", "finding": "发现", "next": "接下来"} if language == "zh" else {"goal": "Task", "action": "Now", "finding": "Found", "next": "Next"}
+        for key in ("goal", "action", "finding", "next"):
+            value = turn.note.get(key)
+            if value:
+                lines.append(f"{labels[key]}：{value}" if language == "zh" else f"{labels[key]}: {value}")
+    elapsed = max(0, int((time.monotonic() if now is None else now) - turn.started))
+    if prefs.get("wait_hint", True) and elapsed >= 20:
+        lines.append(f"已用时 {elapsed // 60} 分 {elapsed % 60} 秒" if language == "zh" else f"Elapsed {elapsed // 60}m {elapsed % 60}s")
+    if turn.retries:
+        lines.append(f"本次模型请求重试 {turn.retries} 次" if language == "zh" else f"Retries for this model request: {turn.retries}")
+    if turn.children:
+        counts = {state: list(turn.children.values()).count(state) for state in set(turn.children.values())}
+        running, completed = counts.get("running", 0), counts.get("completed", 0)
+        issues = sum(counts.get(state, 0) for state in ("failed", "error", "interrupted"))
+        lines.append(f"子任务：进行中 {running} · 完成 {completed} · 异常/中断 {issues}" if language == "zh" else f"Subtasks: {running} running · {completed} completed · {issues} failed/interrupted")
+    if detailed:
+        lines.append(statistics(turn, language))
+    if not prefs.get("emoji", True):
+        lines[0] = re.sub(r"^[⏳🛠🤔🔐📝⚠⌛↩🚫✓⏹]\ufe0f?\s*", "", lines[0])
+    return "\n".join(lines)
 
 
 def annotate_reply(response, turn, language):

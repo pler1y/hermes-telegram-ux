@@ -5,7 +5,7 @@ Use the exact official baseline from `PUBLIC-API.md`. Keep Hermes core and depen
 ```bash
 git clone https://github.com/NousResearch/hermes-agent.git /tmp/catalog-core
 git -C /tmp/catalog-core checkout --detach 3c3ab69abb9b08683b5eb15b4e2b8be1198c875f
-(cd /tmp/catalog-core && uv sync --frozen --no-dev --no-install-project --python 3.11)
+(cd /tmp/catalog-core && uv sync --frozen --no-dev --no-install-project --extra messaging --python 3.11)
 ```
 
 From the Catalog-safe source checkout:
@@ -27,6 +27,6 @@ The last two commands read committed Git objects; commit the reviewable candidat
 
 The native Git harness acknowledges scanner caution for its own reviewed local fixture using the documented `--force` flag. Scanning is not disabled; dangerous findings remain blocked. Official validation/doctor are mandatory, and tests must not be skipped to get a green run. Never copy this fixture trust flag into an unreviewed public installation command.
 
-`tests/contract` uses the real current-core PluginManager and its bounded callback workers. Only the transport is synthetic. Runtime imports zero Hermes modules. The AST guard rejects external imports, private attributes, dynamic execution/rebinding and foreign-object mutation; it is an extra guard, not proof that code is safe. Human review still checks data flow and public API intent.
+`tests/contract` uses the real current-core PluginManager and its bounded callback workers. Only the transport is synthetic. Runtime imports zero Hermes modules. The AST guard allows only the four reviewed Telegram SDK types inside the platform factory, and rejects other external imports, private attributes, dynamic execution/rebinding and foreign-object mutation; it is an extra guard, not proof that code is safe. Human review still checks data flow and public API intent.
 
 The GitHub workflow repeats these checks against the fixed baseline and current main on Python 3.11 and 3.12. Main is intentionally mutable for compatibility detection; installs remain pinned. Actual Telegram/model acceptance is separately recorded using `ACCEPTANCE.md`.

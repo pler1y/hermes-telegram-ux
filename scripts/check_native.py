@@ -37,12 +37,12 @@ def probe(enabled):
     assert info["enabled"] is enabled, info
     if enabled:
         assert info["error"] is None, info
-        assert info["hooks"] == 14 and info["tools"] == 0 and info["middleware"] == 0, info
+        assert info["hooks"] == 17 and info["tools"] == 1 and info["middleware"] == 0, info
         assert manager.has_hook("transform_llm_output")
         assert manager.invoke_hook("pre_llm_call", session_id="smoke", turn_id="turn", platform="telegram") == []
         assert manager.invoke_hook("pre_tool_call", session_id="smoke", turn_id="turn", tool_call_id="c", tool_name="read_file") == []
         result = manager.invoke_hook("transform_llm_output", session_id="smoke", turn_id="turn", platform="telegram", response_text="Preserved final reply")
-        assert len(result) == 1 and result[0].startswith("Preserved final reply"), result
+        assert result == [], result  # Default leaves the native final reply byte-for-byte intact.
         manager.invoke_hook("on_session_end", session_id="smoke", turn_id="turn", completed=True)
         manager.unload(NAME)
     else:

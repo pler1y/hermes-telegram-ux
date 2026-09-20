@@ -27,6 +27,9 @@ class ContextStub:
     def register_command(self, name, cb, **kwargs):
         self.command = cb
 
+    def register_tool(self, **kwargs):
+        self.tool = kwargs
+
     def on_unload(self, cb):
         self.unload = cb
 
@@ -76,7 +79,7 @@ def start(adapter, sid="s1", tid="t1", sender="101", **kwargs):
 
 class StateTests(unittest.TestCase):
     def setUp(self):
-        self.ctx = ContextStub()
+        self.ctx = ContextStub(final_summary=True)
         self.adapter = HermesCatalogAdapter(self.ctx)
         self.adapter.register()
         start(self.adapter)
@@ -238,7 +241,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.telegram.sent), 1)
         self.assertEqual(self.telegram.sent[0]["metadata"], {"thread_id": "7"})
         self.assertEqual(self.telegram.sent[0]["reply_to"], "10")
-        self.assertIn("read_file", self.telegram.edits[-1]["content"])
+        self.assertIn("正在阅读文件", self.telegram.edits[-1]["content"])
 
     async def test_context_loss_falls_back_without_network(self):
         self.adapter.pre_gateway_dispatch(event=event())
@@ -308,7 +311,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.telegram.edit_gate = asyncio.Event()
         self.adapter.observe("pre_api_request", session_id="s1", turn_id="t1", api_request_id="a")
         await self.settle()
-        self.assertIn("正在请求模型", self.telegram.edits[-1]["content"])
+        self.assertIn("正在整理信息", self.telegram.edits[-1]["content"])
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         await self.settle()
         self.telegram.edit_gate.set()

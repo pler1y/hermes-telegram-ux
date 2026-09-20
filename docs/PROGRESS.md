@@ -1,10 +1,11 @@
 # Catalog-safe development
 
-Goal: a separate, useful Telegram plugin using public Hermes extension points. Full remains on its original main checkout, including pre-existing untracked research.
+Goal: a public Telegram plugin with natural progress, native task control, clear result cards, menus and personal preferences, using only public Hermes extension points. Full remains on its original main checkout, including pre-existing untracked research.
 
 - Channel: `catalog-safe` in the shared `pler1y/hermes-telegram-ux` repository; independent `catalog-v*` releases and Plugin-only packages. Full stays on `main`.
 - Target: official Hermes 0.21.3 `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f` (2026-09-16 main snapshot).
-- Implementation: public hooks, adapter send/edit/delete, supervised cleanup, bounded per-turn state, native approvals/interim/final delivery, optional counts, Chinese/English help.
+- Candidate 1.9.0-catalog.1: 17 public hooks, one public progress tool, scoped SDK cards, native user-sent command/follow-up keyboards, per-user/chat/topic durable preferences, observed subtask aggregation, elapsed/retry hints and optional reply statistics (off by default). No runtime changes to task control or final delivery.
+- Candidate local checks: official validate passed 10 checks with zero warnings; doctor passed; six real-host contracts passed. Unit/boundary, native install lifecycle and Telegram acceptance results are recorded in VALIDATION.md as completed.
 - Completed: 33 unit/transport/boundary tests; 4 real host contract tests; official validate (10 checks, zero warnings) and doctor; native Git and ZIP install/enable/disable/remove; unchanged core hashes; package allowlist and provenance.
 - Completed live: 13 recorded cases covering pure replies, tools, attachment, interim, failure, tool/approval timeouts, approve/deny, native stop, recovery and plugin-disabled baseline. See `VALIDATION.md` for exact markers and limits.
 - Runtime tested at `a4f8325f187df210bc7f0b1e583dbdc4b541a834`. The dedicated bot uses an isolated official current-core snapshot. The original Full installation/config remain available for rollback; the temporary approval fixture has been removed.

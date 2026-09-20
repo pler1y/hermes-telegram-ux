@@ -1,6 +1,7 @@
 """Bounded, event-based UX state. No host, transport, prompt, or tool-result access."""
 from dataclasses import dataclass, field
 import re
+from .experience import TOOL, normalize_note
 
 
 def identity(value):
@@ -23,11 +24,19 @@ class Turn:
     interims: set = field(default_factory=set)
     last: str = "working"
     capped: bool = False
+    started: float = 0.0
+    preferences: dict = field(default_factory=dict)
+    note: dict = field(default_factory=dict)
+    children: dict = field(default_factory=dict)
+    retries: int = 0
+
+    def __post_init__(self):
+        self.started = self.touched
 
     def put(self, bucket, key, value):
         if not key:
             return False
-        if key not in bucket and sum(map(len, (self.tools, self.apis, self.approvals, self.interims))) >= 512:
+        if key not in bucket and sum(map(len, (self.tools, self.apis, self.approvals, self.interims, self.children))) >= 512:
             self.capped = True
             return False
         bucket[key] = value
@@ -35,6 +44,19 @@ class Turn:
 
     def observe(self, event, data, now):
         self.touched = now
+        if data.get("tool_name") == TOOL and event in {"pre_tool_call", "post_tool_call"}:
+            if event == "post_tool_call" and data.get("status") == "ok":
+                self.note.update(normalize_note(data.get("args")))
+            return
+        if event in {"subagent_start", "subagent_stop"}:
+            child = identity(data.get("child_session_id"))
+            if child:
+                status = "running" if event == "subagent_start" else data.get("child_status")
+                status = status if status in {"running", "completed", "failed", "interrupted", "error"} else "ended"
+                # Late start events cannot resurrect a child that has already exited.
+                if event != "subagent_start" or child not in self.children:
+                    self.put(self.children, child, status)
+            return
         call = identity(data.get("tool_call_id"))
         request = identity(data.get("api_request_id"))
         if event == "pre_tool_call":
@@ -50,6 +72,9 @@ class Turn:
             if request not in self.apis:
                 self.put(self.apis, request, "running")
             self.last = "working"
+            retry = data.get("retry_count", 0)
+            if isinstance(retry, int) and not isinstance(retry, bool) and 0 <= retry <= 100:
+                self.retries = retry
         elif event in {"post_api_request", "api_request_error"}:
             self.put(self.apis, request, "ok" if event == "post_api_request" else "error")
             self.last = "api_error" if event == "api_request_error" else "working"

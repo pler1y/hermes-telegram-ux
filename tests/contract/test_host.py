@@ -6,6 +6,7 @@ The Telegram transport is synthetic; these are not live Telegram acceptance resu
 import asyncio
 from contextvars import Context
 import inspect
+import json
 import os
 from pathlib import Path
 import shutil
@@ -35,7 +36,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.prior = {key: os.environ.get(key) for key in ("HERMES_HOME", "HERMES_BUNDLED_PLUGINS")}
         os.environ["HERMES_HOME"] = str(home)
         os.environ["HERMES_BUNDLED_PLUGINS"] = str(home / "bundled")
-        (home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": [NAME]}}))
+        (home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": [NAME], "entries": {NAME: {"settings": {"final_summary": True}}}}}))
         self.manager = PluginManager()
         self.manager.discover_and_load()
         self.sent, self.edits, self.deleted = [], [], []
@@ -76,7 +77,8 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.invoke("pre_gateway_dispatch", event=incoming), [])
         self.assertFalse(self.sent)
         result = await asyncio.to_thread(self.invoke, "pre_llm_call", session_id="s", turn_id="t", platform="telegram", sender_id="10", parent_session_id="")
-        self.assertEqual(result, [])
+        self.assertEqual(len(result), 1)
+        self.assertIn("telegram_ux_update", result[0]["context"])
         await asyncio.sleep(0.03)
 
     async def test_real_loader_and_bounded_hook_context_propagation(self):
@@ -123,6 +125,43 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         inspect.signature(BasePlatformAdapter.send).bind(None, chat_id="1", content="hello", reply_to="2", metadata={"thread_id": "3"})
         inspect.signature(BasePlatformAdapter.edit_message).bind(None, chat_id="1", message_id="2", content="hello")
         inspect.signature(BasePlatformAdapter.delete_message).bind(None, chat_id="1", message_id="2")
+
+    async def test_registered_progress_tool_works_and_is_removed_on_unload(self):
+        from tools.registry import registry
+        from catalog.experience import TOOL
+        result = registry.dispatch(TOOL, {"goal": "Public progress", "followups": ["Explain the result"]}, scope=self.manager.scope_key)
+        parsed = json.loads(result)
+        self.assertTrue(parsed["ok"])
+        self.assertEqual(parsed["note"]["goal"], "Public progress")
+        self.manager.unload(NAME)
+        self.assertIsNone(registry.get_entry(TOOL, scope=self.manager.scope_key))
+
+    async def test_authorized_command_opens_scoped_sdk_menu_and_unload_removes_handler(self):
+        handlers, messages = [], []
+
+        async def send_message(**kwargs):
+            messages.append(kwargs)
+            return SimpleNamespace(message_id=77)
+
+        native = SimpleNamespace(add_handler=handlers.append, remove_handler=handlers.remove,
+                                 bot=SimpleNamespace(send_message=send_message))
+        factory = self.manager.get_platform_handler_factories("telegram")[0][0]
+        factory(native, self.telegram)
+        incoming = SimpleNamespace(internal=False, text="/tgux", message_id="3",
+            source=SimpleNamespace(platform="telegram", chat_id="10", user_id="10", thread_id="42"))
+        self.invoke("pre_gateway_dispatch", event=incoming)
+        self.invoke("pre_command", surface="gateway", command="tgux", platform="telegram", session_key="opaque")
+        # Test-only inspection of the real host registry; runtime uses only the registrar.
+        command = self.manager._plugin_commands["tgux"]["handler"]
+        self.assertIsNone(command(""))
+        await asyncio.sleep(.03)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]["message_thread_id"], "42")
+        self.assertTrue(messages[0]["reply_markup"].inline_keyboard)
+        self.assertEqual(len(handlers), 1)
+        self.manager.unload(NAME)
+        await asyncio.sleep(.03)
+        self.assertFalse(handlers)
 
 
 if __name__ == "__main__":
