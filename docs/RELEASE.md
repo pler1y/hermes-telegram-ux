@@ -1,38 +1,17 @@
-# 发布与目录候选
+# Hermes完整版发布
 
-当前开发版本为 **1.8.3-rc.1**，保留 1.8.2 的界面和停止语句行为，增加目录验证及当前核心适配。已发布的 1.8.2 标签和附件保持不变。本次只准备本地候选，不发布 release、不创建或更新上游 PR。
+当前发布线为 `main`，版本 **1.8.3**，标签 `v1.8.3`。本版将已完成验收的 rc.2 修复交付给用户。Hermes插件版在 `catalog-safe` 分支、`catalog-v*` 标签下独立发布，规则见 [EDITIONS.md](EDITIONS.md)。
 
-## 候选检查与构建
+## 发布检查
 
-使用已支持 Hermes 的 Python 环境（设置 `PYTHONPATH` 指向 core），运行：
+对五套受支持核心执行 `scripts/run_tests.py`、`check_compatibility.py`、`check_runtime.py`、`check_native_install.py` 与 `check_editions.py`。旧 0.21.0 无官方 validator，其余核心使用 `--require-validator`。保留严格兼容保护，未知核心探测失败不等于已支持核心的回归失败，也不能据此宣称新增兼容。
 
-```bash
-python scripts/run_tests.py
-python scripts/check_compatibility.py --hermes-core "$HERMES_CORE"
-python scripts/check_runtime.py
-python scripts/check_native_install.py --require-validator --report native-report.json
-python scripts/build_release.py
-python scripts/build_release.py --check
-python scripts/check_editions.py
-```
+`scripts/build_release.py` 从允许列表生成确定性的中英文 ZIP、SHA256 与源码清单；修改源码或文档后重建，并用 `--check` 校验。安装生命周期必须针对最终打包内容通过。仅上传发行包、校验文件和不含本机信息的来源记录。
 
-对全部五套支持基线检查回归和原生生命周期；0.21.0 没有官方 validator，明确记录为不可用，不作为 admission 成功。新核心对应的上游批处理、审批、任务租约和后台持久化回归也要完成。详见 [候选验证](VALIDATION-1.8.3-rc.1.md)。
+合并主线后核对精确提交，创建轻量 `v*` 标签并发布 Release。原生安装说明从该固定标签解析完整 SHA；标签发布后不移动。GitHub Latest 保留给完整版稳定版，插件版发行不得覆盖此入口。
 
-构建器只读取允许列表，检查敏感内容和 Python 语法，生成确定性的中英文 ZIP、SHA-256 校验文件及 `release-manifest.json`。新增或修改代码/文档后必须重建；不要修改已发布 ZIP。提交候选时不包含忽略的 `dist/`、`catalog-submission/` 或本地测试报告，也不带入既有未跟踪研究资料。
+## 实机证据
 
-## 发布说明
+运行时修复的 Telegram 验收来自 2026-09-18，见 [FULL-PROGRESS.md](FULL-PROGRESS.md)。发布整理不改变运行逻辑，不把历史验收描述为重新执行。新版核心、群组和其他模型的支持仍需要独立验证。
 
-- 支持新增官方 core `5eb99eb2844b22ebb723711b8e6a0bbb80bb5f04`，保留原四套基线。
-- 完整源码/AST 检查外，再核对核心版本与基线清单完整性；未知代码在注册前拒绝。
-- 两处 middleware 声明与真实注册一致；官方验证器验证根目录、payload 和原生安装后的目录，并有漏声明失败样本。
-- 原生 enable 即可加载；配置助手仍用于语言、显示和按钮权限配置，并保留配置恢复功能。
-- 自然停止和首页菜单被插件消费时，补齐原生事件观察，避免新核心把已处理消息误报为分发停滞。
-- 目录草案可以从未发布的本地提交生成，但不会伪造发布时间、两周成熟状态或公开可克隆性。
-
-自动验证未发送真实 Telegram 消息或调用模型，不代表完成新版实机验收。历史记录仍见 ACCEPTANCE-1.7.0.md。
-
-## 之后正式发行时
-
-确认候选、提交新版本并完成 CI，再创建新标签和 release，附两种 ZIP 与校验和。原生用户以该发布对应的完整 SHA 安装；不要让 README 的旧 SHA 冒充新候选。按实际 GitHub 发布时间运行 `prepare_catalog.py` 生成目录条目与成熟时间。
-
-只有用户后续明确要求时才向上游提交或更新 PR。候选提交的公开可达性、官方 CI、成熟期与维护者审查仍需逐项满足；[目录说明](CATALOG.md)给出准确边界。
+GitHub 发布与官方插件目录申请是两项工作；本页不执行或暗示目录收录。旧目录候选资料见 [CATALOG.md](CATALOG.md)。

@@ -25,6 +25,7 @@ from plugin.i18n import package_language
 
 PLUGIN_ID = "hermes-interaction"  # Stable id preserves upgrades from the private 1.5 release.
 STATE_DIR = "telegram-ux-installer"
+LANGUAGE_PATH = ("plugins", "entries", PLUGIN_ID, "settings", "language")
 SETTINGS = {"soft_wait": False, "status_delay_seconds": 0.6,
             "status_min_edit_seconds": 2.5, "slow_notice_seconds": 45.0,
             "text_batch_seconds": 0.8, "language": package_language(), "status_emoji": True}
@@ -92,10 +93,14 @@ def put_value(config, path, value):
     node = config
     parents = []
     for key in path[:-1]:
-        parents.append((node, key))
-        node = node.setdefault(key, {})
-        if not isinstance(node, dict):
+        child = node.get(key, {})
+        if not isinstance(child, dict):
             raise ValueError("Expected a mapping at " + ".".join(path))
+        # PyYAML preserves aliases, including after deepcopy. Copy only the
+        # ancestors we write through so an aliased platform keeps its settings.
+        node[key] = child.copy()
+        parents.append((node, key))
+        node = node[key]
     if value["exists"]:
         node[path[-1]] = deepcopy(value["value"])
     else:
@@ -144,8 +149,13 @@ def plan_install(config, previous, preset, language=None):
         record = existing.get(path)
         after = {"exists": True, "value": value}
         if record:
+            if (path == LANGUAGE_PATH and language is None
+                    and previous.get("management") == "config-only"):
+                # Native upgrades have no edition selection: retain the last
+                # configured language unless --language explicitly changes it.
+                after = deepcopy(record["after"])
             # Preserve preferences changed since installation, including plugin settings.
-            if current != record["after"]:
+            if current != record["after"] and not (path == LANGUAGE_PATH and language is not None):
                 continue
             record["after"] = after
         else:

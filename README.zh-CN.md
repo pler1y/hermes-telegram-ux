@@ -9,7 +9,7 @@
 [![Release](https://img.shields.io/github/v/release/pler1y/hermes-telegram-ux)](https://github.com/pler1y/hermes-telegram-ux/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[安装稳定版](#快速开始) · [下载 1.8.2](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.2) · [文档导航](docs/README.md) · [English](README.md)
+[安装稳定版](#快速开始) · [下载 1.8.3](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.3) · [文档导航](docs/README.md) · [English](README.md)
 
 </div>
 
@@ -17,9 +17,20 @@
 
 给 Hermes 发消息后，不必猜它有没有收到。立即获得回应，在同一条消息里查看任务进度，执行中也能补充要求。完成的答案和文件，直接交付到当前聊天。
 
-**当前稳定版：1.8.2。** 以下快速开始安装此版本；升级 Hermes 前请先核对[稳定版兼容范围](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。
+**当前稳定版：1.8.3。** 以下快速开始安装此版本；升级 Hermes 前请先核对[稳定版兼容范围](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md)。
 
 使用 **Hermes Agent** 请选择本项目；使用 **OpenClaw** 请前往 [OpenClaw Telegram UX](https://github.com/pler1y/openclaw-telegram-ux)。两个插件分别安装，功能与兼容范围以各自文档为准。
+
+## 选择版本
+
+同一仓库维护两条独立更新线，每个 Hermes Gateway 选择其中一种安装。
+
+| 版本 | 开发分支 | 发布与安装包 |
+| --- | --- | --- |
+| **Hermes完整版** | `main`（当前页面） | `v*` 标签；`hermes-telegram-ux-<版本>-zh/en.zip` |
+| **Hermes插件版** | [catalog-safe](https://github.com/pler1y/hermes-telegram-ux/tree/catalog-safe) | `catalog-v*` 标签；`hermes-telegram-ux-catalog-<版本>.zip` |
+
+Hermes插件版只使用公开插件接口，安装包仅包含自身实现，不打包完整版，也不承诺完整版的全部功能。两版独立发布和升级；插件版安装请进入[对应页面](https://github.com/pler1y/hermes-telegram-ux/blob/catalog-safe/README.zh-CN.md)，详细规则见[版本与更新渠道](docs/EDITIONS.md)。
 
 ## 功能
 
@@ -49,7 +60,7 @@
 ### 环境要求
 
 - Linux 或 macOS 上已安装 Hermes，完成模型登录，并接入可正常回复的 Telegram Bot。
-- 使用[1.8.2 支持的 Hermes 核心](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。目前验证了 0.21.0 和 0.21.2 的部分修订，并非所有修订都兼容；安装器会在启用前检查。
+- 使用[1.8.3 支持的 Hermes 核心](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md)。目前验证了 0.21.0 和 0.21.2 的部分修订，并非所有修订都兼容；安装器会在启用前检查。
 - Hermes 的 Python 环境中已具备 PyYAML 6.x 和 `python-telegram-bot` 22.x。
 
 ### 使用 Hermes 命令安装
@@ -62,10 +73,12 @@ HERMES_CORE="$HERMES_HOME/hermes-agent"
 HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
 export PYTHONPATH="$HERMES_CORE"
 
-# 安装已验证的 v1.8.2 发行版。
+# 安装已验证的 v1.8.3 发行版。
+UX_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/v1.8.3 | cut -f1)"
+test "${#UX_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
 "$HERMES_PYTHON" -m hermes_cli.main plugins install \
   https://github.com/pler1y/hermes-telegram-ux \
-  --ref 6197d30a994a195c37611e29f26803ac1db2d6ff --no-enable
+  --ref "$UX_COMMIT" --no-enable
 ```
 
 检查兼容性、配置中文界面并启用插件：
@@ -104,13 +117,13 @@ UX_DIR="$HERMES_HOME/plugins/hermes-interaction"
 | [ZIP 安装](docs/INSTALLATION.md) | 下载版本与手动安装 |
 | [从零开始](docs/FRESH-INSTALL.md) | 新环境准备 |
 | [配置说明](docs/CONFIGURATION.md) | 语言、显示预设和进度设置 |
-| [稳定版兼容说明](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md) | 1.8.2 支持的核心与升级检查 |
+| [稳定版兼容说明](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md) | 1.8.3 支持的核心与升级检查 |
 | [故障恢复](docs/RECOVERY.md) | 备份与中断恢复 |
 | [更新日志](CHANGELOG.md) | 各版本变化 |
 
 ## 参与贡献
 
-当前开发分支为 **1.8.3-rc.1** 候选，基于 1.8.2，尚未发布。候选新增的核心支持见[开发分支兼容表](docs/COMPATIBILITY.md)和[候选验证](docs/VALIDATION-1.8.3-rc.1.md)。
+Hermes完整版 1.8.3 包含已验证的 rc.2 修复，完整功能在 `main` 维护；Hermes插件版在 `catalog-safe` 独立维护。支持范围见[兼容表](docs/COMPATIBILITY.md)，验证见[维护记录](docs/FULL-PROGRESS.md)。
 
 欢迎提交问题反馈和范围明确的 Pull Request。开发流程与反馈所需信息见 [CONTRIBUTING.md](CONTRIBUTING.md)。回归测试和上游兼容检查结果见 [GitHub Actions](https://github.com/pler1y/hermes-telegram-ux/actions)。
 

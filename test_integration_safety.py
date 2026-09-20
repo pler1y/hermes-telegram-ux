@@ -138,3 +138,76 @@ class MultiBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(ui.store.peek(token), "wrong bot must not consume the real menu")
         await app_a.handlers[0][0].callback(NS(callback_query=query), None)
         ctx.inject_message.assert_called_once_with("继续处理", session_key="key")
+
+    async def test_native_session_policy_controls_group_thread_and_profile_matching(self):
+        from gateway.config import Platform
+        from gateway.run import GatewayRunner
+        from gateway.session import SessionSource
+        runtime = InteractionRuntime(NS(get_config=lambda key, default=None: default))
+        class Bot:
+            pass
+        first_bot, second_bot = Bot(), Bot()
+        runner = NS(config=NS(group_sessions_per_user=True, thread_sessions_per_user=False, multiplex_profiles=True),
+                    _adapter_for_source=lambda source: first_bot)
+        runner._session_key_for_source = GatewayRunner._session_key_for_source.__get__(runner)
+
+        def source(user, thread=None, profile="one"):
+            return SessionSource(Platform.TELEGRAM, "-100", chat_type="group", user_id=user,
+                                 thread_id=thread, profile=profile)
+        def bind(sid, src, bot):
+            state = TurnState(sid, runner._session_key_for_source(src), src, bot, 1, [None], [], None, None)
+            runtime.registry.bind(state)
+            return state
+        try:
+            runtime.native.remember_runner(runner, source("alice"))
+            alice = bind("a", source("alice"), first_bot)
+            self.assertIs(runtime._state_for_source(source("alice"), first_bot), alice)
+            self.assertIsNone(runtime._state_for_source(source("bob"), first_bot))
+            bob = bind("b", source("bob"), first_bot)
+            self.assertIs(runtime._state_for_source(source("bob"), first_bot), bob)
+            self.assertIsNone(runtime._state_for_source(source("alice", profile="two"), first_bot))
+            runtime.registry.pop("a")
+            runtime.registry.pop("b")
+
+            shared = bind("shared", source("alice", thread="7"), first_bot)
+            self.assertIs(runtime._state_for_source(source("bob", thread="7"), first_bot), shared)
+            runtime.registry.pop("shared")
+            runner.config.thread_sessions_per_user = True
+            private_thread = bind("private-thread", source("alice", thread="7"), first_bot)
+            self.assertIsNone(runtime._state_for_source(source("bob", thread="7"), first_bot))
+            self.assertIs(runtime._state_for_source(source("alice", thread="7"), first_bot), private_thread)
+            runtime.registry.pop("private-thread")
+
+            runner.config.group_sessions_per_user = False
+            shared_group = bind("shared-group", source("alice"), first_bot)
+            self.assertIs(runtime._state_for_source(source("bob"), first_bot), shared_group)
+            runner_b = NS(_adapter_for_source=lambda source: second_bot,
+                          _session_key_for_source=runner._session_key_for_source)
+            runtime.native.remember_runner(runner_b, source("alice"))
+            other_bot_state = bind("other-bot", source("alice"), second_bot)
+            self.assertIs(runtime._state_for_source(source("alice"), second_bot), other_bot_state)
+            self.assertIs(runtime._state_for_source(source("alice"), first_bot), shared_group)
+            self.assertIsNone(runtime._state_for_source(source("alice")), "ambiguous bot lookup must not pick a task")
+        finally:
+            runtime.uninstall()
+
+    async def test_group_send_without_sender_identity_cannot_edit_another_members_status(self):
+        from gateway.config import Platform
+        from gateway.session import SessionSource
+        runtime = InteractionRuntime(NS(get_config=lambda key, default=None: default))
+        class Bot:
+            async def send(self, chat_id, content, **kwargs):
+                return NS(success=True, message_id="ordinary-message")
+        bot = Bot()
+        src = SessionSource(Platform.TELEGRAM, "-100", chat_type="group", user_id="alice")
+        state = TurnState("a", "a-key", src, bot, 1, [None], [], None, None)
+        runtime.registry.bind(state)
+        runtime._children["a"] = {"child"}
+        runtime._send_status = AsyncMock()
+        try:
+            runtime._wire_send(bot)
+            result = await bot.send("-100", "Got it!")
+            self.assertEqual(result.message_id, "ordinary-message")
+            runtime._send_status.assert_not_awaited()
+        finally:
+            runtime.uninstall()

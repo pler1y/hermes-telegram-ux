@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+import hashlib
 import json
 from pathlib import PurePosixPath
 import re
@@ -125,6 +126,23 @@ def step_group(stage):
     return stage
 
 
+def evidence_stages(stage):
+    """Bundled commands can invalidate either part of an earlier result."""
+    return {"test_deploy": {"test", "deploy"},
+            "deploy_verify": {"deploy", "verify"}}.get(stage, {stage})
+
+
+def step_identity(owner, name, args):
+    # A call id identifies one attempt, not a retry. Match the operation without
+    # retaining arguments (which can contain private data) in result bookkeeping.
+    operation = {k: v for k, v in args.items()
+                 if k not in {"timeout", "timeout_ms", "yield_time_ms", "max_output_tokens", "background", "notify"}}
+    signature = hashlib.sha256(json.dumps(operation, sort_keys=True, default=str).encode()).hexdigest()
+    # Display stages can change (for example inspect -> verify after deployment)
+    # without changing the operation that is being retried.
+    return owner, name, signature
+
+
 @dataclass
 class TaskProgress:
     """One task, its revisions, public step explanations and observed execution evidence."""
@@ -151,6 +169,44 @@ class TaskProgress:
     deployed: bool = False
     serial: int = 0
     evidence_count: int = 0
+    _evidence: dict = field(default_factory=dict, repr=False)
+    _problems: dict = field(default_factory=dict, repr=False)
+    _overflow_problems: dict = field(default_factory=dict, repr=False)
+    _attempts: dict = field(default_factory=dict, repr=False)
+
+    def _retire_attempt(self, step):
+        # Keep the latest sequence while any older call/process can still report.
+        # Once all attempts settle there is no late hook left to pair with it.
+        if not any(item[3] == step for item in self.active.values()) and not any(
+                item[1] == step for item in self.processes.values()):
+            self._attempts.pop(step, None)
+
+    def _refresh_evidence(self):
+        problems = list(self._overflow_problems.items()) + list(self._problems.values())
+        self.problem = problems[-1][1] if problems else ""
+        blocked = set().union(*(evidence_stages(stage) for stage, _ in problems))
+        self.completed_note = next((text for stage, text in reversed(self._evidence.values())
+                                    if not evidence_stages(stage) & blocked), "")
+
+    def _record_problem(self, step, stage, message):
+        self._problems.pop(step, None)
+        self._problems[step] = (stage, message)
+        if len(self._problems) > 128:
+            old_stage, old_message = self._problems.pop(next(iter(self._problems)))
+            # An unusually long task keeps a conservative stage warning instead
+            # of silently declaring forgotten failures fixed. This summary is
+            # bounded by the small stage vocabulary and expires with the task.
+            self._overflow_problems[old_stage] = old_message
+        # Invalidate old claims for the failed stage, while keeping independent
+        # evidence such as sources already found before a read or test failed.
+        failed_stages = evidence_stages(stage)
+        self._evidence = {key: value for key, value in self._evidence.items()
+                          if key != step and not evidence_stages(value[0]) & failed_stages}
+
+    def _record_evidence(self, step, stage, text):
+        self._evidence.pop(step, None)
+        self._evidence[step] = (stage, text)
+        self._evidence = dict(list(self._evidence.items())[-64:])
 
     @locked
     def initialize(self, text):
@@ -200,6 +256,7 @@ class TaskProgress:
             self.receipt = ""
         if finding:
             self.finding = finding
+            self._evidence.clear()
             self.completed_note = ""
         self.next_step = next_step
         self.changed_at = time.monotonic()
@@ -214,8 +271,12 @@ class TaskProgress:
             return False
         stage = stage_for_tool(name, args, self.deployed)
         handle = str(args.get("session_id") or args.get("process_id") or "")
+        step = step_identity(owner, name, args)
+        attempt = self.serial
         if name in {"process", "write_stdin"} and (owner, handle) in self.processes:
-            stage = self.processes[(owner, handle)]
+            stage, step, attempt = self.processes[(owner, handle)]
+        else:
+            self._attempts[step] = attempt
         proposed = self.pending.pop((owner, call_id or name), None)
         current_note = self.notes.get(owner)
         continuation = (proposed and proposed[1] == self.revision and not proposed[0]
@@ -237,7 +298,7 @@ class TaskProgress:
             elif note and note["group"] != step_group(stage):
                 self.notes.pop(owner, None)
                 self.activity = ""
-        self.active[key] = (stage, name, handle)
+        self.active[key] = (stage, name, handle, step, attempt)
         if self.stage != stage:
             self.changed_at = time.monotonic()
         self.stage = stage
@@ -251,40 +312,54 @@ class TaskProgress:
         item = self.active.pop(key, None)
         if item is None:
             return False
-        stage, _, old_handle = item
+        stage, _, old_handle, step, attempt = item
         data = result_object(result)
         handle = str(data.get("session_id") or data.get("process_id") or old_handle or "")
         running = data.get("status") in {"running", "background"} or (bool(handle) and data.get("exit_code") is None and data.get("status") not in {"completed", "exited", "already_exited", "failed", "killed"})
         success = (type(data.get("exit_code")) is int and data["exit_code"] == 0) or data.get("success") is True
         if handle and (failed or not running):
-            self.processes.pop((owner, handle), None)
+            process = self.processes.get((owner, handle))
+            if process and process[1:] == (step, attempt):
+                self.processes.pop((owner, handle), None)
         if running and not failed:
-            self.processes[(owner, handle)] = stage
+            self.processes[(owner, handle)] = (stage, step, attempt)
+        latest_attempt = self._attempts.get(step, attempt)
+        self._retire_attempt(step)
+        if attempt < latest_attempt:
+            return True
+        if running and not failed:
             self.stage = stage
         elif failed:
-            self.problem = {"search": "这次搜索没拿到结果。", "test": "这轮测试没通过。", "deploy": "部署这一步没有成功。"}.get(stage, "刚才这一步没成功。")
+            self._record_problem(step, stage, {"search": "这次搜索没拿到结果。", "test": "这轮测试没通过。", "deploy": "部署这一步没有成功。"}.get(stage, "刚才这一步没成功。"))
             self.next_step = ""
             self.notes.pop(owner, None)
             self.activity = ""
             self.stage = "recover"
         else:
-            self.problem = ""
+            # A return without an exit result is not proof that a failed test or
+            # deployment recovered. Other tools use the native failure flag.
+            if success or stage not in {"test", "deploy", "test_deploy", "deploy_verify"}:
+                self._problems.pop(step, None)
             self.evidence_count += 1
             self.stage = "analyze"
+            completed_note = ""
             if stage == "search":
                 count = search_count(data)
-                self.completed_note = "这次没有找到匹配的资料。" if count == 0 else f"已找到 {count} 条候选资料。" if count is not None else "搜索已返回。"
+                completed_note = "这次没有找到匹配的资料。" if count == 0 else f"已找到 {count} 条候选资料。" if count is not None else "搜索已返回。"
             elif stage == "test":
-                self.completed_note = "这轮测试通过了。" if success else "测试有返回，正在核对结果。"
+                completed_note = "这轮测试通过了。" if success else "测试有返回，正在核对结果。"
             elif stage in {"deploy", "test_deploy", "deploy_verify"}:
                 self.deployed = success
-                self.completed_note = "执行命令已结束，还需要确认实际运行情况。" if success else "部署步骤有返回，还需要核对结果。"
+                completed_note = "执行命令已结束，还需要确认实际运行情况。" if success else "部署步骤有返回，还需要核对结果。"
             elif stage == "verify":
-                self.completed_note = "检查有返回，正在核对是否符合预期。"
+                completed_note = "检查有返回，正在核对是否符合预期。"
             elif stage == "write" and success:
-                self.completed_note = "内容已写入，正在检查。"
+                completed_note = "内容已写入，正在检查。"
             elif stage == "create" and success:
-                self.completed_note = "内容已生成，正在检查效果。"
+                completed_note = "内容已生成，正在检查效果。"
+            if completed_note:
+                self._record_evidence(step, stage, completed_note)
+        self._refresh_evidence()
         if not running or failed:
             self.changed_at = time.monotonic()
         return True
@@ -293,6 +368,7 @@ class TaskProgress:
     def close_owner(self, owner):
         self.active = {k:v for k,v in self.active.items() if k[0] != owner}
         self.processes = {k:v for k,v in self.processes.items() if k[0] != owner}
+        self._attempts = {k:v for k,v in self._attempts.items() if k[0] != owner}
         self.pending = {k:v for k,v in self.pending.items() if k[0] != owner}
         self.notes.pop(owner, None)
         self.activity = ""
@@ -324,7 +400,7 @@ class TaskProgress:
 
     def _view(self):
         current = [(k[0], v[0]) for k,v in self.active.items()]
-        current += [(k[0], v) for k,v in self.processes.items() if k not in {(a[0], b[2]) for a,b in self.active.items()}]
+        current += [(k[0], v[0]) for k,v in self.processes.items() if k not in {(a[0], b[2]) for a,b in self.active.items()}]
         concrete = [(o,s) for o,s in current if s != "background"]
         owner, stage = (concrete or current or [(self.latest_owner, self.stage)])[-1]
         note = self.notes.get(owner)

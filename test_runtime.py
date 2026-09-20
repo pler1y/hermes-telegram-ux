@@ -100,7 +100,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_long_turn_sends_once_then_edits_same_bubble(self):
         runner, turn = self._turn()
         worker = asyncio.get_running_loop().create_future()
-        task = asyncio.create_task(self.runtime.status_lifecycle(runner, turn, [worker]))
+        task = asyncio.create_task(self.runtime.prepare_status_lifecycle(runner, turn, [worker]))
         await asyncio.sleep(0.06)
         self.runtime.pre_tool("read_file", {}, "session", tool_call_id="read")
         await asyncio.sleep(0.30)
@@ -114,7 +114,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         runner, turn = self._turn()
         turn.agent_holder[0] = SimpleNamespace(_pending_steer='supplement')
         worker = asyncio.get_running_loop().create_future()
-        task = asyncio.create_task(self.runtime.status_lifecycle(runner, turn, [worker]))
+        task = asyncio.create_task(self.runtime.prepare_status_lifecycle(runner, turn, [worker]))
         await asyncio.sleep(.06)
         state = self.runtime.registry.get('session')
         self.runtime.registry.receipt('session')
