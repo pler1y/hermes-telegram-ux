@@ -4,7 +4,7 @@
 
 在 Telegram 等待 Hermes 工作时，用一条临时气泡显示当前任务进度。状态随真实工具动作和结果更新，任务结束后自动清理。安装、启用，然后正常聊天即可。
 
-**v2.0.0 已在 [release/v2.0.0](https://github.com/pler1y/hermes-telegram-ux/tree/release/v2.0.0) 准备审查，尚未合入 main、打 Tag 或发布 Release。** 从 v2 开始，只维护这一套官方公开 Plugin API 实现。
+**Hermes Telegram UX v2.0.0** 只维护这一套官方公开 Plugin API 实现。正式版本身份以 [v2.0.0 Tag](https://github.com/pler1y/hermes-telegram-ux/tree/v2.0.0) 和 [GitHub Release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.0.0) 指向的准确提交为准。
 
 ## 使用体验
 
@@ -27,14 +27,17 @@ Hermes 原生最终回答 → 临时状态自动清理
 
 没有完成卡、按钮、欢迎页、个人设置面板或 `/tgux`。不需要进度时，直接通过 Hermes 禁用插件。
 
-## 安装已审查的候选
+## 安装 v2.0.0
 
-需要已经正常使用 Telegram 的 Hermes。已验证基线为 **Hermes 0.21.3**，commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`。CI 也检查 Hermes 当前 main 的 Python 3.11／3.12；请查看要安装的具体候选结果。
+需要已经正常使用 Telegram 的 Hermes。已验证基线为 **Hermes 0.21.3**，commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`。CI 也检查 Hermes 当前 main 的 Python 3.11／3.12；请查看要安装的准确发布提交的验证结果。
 
-原生安装器的 `--ref` 接受 **40 位 commit SHA**，不接受分支名。先取得候选提交，在 GitHub 审阅后按该准确 SHA 安装：
+原生安装器的 `--ref` 接受 **40 位 commit SHA**，不接受分支名。从正式 Tag 解析提交（兼容 annotated tag），与 Release notes 中的 SHA 核对后安装。Tag 不可用时停止，不回退到移动分支：
 
 ```bash
-TGUX_COMMIT="$(git ls-remote https://github.com/pler1y/hermes-telegram-ux.git refs/heads/release/v2.0.0 | cut -f1)"
+TGUX_REPO="https://github.com/pler1y/hermes-telegram-ux.git"
+TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.0.0' 'refs/tags/v2.0.0^{}' | awk '$2 == "refs/tags/v2.0.0^{}" { peeled=$1 } $2 == "refs/tags/v2.0.0" { direct=$1 } END { print peeled ? peeled : direct }')"
+test "${#TGUX_COMMIT}" -eq 40 || { echo "Release tag unavailable; stop here." >&2; exit 1; }
+case "$TGUX_COMMIT" in *[!0-9a-fA-F]*) echo "Invalid release SHA; stop here." >&2; exit 1 ;; esac
 printf '%s\n' "$TGUX_COMMIT"
 hermes plugins install https://github.com/pler1y/hermes-telegram-ux.git --ref "$TGUX_COMMIT" --no-enable
 hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog" --json
@@ -42,11 +45,11 @@ hermes plugins doctor "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-
 hermes plugins enable hermes-telegram-ux-catalog
 ```
 
-重启对应 Gateway，发送普通任务即可。原生扫描器有提示时，先审阅再决定安装。不要安装远端旧默认分支并期待得到 v2。已有安装先阅读 [迁移说明](docs/MIGRATION-v2.md)：固定 SHA 安装需要明确替换，`--no-enable` 不会禁用已经运行的旧插件。
+重启对应 Gateway，发送普通任务即可。原生扫描器有提示时，先审阅再决定安装。已有安装先阅读 [迁移说明](docs/MIGRATION-v2.md)：固定 SHA 安装需要明确替换，`--no-enable` 不会禁用已经运行的旧插件。
 
 内部 ID **`hermes-telegram-ux-catalog` 保持不变**，用于兼容安装、配置和状态身份；它不再代表第二个产品版本。详见 [ID 决策与源码依据](docs/PLUGIN-ID.md)。
 
-也可用 `scripts/build_release.py --ref <40位SHA>` 从已审阅提交构建可复现 ZIP，包内有文件哈希和 `PROVENANCE.json`。Hermes 原生安装器不直接接收 ZIP；验证后手工部署和完整替换方法见迁移说明。本轮尚未发布 v2 Release 附件。
+也可用 `scripts/build_release.py --ref <40位SHA>` 从已审阅提交构建可复现 ZIP，包内有文件哈希和 `PROVENANCE.json`。Hermes 原生安装器不直接接收 ZIP；验证后手工部署和完整替换方法见迁移说明。正式 ZIP 和校验文件以 v2.0.0 Release 附件为准，详见 [发布完整性说明](docs/RELEASE.md)。
 
 ## 配置
 
@@ -78,6 +81,6 @@ cleanup_delay: 1.0
 
 v1.8.3 及以前的 Full 使用较深的 Hermes 内部接入，现已停止维护。历史保留在 [legacy/full-1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/legacy/full-1.8.3) 和 [v1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/v1.8.3)。它们只作历史参考，不是推荐安装选项。不要在同一 Gateway 同时启用 Full 和 v2。
 
-[迁移](docs/MIGRATION-v2.md) · [更新记录](CHANGELOG.md) · [v2 验证](docs/VALIDATION-v2.md) · [历史真实验收](docs/VALIDATION.md) · [测试方法](docs/TESTING.md) · [公开 API](docs/PUBLIC-API.md)
+[迁移](docs/MIGRATION-v2.md) · [更新记录](CHANGELOG.md) · [v2 验证](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION-v2.md) · [历史真实验收](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION.md) · [测试方法](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/TESTING.md) · [公开 API](docs/PUBLIC-API.md)
 
 MIT License。

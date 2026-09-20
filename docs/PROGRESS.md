@@ -1,3 +1,9 @@
+# v2 release publication
+
+The release protocol is documented in [RELEASE.md](RELEASE.md). Official installation resolves the v2.0.0 tag to its exact commit. Finalization changes publication documentation and the distributed documentation allowlist only; accepted runtime code stays unchanged. Final merge-commit validation, smoke and publication identities are recorded in the Release notes. Earlier preparation records below retain their historical scope.
+
+---
+
 # Hermes Telegram UX v2.0.0 release preparation
 
 Current goal: preserve the accepted runtime, prepare v2 metadata and migration, verify the exact release commit locally and in GitHub CI, then leave a reviewable PR to main. Do not merge, tag, publish a Release/Catalog entry, change the default branch or delete historical branches.

@@ -1,5 +1,7 @@
 # v2.0.0 release candidate validation
 
+This is the historical validation record for release-preparation HEAD `65af3cdfb6f2b61dfc118d7dc2852f0e22dc2dc9`. Its candidate-stage scope remains unchanged below. Subsequent release checks compare the accepted runtime with the final merge-commit tree; the final commit, CI and short live smoke are recorded separately in the official Release notes. See [release integrity](RELEASE.md).
+
 This record belongs to the v2 release-preparation line. The accepted implementation is `c5b8aef94d1f096fbad9ad782b2ad312e9254d33`. Release preparation does not change `catalog/` or `__init__.py`; `plugin.yaml` changes only version `1.9.0-catalog.1 → 2.0.0`.
 
 ## Historical preservation and runtime equivalence

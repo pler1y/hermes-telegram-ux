@@ -4,7 +4,7 @@ v2 uses the official public Plugin API implementation as the only maintained pro
 
 The internal v2 ID remains **`hermes-telegram-ux-catalog`** for installation and configuration compatibility. Full's ID is **`hermes-interaction`**. They are not interchangeable, and installing v2 does not automatically disable or replace Full. Do not enable both in the same Gateway.
 
-This document prepares migration to the `release/v2.0.0` candidate. There is no final `v2.0.0` tag, GitHub Release or Catalog publication at this stage. Review the candidate before installing it; do not install the repository's old default branch expecting v2.
+Use the exact commit resolved from the official `v2.0.0` tag and compare it with the [Release notes](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.0.0). Project releases and Hermes Catalog admission are separate; follow the Catalog's reviewed pin when installing through that channel.
 
 ## Before changing an existing installation
 
@@ -21,19 +21,19 @@ TGUX_DIR="$TGUX_HOME/plugins/hermes-telegram-ux-catalog"
 
 Changing files or a disable setting does not unload code already running in another process. Keep the Gateway stopped throughout replacement and validation.
 
-## Resolve and review the candidate SHA
+## Resolve and verify the official release SHA
 
-The checked Hermes core accepts only a full 40-character commit in `--ref`. It does not accept a branch name. Resolve the candidate branch without changing your installation:
+The checked Hermes core accepts only a full 40-character commit in `--ref`. It does not accept a branch or tag name. Resolve the official tag without changing the installation:
 
 ```bash
 TGUX_REPO="https://github.com/pler1y/hermes-telegram-ux.git"
-TGUX_COMMIT="$(git ls-remote --exit-code --heads "$TGUX_REPO" refs/heads/release/v2.0.0 | awk 'NR == 1 {print $1}')"
-test "${#TGUX_COMMIT}" -eq 40 || { echo "Candidate branch unavailable; stop here." >&2; exit 1; }
-case "$TGUX_COMMIT" in *[!0-9a-fA-F]*) echo "Invalid candidate SHA; stop here." >&2; exit 1 ;; esac
-printf 'Review this exact commit before installing: https://github.com/pler1y/hermes-telegram-ux/commit/%s\n' "$TGUX_COMMIT"
+TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.0.0' 'refs/tags/v2.0.0^{}' | awk '$2 == "refs/tags/v2.0.0^{}" { peeled=$1 } $2 == "refs/tags/v2.0.0" { direct=$1 } END { print peeled ? peeled : direct }')"
+test "${#TGUX_COMMIT}" -eq 40 || { echo "Release tag unavailable; stop here." >&2; exit 1; }
+case "$TGUX_COMMIT" in *[!0-9a-fA-F]*) echo "Invalid release SHA; stop here." >&2; exit 1 ;; esac
+printf '%s\n' "$TGUX_COMMIT"
 ```
 
-Review that SHA against the candidate PR and [v2 validation record](VALIDATION-v2.md) before running the installation commands. If the branch has moved beyond the reviewed commit, use the reviewed 40-character SHA instead. Resolving a branch is not itself approval of a new revision.
+For an annotated tag, this selects the peeled commit rather than the tag-object SHA; lightweight tags also work. Compare the resolved commit with the official Release notes before continuing. If the tag cannot be resolved, stop rather than selecting a branch. [Release integrity](RELEASE.md) explains the ZIP checksum and provenance.
 
 ## New users
 
@@ -78,11 +78,11 @@ Configuration behavior:
 
 The checked Hermes installer accepts Git/Catalog sources, not ZIP files. A ZIP directory without `.git` cannot use native `plugins update`.
 
-For the candidate, the same-ID Git replacement above is the single documented upgrade route from an existing public-plugin ZIP copy as well. It replaces that directory with a pinned Git installation; configuration and plugin-data outside it remain. It does not require deleting the old preferences file.
+The same-ID Git replacement above is the documented upgrade route from an existing public-plugin ZIP copy as well. It replaces that directory with a pinned Git installation; configuration and plugin-data outside it remain. It does not require deleting the old preferences file.
 
-If deploying a locally built ZIP for testing, verify its checksum and `PROVENANCE.json`, keep the Gateway stopped, back up and completely replace the plugin code directory, then validate/doctor/enable through Hermes. Do not overlay an archive onto old code and assume removed modules disappeared. This is an operator-managed archive deployment, not a native ZIP install command or a published v2 release download.
+If deploying a locally built ZIP for testing, verify its checksum and `PROVENANCE.json`, keep the Gateway stopped, back up and completely replace the plugin code directory, then validate/doctor/enable through Hermes. Do not overlay an archive onto old code and assume removed modules disappeared. This is an operator-managed archive deployment, not a native ZIP install command.
 
-Catalog installations use a separate Catalog sidecar and reviewed pin. This candidate has not updated that Catalog entry. Do not expect a Catalog update command to fetch this candidate, and do not rename an existing Catalog entry or manifest to force it. Details: [plugin identity audit](PLUGIN-ID.md).
+Catalog installations use a separate Catalog sidecar and reviewed pin. A project Release does not automatically change that pin: Catalog updates follow the version accepted by Hermes maintainers. Do not rename an existing Catalog entry or manifest to force an update. Details: [plugin identity audit](PLUGIN-ID.md).
 
 ## Full users (`hermes-interaction`)
 
@@ -140,7 +140,7 @@ If the helper reports `No managed installation`, this is not proof that Full set
 
 An interrupted transaction must be recovered using the matching old Full helper while the Gateway stays stopped. Preserve its `telegram-ux-installer` records and `backups/hermes-telegram-ux` directories. If the backup or current configuration is inconsistent, stop the restore step rather than overwriting user edits. See the [historical recovery instructions](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/RECOVERY.md).
 
-These procedures are documented migration paths; this release-preparation work does not automatically modify any real Full user's environment.
+These procedures are documented migration paths; they do not imply any automatic modification of a real Full user's environment.
 
 ## Removing v2 later
 
@@ -155,4 +155,4 @@ Restart the Gateway to continue using native Hermes. The checked core removes th
 
 ## Validation scope
 
-[VALIDATION-v2.md](VALIDATION-v2.md) records tests against the final release-candidate commit, including clean Git/ZIP payload lifecycles, old-version upgrade behavior, native enable/disable/remove, configuration/state preservation, and unchanged Hermes core. [VALIDATION.md](VALIDATION.md) retains the original live Telegram evidence and its original versions; it is not relabeled as a new v2 deployment.
+[Candidate validation history](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION-v2.md) records the release-preparation tests, including clean Git/ZIP payload lifecycles, old-version upgrade behavior, native enable/disable/remove, configuration/state preservation, and unchanged Hermes core. [VALIDATION.md](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION.md) retains the original live Telegram evidence and its original versions; it is not relabeled as a new v2 deployment. Final merge-commit validation and the short Telegram release smoke are identified separately in the Release notes.

@@ -4,7 +4,7 @@
 
 Task-aware, temporary Telegram progress for Hermes. One status message explains what is happening while you wait, follows real tool actions and results, and is cleaned up when the turn ends. Install, enable, then chat normally.
 
-**v2.0.0 is prepared on [release/v2.0.0](https://github.com/pler1y/hermes-telegram-ux/tree/release/v2.0.0) for review. It is not merged into main, tagged or released yet.** Starting with v2, this public Plugin API implementation is the only maintained product.
+**Hermes Telegram UX v2.0.0** uses the public Plugin API implementation as the only maintained product. Official version identity comes from the [v2.0.0 tag](https://github.com/pler1y/hermes-telegram-ux/tree/v2.0.0) and [GitHub Release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.0.0).
 
 ## What you see
 
@@ -27,14 +27,17 @@ Hermes sends its native final answer → the temporary status is removed
 
 No completion cards, buttons, welcome pages, personal settings panels or `/tgux` command. Disable the plugin through Hermes when you do not need progress.
 
-## Install the reviewed candidate
+## Install v2.0.0
 
-Requires a working Telegram-enabled Hermes installation. The verified baseline is **Hermes 0.21.3**, commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`. CI also checks current Hermes main on Python 3.11 and 3.12; see the result for the exact candidate you install.
+Requires a working Telegram-enabled Hermes installation. The verified baseline is **Hermes 0.21.3**, commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`. CI also checks current Hermes main on Python 3.11 and 3.12; see the result for the exact release commit you install.
 
-The native installer accepts a **40-character commit SHA**, not a branch name, for `--ref`. Resolve the candidate, review that commit on GitHub, and install exactly that revision:
+The native installer accepts a **40-character commit SHA**, not a branch name, for `--ref`. Resolve the official tag to its commit (including annotated tags), compare that SHA with the Release notes, and install exactly that revision. If the tag is unavailable, stop; do not fall back to a moving branch:
 
 ```bash
-TGUX_COMMIT="$(git ls-remote https://github.com/pler1y/hermes-telegram-ux.git refs/heads/release/v2.0.0 | cut -f1)"
+TGUX_REPO="https://github.com/pler1y/hermes-telegram-ux.git"
+TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.0.0' 'refs/tags/v2.0.0^{}' | awk '$2 == "refs/tags/v2.0.0^{}" { peeled=$1 } $2 == "refs/tags/v2.0.0" { direct=$1 } END { print peeled ? peeled : direct }')"
+test "${#TGUX_COMMIT}" -eq 40 || { echo "Release tag unavailable; stop here." >&2; exit 1; }
+case "$TGUX_COMMIT" in *[!0-9a-fA-F]*) echo "Invalid release SHA; stop here." >&2; exit 1 ;; esac
 printf '%s\n' "$TGUX_COMMIT"
 hermes plugins install https://github.com/pler1y/hermes-telegram-ux.git --ref "$TGUX_COMMIT" --no-enable
 hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog" --json
@@ -42,11 +45,11 @@ hermes plugins doctor "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-
 hermes plugins enable hermes-telegram-ux-catalog
 ```
 
-Restart your Gateway and send a normal task. Review any native scanner findings before accepting installation. Do not install the old default branch expecting v2. Existing users should first follow [the migration guide](docs/MIGRATION-v2.md); an existing pinned installation requires an explicit replacement, and `--no-enable` does not disable an already-running plugin.
+Restart your Gateway and send a normal task. Review any native scanner findings before accepting installation. Existing users should first follow [the migration guide](docs/MIGRATION-v2.md); an existing pinned installation requires an explicit replacement, and `--no-enable` does not disable an already-running plugin.
 
 The internal ID **`hermes-telegram-ux-catalog` stays unchanged** to preserve installation/configuration identity. It is a historical compatibility identifier, not a separate product edition. [ID decision and source audit](docs/PLUGIN-ID.md).
 
-A reproducible ZIP can also be built from the reviewed commit with `scripts/build_release.py --ref <40-character-SHA>`. It includes per-file hashes and `PROVENANCE.json`. Hermes does not directly install ZIP files; verified manual deployment and replacement are explained in the migration guide. No v2 release asset has been published yet.
+A reproducible ZIP can also be built from the reviewed commit with `scripts/build_release.py --ref <40-character-SHA>`. It includes per-file hashes and `PROVENANCE.json`. Hermes does not directly install ZIP files; verified manual deployment and replacement are explained in the migration guide. Use the ZIP and checksums attached to the official v2.0.0 Release; see [release integrity](docs/RELEASE.md).
 
 ## Configuration
 
@@ -78,6 +81,6 @@ Turn completion is not a Telegram delivery receipt. Cleanup is bounded and best 
 
 Full v1.8.3 and earlier used deep Hermes-internal integration and are no longer maintained. History is preserved at [legacy/full-1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/legacy/full-1.8.3) and [v1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/v1.8.3). These are historical references, not an alternative recommended installation. Do not enable Full and v2 in the same Gateway.
 
-[Migration](docs/MIGRATION-v2.md) · [Changelog](CHANGELOG.md) · [v2 validation](docs/VALIDATION-v2.md) · [Historical live acceptance](docs/VALIDATION.md) · [Testing](docs/TESTING.md) · [Public API](docs/PUBLIC-API.md)
+[Migration](docs/MIGRATION-v2.md) · [Changelog](CHANGELOG.md) · [v2 validation](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION-v2.md) · [Historical live acceptance](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION.md) · [Testing](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/TESTING.md) · [Public API](docs/PUBLIC-API.md)
 
 MIT License.

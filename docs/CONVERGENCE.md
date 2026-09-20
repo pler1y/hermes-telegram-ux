@@ -1,3 +1,7 @@
+# Historical convergence record
+
+This document preserves the preparation-stage history and decisions. The publication protocol and stable installation identity are described in [RELEASE.md](RELEASE.md); final release results belong to the tagged Release notes.
+
 # v2.0.0 主线收敛准备 — 2026-09-20
 
 已经验收的候选 `c5b8aef94d1f096fbad9ad782b2ad312e9254d33` 已原样上传 `codex/catalog-experience`。fetch 后确认远端旧 main 仍为 `3b2175199d8d9dbafaa39e13c1f5dafd4bf0cfcb`，并已将同一提交保存到 `legacy/full-1.8.3`。`v1.8.3` 保持 `1ed97bfbe9071a179e1a2b8fcc260a573ecc6364` 不动。

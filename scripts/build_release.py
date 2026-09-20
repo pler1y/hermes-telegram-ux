@@ -10,9 +10,9 @@ import zipfile
 
 from check_boundary import ROOT, PAYLOAD, scan
 
+# Distribute user documentation; historical operator/acceptance records stay in Git.
 FILES = (*PAYLOAD, "plugin.yaml", "LICENSE", "README.md", "README.zh-CN.md", "docs/PUBLIC-API.md",
-         "docs/TESTING.md", "docs/ACCEPTANCE.md", "docs/PROGRESS.md", "docs/VALIDATION.md", "docs/CONVERGENCE.md",
-         "CHANGELOG.md", "docs/MIGRATION-v2.md", "docs/PLUGIN-ID.md", "docs/VALIDATION-v2.md")
+         "CHANGELOG.md", "docs/MIGRATION-v2.md", "docs/PLUGIN-ID.md", "docs/RELEASE.md")
 
 
 def git(*args):
