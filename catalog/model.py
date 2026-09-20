@@ -5,13 +5,10 @@ file contents, provider text nor hidden reasoning. A started action owns its
 status until a newer action starts; late completions cannot rewind that status.
 """
 from dataclasses import dataclass, field
-import json
-import math
 import re
-import shlex
-from urllib.parse import urlsplit
 
 from .experience import TOOL, normalize_note
+from .intelligence import task_subject, tool_context, result_facts, shell_stage
 
 
 def identity(value):
@@ -30,6 +27,8 @@ def safe_text(value, limit=72):
         return ""
     if re.search(r"(?i)(?:api[_ -]?key|access[_ -]?token|token|password|passwd|secret|authorization|cookie)\s*[:：=]|\bBearer\s+|\b(?:sk|ghp|github_pat|xox[baprs])[-_][\w-]+|\b\d{6,}:[A-Za-z0-9_-]{20,}|\b[A-Za-z0-9_=-]{28,}\b", value):
         return ""
+    if re.search(r"(?i)\b(?:site|inurl|intitle|filetype|before|after):|\b(?:AND|OR)\b", value):
+        return ""
     # Never echo a URL, URL query, full path, shell/code or markup into the bubble.
     value = re.sub(r"https?://[^\s<>]+|(?:[A-Za-z]:[\\/]|~/|/)[^\s，。；,;]+", " ", value)
     value = re.sub(r"[\x00-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2066-\u2069]", " ", value)
@@ -39,178 +38,6 @@ def safe_text(value, limit=72):
     return value[:limit].rstrip()
 
 
-def task_subject(value):
-    """A small grammatical reduction, not an LLM or an inferred work plan."""
-    text = safe_text(value, 300)
-    if not text:
-        return ""
-    text = re.sub(r"(?i)^(?:(?:please|can you|could you|would you|help me)\s+)+", "", text)
-    text = re.sub(r"(?i)^(?:look up|look for|search for|find|investigate|check|read|analyze)\s+", "", text)
-    text = re.sub(r"^(?:(?:请|麻烦|能不能|可以|你|帮我|给我|一下|先|帮忙)\s*)+", "", text)
-    text = re.sub(r"^(?:查一下|查查|查询|查找|搜索|调查|找一下|看看|检查|分析|了解|研究|帮我)\s*", "", text)
-    text = re.sub(r"^(?:一下|这个项目(?:里)?|项目里)\s*", "", text)
-    # Remove requests for secondary advice rather than attaching an entire question.
-    text = re.split(r"[，,。；;！!？?]|然后|尤其|顺便|并且|看看(?:温度|湿度|风速)|我出门", text, maxsplit=1)[0]
-    text = re.sub(r"(?:怎么样|如何|有什么重要新闻|有什么新闻|要穿什么|帮我看看.*)$", lambda m: "重要新闻" if "新闻" in m.group() else "", text)
-    text = re.sub(r"(?<=\D)(\d+)\s*天", r" \1 天", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:64]
-
-
-def file_subject(value):
-    if not isinstance(value, str) or len(value) > 2048:
-        return ""
-    name = value.replace("\\", "/").rsplit("/", 1)[-1]
-    if name.startswith(".") or re.search(r"(?i)secret|credential|token|password|\.pem$|\.key$|\.env", name):
-        return ""
-    return safe_text(name, 48) if re.fullmatch(r"[\w .-]{1,64}", name) else ""
-
-
-def host_subject(value):
-    if not isinstance(value, str) or len(value) > 2048:
-        return ""
-    try:
-        host = urlsplit(value).hostname or ""
-        # A hostname is enough for a partial label; never retain userinfo/query/path.
-        return safe_text(host, 60) if re.fullmatch(r"[A-Za-z0-9.-]+", host) else ""
-    except ValueError:
-        return ""
-
-
-def shell_stage(command, depth=0):
-    if not isinstance(command, str) or len(command) > 8000 or depth > 2:
-        return "execute"
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return "execute"
-    segments, segment = [], []
-    for token in tokens + [";"]:
-        if token and all(char in ";&|" for char in token):
-            if segment:
-                segments.append(segment)
-            segment = []
-        else:
-            segment.append(token)
-    stages = []
-    for words in segments[:12]:
-        while words and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", words[0]):
-            words = words[1:]
-        if not words:
-            continue
-        exe = words[0].rsplit("/", 1)[-1]
-        rest = words[1:]
-        if exe in {"bash", "sh", "zsh"} and len(rest) == 2 and rest[0] in {"-c", "-lc"}:
-            stages.append(shell_stage(rest[1], depth + 1))
-        elif exe == "uv" and rest[:1] == ["run"]:
-            stages.append(shell_stage(shlex.join(rest[1:]), depth + 1))
-        elif exe in {"pytest", "py.test"} or (re.fullmatch(r"python(?:\d(?:\.\d+)?)?", exe) and rest[:1] == ["-m"] and rest[1:2] in (["pytest"], ["unittest"])):
-            stages.append("test")
-        elif (exe in {"npm", "pnpm", "yarn", "cargo", "go", "dotnet"} and rest[:1] == ["test"]) or (exe == "node" and rest[:1] == ["--test"]):
-            stages.append("test")
-        elif exe in {"rg", "grep", "find"}:
-            stages.append("locate")
-        elif exe in {"cat", "head", "tail", "sed"}:
-            stages.append("read")
-        elif exe != "cd":
-            stages.append("execute")
-    # Mixed operations do not prove a particular substep is currently executing.
-    return stages[0] if stages and len(set(stages)) == 1 else "execute"
-
-
-def tool_context(name, args, task):
-    args = args if isinstance(args, dict) else {}
-    stage, subject = "execute", ""
-    if name in {"web_search", "web.search", "web.search_query", "search_web"}:
-        stage = "search"
-        subject = task_subject(args.get("query") or args.get("q"))
-    elif name in {"web_extract", "web.extract", "browse", "browser_navigate"}:
-        stage = "read_web"
-        urls = args.get("urls")
-        subject = host_subject(args.get("url") or (urls[0] if isinstance(urls, list) and urls else None))
-        if task:
-            subject = task
-    elif name in {"read_file", "write_file", "patch", "edit_file"}:
-        stage = "read" if name == "read_file" else "write"
-        subject = file_subject(args.get("path") or args.get("file_path"))
-        if ("Telegram" in task or "telegram" in task) and re.search(r"状态|消息|删除|清理", task) and re.search(r"(?i)telegram|adapter|message|runtime|progress", subject):
-            subject = "Telegram 状态消息处理代码"
-    elif name in {"search_files", "grep"}:
-        stage = "locate"
-        subject = safe_text(args.get("pattern"), 48)
-        if subject and re.search(r"delete|cleanup|清理|删除", subject, re.I) and re.search(r"Telegram|telegram", task):
-            subject = "Telegram 状态消息清理逻辑"
-    elif name in {"terminal", "exec_command", "execute_command"}:
-        stage = shell_stage(args.get("command") or args.get("cmd"))
-        subject = ""
-    elif name in {"calculator", "calculate"}:
-        stage = "calculate"
-    elif name in {"image_generate", "generate_image"}:
-        stage = "create"
-        subject = task
-    elif name == "delegate_task":
-        stage = "delegate"
-        subject = task_subject(args.get("goal") or args.get("task"))
-    return {"stage": stage, "subject": subject}
-
-
-def result_object(result):
-    if isinstance(result, dict):
-        return result
-    if isinstance(result, str) and len(result) <= 131072:
-        try:
-            value = json.loads(result)
-            return value if isinstance(value, dict) else {}
-        except (ValueError, RecursionError):
-            pass
-    return {}
-
-
-def numeric_values(value):
-    values = value if isinstance(value, list) else [value]
-    return bool(values) and len(values) <= 1000 and all(type(item) is int or (type(item) is float and math.isfinite(item)) for item in values)
-
-
-def result_facts(result, stage):
-    """Only recognized structural evidence, never prose or requested field names."""
-    obj = result_object(result)
-    facts = {}
-    failed = obj.get("success") is False or obj.get("ok") is False or obj.get("isError") is True or bool(obj.get("error")) or obj.get("status") in ("error", "failed")
-    exit_code = obj.get("exit_code")
-    if isinstance(exit_code, int) and not isinstance(exit_code, bool) and exit_code != 0:
-        failed = True
-    if failed:
-        return {"failed": True}
-    if stage == "search":
-        data = obj.get("data")
-        entries = data.get("web") if isinstance(data, dict) else None
-        if entries is None:
-            entries = obj.get("results")
-        if isinstance(entries, list) and len(entries) <= 1000 and all(isinstance(item, dict) and isinstance(item.get("title"), str) and bool(item.get("title")) and isinstance(item.get("url"), str) and item.get("url", "").startswith(("https://", "http://")) for item in entries):
-            facts["search_count"] = len(entries)
-    # Common structured weather API objects; string snippets and *_units are not data.
-    nodes = [obj]
-    for key in ("data", "daily", "hourly", "current", "forecast"):
-        if isinstance(obj.get(key), dict):
-            nodes.append(obj[key])
-    if isinstance(obj.get("data"), dict):
-        nodes.extend(obj["data"][key] for key in ("daily", "hourly", "current", "forecast") if isinstance(obj["data"].get(key), dict))
-    fields = set()
-    for node in nodes:
-        for key, value in list(node.items())[:80]:
-            if isinstance(key, str) and numeric_values(value):
-                if re.fullmatch(r"temperature(?:_2m)?(?:_(?:min|max|mean))?|temp", key):
-                    fields.add("temperature")
-                elif re.fullmatch(r"(?:relative_)?humidity(?:_2m)?(?:_(?:min|max|mean))?", key):
-                    fields.add("humidity")
-                elif re.fullmatch(r"wind(?:_?speed)?(?:_10m)?(?:_(?:min|max|mean))?", key):
-                    fields.add("wind")
-    if fields:
-        facts["weather_fields"] = tuple(key for key in ("temperature", "humidity", "wind") if key in fields)
-    if stage == "test" and type(exit_code) is int and exit_code == 0:
-        facts["test_completed"] = True  # Process completed, not a claim that all tests passed.
-    return facts
-
 
 @dataclass
 class Turn:
@@ -219,6 +46,7 @@ class Turn:
     touched: float
     tools: dict = field(default_factory=dict)
     apis: dict = field(default_factory=dict)
+    api_attempts: dict = field(default_factory=dict)
     approvals: dict = field(default_factory=dict)
     interims: set = field(default_factory=set)
     last: str = "working"
@@ -238,6 +66,9 @@ class Turn:
     current_kind: str = "initial"
     iteration: int = -1
     finalizing: bool = False
+    result_at: float = 0.0
+    model_since: float = 0.0
+    last_failure: dict = field(default_factory=dict)
 
     def __post_init__(self):
         self.started = self.touched
@@ -258,6 +89,33 @@ class Turn:
             return False
         bucket[key] = value
         return True
+
+    def merge_source_batch(self):
+        """Summarize mixed source outcomes without changing any tool outcome.
+
+        Only the just-finished public API batch and the same safe task object
+        participate. A successful clock/process call is not successful research.
+        """
+        subject = self.progress.get("subject")
+        if not subject or self.progress.get("batch") != self.current_request:
+            return
+        sources = {"search", "read_web", "read_data", "read", "inspect"}
+        outcomes = [item for item in self.observations.values()
+                    if item.get("batch") == self.current_request
+                    and item.get("subject") == subject and item.get("stage") in sources]
+        succeeded = any(item.get("status") == "ok"
+                        and (item.get("facts", {}).get("read_completed")
+                             or (item.get("stage") == "search"
+                                 and type(item.get("facts", {}).get("search_count")) is int
+                                 and item["facts"]["search_count"] > 0))
+                        for item in outcomes)
+        failed = any(item.get("status") in {"error", "blocked"}
+                     or item.get("facts", {}).get("partial_failure") for item in outcomes)
+        if succeeded and failed:
+            # This display record represents the batch. The original failure
+            # remains in tools/observations and is never relabelled successful.
+            self.progress = dict(self.progress, status="mixed", facts={"partial_failure": True})
+            self.last = "working"
 
     def observe(self, event, data, now):
         if self.finalizing:
@@ -286,8 +144,18 @@ class Turn:
         if event == "pre_tool_call":
             if call in self.tools or not self.put(self.tools, call, (tool_label(data.get("tool_name")), "running")):
                 return
-            self.observations[call] = tool_context(tool_label(data.get("tool_name")), data.get("args"), self.user_task or task_subject(self.note.get("goal")))
-            self.progress = self.observations[call]
+            name = tool_label(data.get("tool_name"))
+            info = tool_context(name, data.get("args"), self.user_task or task_subject(self.note.get("goal")))
+            info = dict(info, tool=name, batch=self.current_request)
+            previous = self.last_failure
+            # A recovery label is permitted only once a real subsequent action
+            # on the same object starts, never merely when a model is requested.
+            related = {"search", "read_web", "read_data", "read", "inspect", "locate", "execute"}
+            if previous and previous.get("subject") == info.get("subject") and info.get("subject") and previous.get("stage") in related and info.get("stage") in related:
+                info["recovery"] = "alternative" if previous.get("tool") != name else "retry"
+            self.last_failure = {}
+            self.observations[call] = info
+            self.progress = info
             self.note = {}
             self.revision += 1
             self.current_call, self.current_kind, self.last = call, "tool", "working"
@@ -304,19 +172,38 @@ class Turn:
                 status = "error"
             if not self.put(self.tools, call, (name, status)):
                 return
-            info = dict(info, status=status, facts=facts if status == "ok" else {})
+            # Negative facts (notably file absence) are evidence too. Never
+            # retain positive result facts when the host reports a failed call.
+            if status != "ok":
+                facts = {key: value for key, value in facts.items() if key in {"failed", "missing_file"}}
+            info = dict(info, status=status, facts=facts)
+            if status in {"error", "blocked"} and info.get("batch", "") == self.current_request:
+                self.last_failure = info
             self.observations[call] = info
             if (call == self.current_call and self.current_kind == "tool") or self.current_kind == "initial":
                 self.progress = info
+                self.result_at = now
                 self.current_call, self.current_kind = call, "result"
                 self.last = "tool_error" if status in {"error", "blocked"} else "tool_cancelled" if status == "cancelled" else "working"
         elif event == "pre_api_request":
-            if request in self.apis or not self.put(self.apis, request, "running"):
+            retry = data.get("retry_count", 0)
+            retry = retry if type(retry) is int and 0 <= retry <= 100 else 0
+            if request in self.apis and retry <= self.api_attempts.get(request, 0):
                 return
+            if not self.put(self.apis, request, "running"):
+                return
+            self.api_attempts[request] = retry
             if self.current_kind == "tool":
+                # A new model cycle without a matching result cannot prove the
+                # old operation completed. Late callbacks must not rewind it.
                 self.progress = {}
+            else:
+                self.merge_source_batch()
             self.revision += 1
-            self.current_request, self.current_kind, self.last = request, "api", "working"
+            self.model_since = now
+            self.current_request, self.current_kind = request, "api"
+            if self.last not in {"tool_error", "tool_cancelled"}:
+                self.last = "working"
             count = data.get("api_call_count")
             if type(count) is int:
                 self.iteration = max(self.iteration, count)
@@ -324,16 +211,25 @@ class Turn:
             if type(retry) is int and 0 <= retry <= 100:
                 self.retries = retry
         elif event in {"post_api_request", "api_request_error"}:
+            retry = data.get("retry_count")
+            if type(retry) is int and retry < self.api_attempts.get(request, 0):
+                return
             if self.apis.get(request) in {"ok", "error"}:
                 return
             if not self.put(self.apis, request, "ok" if event == "post_api_request" else "error"):
                 return
             if request == self.current_request and self.current_kind in {"api", "stream", "note"}:
-                self.last = "api_error" if event == "api_request_error" else "working"
+                if event == "api_request_error":
+                    self.last = "api_error"
+                elif self.last not in {"tool_error", "tool_cancelled"}:
+                    self.last = "working"
                 if event == "post_api_request":
+                    # Public count works for normalized assistant objects too;
+                    # never read model text, reasoning or final answer content.
+                    count = data.get("assistant_tool_call_count")
                     message = data.get("assistant_message")
-                    # Observe shape only. Content, reasoning and final answer are never copied.
-                    self.current_kind = "working" if isinstance(message, dict) and message.get("tool_calls") else "generating"
+                    has_tools = count > 0 if type(count) is int else bool(isinstance(message, dict) and message.get("tool_calls"))
+                    self.current_kind = "working" if has_tools else "generating"
         elif event == "pre_approval_request":
             # Approval observers can arrive after the tool or after its response.
             # Neither event may resurrect a settled call's waiting/error state.

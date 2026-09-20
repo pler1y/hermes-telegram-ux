@@ -238,7 +238,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.telegram.sent), 1)
         self.assertEqual(self.telegram.sent[0]["metadata"], {"thread_id": "7"})
         self.assertEqual(self.telegram.sent[0]["reply_to"], "10")
-        self.assertIn("正在阅读文件", self.telegram.edits[-1]["content"])
+        self.assertIn("正在检查指定文件", self.telegram.edits[-1]["content"])
 
     async def test_context_loss_falls_back_without_network(self):
         self.adapter.pre_gateway_dispatch(event=event())

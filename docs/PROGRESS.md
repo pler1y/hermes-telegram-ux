@@ -2,7 +2,16 @@
 
 Current goal: task-aware progress in one temporary Telegram bubble, followed by cleanup. Hermes retains execution, task control, approvals, final-answer and attachment delivery. Full remains on its original main checkout, including pre-existing untracked research.
 
-## Current working candidate — 2026-09-20
+## Progress Intelligence development — 2026-09-20
+
+- Baseline checkpoint: `31b3a5f` preserves the temporary-bubble lifecycle that passed real Telegram cleanup acceptance. B–E task intelligence was only partial at that baseline.
+- Current changes preserve the full task purpose, remove raw search syntax, interpret bounded structural result evidence, keep errors/results above generic model activity, and age completed results into task-specific synthesis only after a subsequent public model request.
+- Normalized `assistant_tool_call_count` is used instead of assuming a dict response; same-ID API retries retain their attempt order. No stream observers, middleware, final transformers, private APIs or task control have been added.
+- A two-second display check can update synthesis wording without refreshing execution TTL or calling Hermes. The normal one-message/edit/delete lifecycle and independent `/tgux` menu remain in place.
+- Final automated checks: 163 unit + 6 host contract cases, boundary guard, official validate (10/10, zero warnings) and doctor passed. Final real Telegram A–E, same-batch mixed-result and sequential recovery acceptance passed; every ordinary status was edited in place and deleted after its native answer. Runtime SHA256: `4998be75d2a6e6ce839795cf606c786a58f516ac6fd194cbda043172b0830395`.
+- The final runtime remains deployed to the dedicated test Bot. Temporary public observation was removed, exact original config restored, and post-restoration A smoke passed. All 13,490 tracked core files remain unchanged. Full timelines/evidence and the nonblocking wording limitation are recorded in `VALIDATION.md`. No publication is authorized.
+
+## Temporary-progress implementation baseline — 2026-09-20
 
 - Channel: `catalog-safe` in shared `pler1y/hermes-telegram-ux`; independent `catalog-v*` releases and Plugin-only packages. Work continues on the existing candidate branch. Manifest version remains `1.9.0-catalog.1`; these changes do not imply a new release.
 - Target: official Hermes 0.21.3 `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`, the fixed 2026-09-16 main snapshot.

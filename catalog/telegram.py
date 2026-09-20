@@ -202,7 +202,7 @@ class TelegramPanels:
                 if panel.wake.is_set():
                     continue
                 try:
-                    await asyncio.wait_for(panel.wake.wait(), timeout=min(idle, 10))
+                    await asyncio.wait_for(panel.wake.wait(), timeout=min(idle, 2 if self.heartbeat else 10))
                 except asyncio.TimeoutError:
                     # A display tick never refreshes execution TTL or invents
                     # activity. Current callers may omit this entirely.

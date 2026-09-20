@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD = ("__init__.py", "catalog/__init__.py", "catalog/adapter.py", "catalog/model.py",
            "catalog/presentation.py", "catalog/telegram.py", "catalog/preferences.py",
-           "catalog/experience.py", "catalog/interface.py")
+           "catalog/experience.py", "catalog/interface.py", "catalog/intelligence.py")
 FORBIDDEN_CALLS = {"setattr", "delattr", "eval", "exec", "compile", "__import__", "globals", "locals", "vars"}
 FORBIDDEN_IMPORTS = {"sys", "importlib", "inspect", "ctypes", "subprocess", "marshal", "pickle"}
 

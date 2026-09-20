@@ -33,7 +33,7 @@ class TaskProgressTests(unittest.TestCase):
         self.assertEqual(turn.user_task, "上海未来一周天气")
         self.search(turn)
         text = status_text(turn, "zh")
-        self.assertIn("搜索上海未来 7 天天气", text)
+        self.assertIn("搜索上海未来一周天气", text)
         self.assertNotIn("web_search", text)
         self.assertNotIn("帮我", text)
 
@@ -41,7 +41,7 @@ class TaskProgressTests(unittest.TestCase):
         turn = self.turn("帮我查一下上海未来7天天气")
         self.assertEqual(status_text(turn, "zh"), "🤔 正在思考中…")
         turn.observe("pre_api_request", {"api_request_id": "r"}, 11)
-        self.assertIn("正在处理上海未来 7 天天气", status_text(turn, "zh"))
+        self.assertIn("正在分析上海未来 7 天天气", status_text(turn, "zh"))
         self.assertNotIn("搜索", status_text(turn, "zh"))
         self.search(turn)
         self.assertIn("正在搜索上海未来 7 天天气", status_text(turn, "zh"))
@@ -93,10 +93,10 @@ class TaskProgressTests(unittest.TestCase):
     def test_d_code_read_search_and_real_test_events(self):
         turn = self.turn("检查这个项目为什么 Telegram 状态消息没有删除")
         self.pre(turn, "read", "read_file", {"path": "/Users/private/company/catalog/telegram.py"})
-        self.assertIn("Telegram 状态消息处理代码", status_text(turn, "zh"))
+        self.assertIn("Telegram 状态消息的删除逻辑", status_text(turn, "zh"))
         self.assertNotIn("/Users", repr(turn))
         self.pre(turn, "search", "search_files", {"pattern": "delete_message|cleanup", "path": "/secret/project"})
-        self.assertIn("Telegram 状态消息清理逻辑", status_text(turn, "zh"))
+        self.assertIn("Telegram 状态消息的删除逻辑", status_text(turn, "zh"))
         self.pre(turn, "test", "terminal", {"command": "python3 -m unittest discover -s tests"})
         self.assertIn("正在运行项目测试", status_text(turn, "zh"))
         self.post(turn, "test", "terminal", {"exit_code": 0, "output": "arbitrary output"})
@@ -223,7 +223,7 @@ class TaskProgressTests(unittest.TestCase):
     def test_three_fallback_levels(self):
         turn = self.turn("Shanghai weather")
         self.search(turn, query="Shanghai seven day weather")
-        self.assertIn("Shanghai seven day weather", status_text(turn, "en"))
+        self.assertIn("Shanghai weather", status_text(turn, "en"))
         self.pre(turn, "partial", "web_extract", {"url": "https://example.test/private?q=secret"})
         self.assertIn("Shanghai weather", status_text(turn, "en"))
         other = self.turn()
@@ -258,7 +258,7 @@ class TaskProgressTests(unittest.TestCase):
         self.post(turn, "note", "telegram_ux_update", args={"action": "正在对比每天的温度变化"})
         self.assertEqual(status_text(turn, "zh"), "📝 正在对比每天的温度变化…")
         self.pre(turn, "read", "web_extract", {"urls": ["https://example.test"]})
-        self.assertIn("正在阅读", status_text(turn, "zh"))
+        self.assertIn("正在读取上海天气数据", status_text(turn, "zh"))
 
     def test_public_note_goal_context_finding_attribution_and_next_tense(self):
         cases = [({"goal": "上海未来一周天气", "action": "正在整理结果"}, "正在整理上海未来一周天气"),
@@ -321,8 +321,8 @@ class TaskProgressTests(unittest.TestCase):
         self.search(turn)
         turn.observe("post_llm_call", {"response": "final answer"}, 20)
         self.post(turn, "a", "web_search", self.results())
-        self.assertEqual(status_text(turn, "zh", now=500), "✍️ 正在整理最终回答…")
-        self.assertEqual(status_text(turn, "zh", ending="ended"), "✍️ 正在整理最终回答…")
+        self.assertEqual(status_text(turn, "zh", now=500), "✍️ 正在整理上海天气变化…")
+        self.assertEqual(status_text(turn, "zh", ending="ended"), "✍️ 正在整理上海天气变化…")
         self.assertNotIn("final answer", repr(turn))
         for old_ui in ("已结束", "已用时", "工具", "继续处理", "详情", "设置", "关闭提示"):
             self.assertNotIn(old_ui, status_text(turn, "zh"))

@@ -118,7 +118,7 @@ class HermesCatalogAdapter:
                        "keyboard": ReplyKeyboardMarkup, "handler": CallbackQueryHandler}
                 self.interface = TelegramInterface(self.ctx, native, sdk, self.preferences)
             self.transport = TelegramPanels(self.ctx, adapter, self.interval, self.ttl, self.expire,
-                                             cleanup_delay=self.cleanup_delay)
+                                             heartbeat=self.refresh, cleanup_delay=self.cleanup_delay)
 
     def pre_gateway_dispatch(self, event=None, **kwargs):
         # This hook precedes auth: record only. No network, no reply, no directive.
@@ -219,6 +219,15 @@ class HermesCatalogAdapter:
         language = turn.preferences.get("language", self.language)
         now = self.clock()
         return status_text(turn, language, ending, now)
+
+    def refresh(self, key):
+        # Presentation aging only: no fabricated heartbeat activity, no TTL
+        # extension, no model polling and no ownership of the native response.
+        with self.lock:
+            turn = self.turns.get(key)
+            if self.closed or turn is None or turn.finalizing:
+                return None
+            return (self.render(turn), None)
 
     def on_session_end(self, completed=False, failed=False, interrupted=False, **kwargs):
         with self.lock:

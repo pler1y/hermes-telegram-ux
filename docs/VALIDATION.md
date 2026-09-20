@@ -1,4 +1,245 @@
-# Current temporary-progress live Telegram acceptance — 2026-09-20
+# Progress Intelligence — developed and live-validated 2026-09-20
+
+## Final candidate and scope
+
+Task-aware progress is deployed to the dedicated private `@hermes_ux_lab_bot`. This iteration completed local checkpoint, implementation, automated checks, live deployment, directly related corrections, retesting and restoration of the original test configuration. No push, tag, release, PR, Catalog publication or production-Bot change was performed.
+
+- Baseline local checkpoint: `31b3a5fddc6e106eafe4240e58384c407c840b8d`, preserving the preceding real-validated temporary-message lifecycle. Branch: `codex/catalog-experience`.
+- The final accepted runtime is the working-tree snapshot `round-4-final`, deployed at **2026-09-20 18:03:01 Asia/Shanghai**. The final local commit follows this record; `final-local-commit.json` in the evidence directory binds its exact commit to the same deployed runtime hashes.
+- Runtime SHA256: `4998be75d2a6e6ce839795cf606c786a58f516ac6fd194cbda043172b0830395` (10 Python files plus plugin.yaml). Package source manifest SHA256: `6d5c5da99d92805611658fc06467134d0317929781793d54692a433c90b03921`. Snapshot ZIP SHA256: `4ec671d9987ae38203b4fa992160b95d2596201b735c5a5bb18dad3bc321edb0`.
+- After acceptance, this record, `PROGRESS.md` and the API explanation were updated locally. The deployed documentation remains the pre-acceptance snapshot; deployed runtime files are unchanged and individually hash-verified. Manifest version remains `1.9.0-catalog.1`; no release/version bump is implied.
+- Official Hermes 0.21.3, fixed core commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`. Local checks use Python3.12.13; live host uses Python3.11.16. All **13,490 tracked core files** retain their original hashes.
+- Dedicated service: `hermes-gateway-catalog-safe-lab.service`. Installed plugin: `/home/hermes-ux-lab/catalog-safe-20260916/home/plugins/hermes-telegram-ux-catalog`. Full test service remains inactive; Full implementation and production installations were not modified.
+
+Evidence root in the maintainer workspace:
+`Telegram测试工具/reports/progress-intelligence-20260920-172143/`.
+The final live evidence is in `round-4-final/`; earlier snapshots and observations remain in preceding round directories. `round-4` is an intermediate source snapshot, not another deployed candidate. Raw Telegram new/edit/delete events and final existence checks are retained, with per-turn public tool/answer rows and public hook observations. Hidden reasoning, system prompts and credentials are excluded from exported evidence. The independent audit copied below maps every visible state to concrete public evidence; it does not infer execution from a successful final answer alone.
+
+## Final code and automated checks
+
+- `catalog/intelligence.py`: conservative action/object classification from the public user task and actual tool arguments; raw queries, paths and code stay out of UI; bounded structural facts for counts, missing files, actual weather fields, success and failure. Python/shell inspection does not execute code or pretend that unexecuted/unknown branches ran.
+- `catalog/model.py`: preserve specific results/errors across model events, correlate actual follow-up actions and API retries, and retain same-batch mixed source outcomes. Neither a successful date query nor an unrelated prior success hides a failed source.
+- `catalog/presentation.py`: result/error priority, task-specific synthesis following an observed model request and short result hold, honest current-step completion scope, and failure-qualified partial summaries. Public progress-tool notes remain distinct from verified results.
+- `catalog/adapter.py` and `catalog/telegram.py`: two-second render-only check for synthesis transitions; it does not refresh task execution TTL. One owned message, same-ID edits, native final reply and bounded automatic cleanup are retained.
+- Added intelligence/priority regression suites; boundary allowlist includes only the new pure-stdlib module. The strict boundary rules were not relaxed.
+
+| Check | Final result |
+|---|---|
+| All unit/UI/async/boundary unittest cases | **163 passed**, 4.738s |
+| Official-host PluginManager contract tests | **6 passed**, 1.158s |
+| Standalone Catalog boundary guard | **PASS** |
+| Official `plugins validate --json` | **10/10**, `ok:true`, **0 warnings** |
+| Official `plugins doctor --ci` | Discovery/import/registration **PASS**, 17 hooks / 1 tool |
+| Remote staged official validate / doctor | **PASS** on the actual Python3.11 host |
+| `git diff --check` | **PASS** |
+
+Full stdout/stderr are in `checks/`; unittest summaries are on stderr. These runs validate the uncommitted candidate runtime that was actually deployed. Native Git/ZIP release harnesses read committed objects and were not used to claim dirty-tree validation. They are not a published release or a cross-version compatibility matrix.
+
+Directly related live findings were corrected and retested before the final acceptance: actual Python `-c` arithmetic recognition; whole fenced JSON weather-field evidence; current-step success scope; and mixed parallel source success/failure preservation. Final A–E and supplemental cases below all use the same final runtime. Earlier partial runs are not reused as final PASS evidence.
+
+## Final live outcome and cleanup
+
+A–E all pass their exercised task-awareness and lifecycle criteria. Supplemental double-success, mixed-failure, and sequential recovery cases also pass their respective observed behavior. Across those eight cases, each ordinary task owns exactly one status message; every edit targets that message; all eight are absent in the final message-existence check; all native final answers remain. No ordinary completion card, elapsed footer, Details/Settings/Continue/Close keyboard or raw query was observed. Native command approvals remain native and are not counted as plugin status cards.
+
+After export, the temporary public observer plugin was removed from the active plugins directory and retained under the backup directory. Exact original config bytes, mode and ownership were restored; SHA256 `9cd8e61b3b43eb00aa1ddf6fcdaf449a5717b81073d1927c840b983b850add26`. Runtime manifest and all core hashes were reverified. Backup and receipt: `/home/hermes-ux-lab/catalog-safe-20260916/progress-intelligence-20260920-172143/acceptance-cleanup.json`.
+
+The post-restoration A smoke (`case-A-after-cleanup`) passes independently of the observer: status7458 appears+2.169s, becomes calculating+7.059s, current calculation completed+9.102s, task-specific synthesis+11.112s; native final7460 `2。` arrives+11.245s; status is deleted+12.259s (**1.014s after final**). Native once-only approval7459 was preserved. Zero new observer events is expected after observer removal, not newly hook-correlated evidence. This is the ninth clean lifecycle check on the final runtime.
+
+Final service receipt: active/running, PID626588, NRestarts0, Telegram connected, zero active agents. Fresh official discovery confirms enabled, **17 hooks / 1 tool / 1 command / 0 middleware**, error:null, observer absent. See `acceptance-cleanup.stdout`, `health-final.stdout`, `discovery-final.stdout` and the post-cleanup case in the final round directory.
+
+## API boundary and remaining limits
+
+The runtime still registers only public hooks, the public progress tool, `/tgux`, and the public Telegram platform-handler factory. Owned-message I/O uses the supplied adapter's `send`, `edit_message`, `delete_message`. No Hermes internal import/private access, monkey patch, middleware, stream observer, final-answer transformer or final-answer sender has been added. Final answer and native task/approval control remain Hermes responsibilities. Catalog-safe compliance here means the checked public-API boundary on the fixed official core, not Catalog admission.
+
+No confirmed P1/P2 remains on the exercised paths. The following limited observations remain:
+
+- One supplemental compound task produces the P3 wording repetition “两篇资料资料”; facts and lifecycle are unaffected.
+- Complex mixed scripts can use brief conservative task-related action/step labels; classification is deliberately incomplete and does not claim to know each internal statement. Arbitrary prose/task extraction is not a semantic guarantee.
+- The longest unchanged final A–E state is **48.561s** in E, inclusive of cleanup wait (47.908s until the native answer), displaying task-related news synthesis. The public model request actually lasted through that interval; no fictional stages were inserted. There was no stale raw search-query state.
+- Exact native final-delivery ordering and deletion under every network error cannot be guaranteed: public turn completion is not a Telegram delivery receipt. Bounded deletion retry remains unchanged; all final exercised cases actually deleted successfully.
+- Only this private chat, fixed core and deployed settings were live-tested. Final-round native stop/media/disabled cases were not newly rerun; their prior temporary-progress acceptance is historical evidence only. External forecast/news accuracy was not independently researched.
+
+# Final live state timelines and evidence
+
+Runtime source manifest SHA256: `4998be75d2a6e6ce839795cf606c786a58f516ac6fd194cbda043172b0830395` (verified against this directory's immutable manifest).
+
+Only saved Telegram user-client events, public hook records, native tool/answer transcript rows, and this deployment's immutable source are audited. The auditor does not connect to Telegram/SSH, alter product code, or inspect hidden reasoning. Hook sequence and matched argument hashes support the stated evidence; a heartbeat and adjacent callbacks can render the same text, so this is not a claim of unique render-callback causality. Server/client subsecond clock differences are not treated as proof of false progress. Native approval receipts/interim replies are distinguished from the plugin's owned bubble. No missing case is a PASS.
+
+## Coverage
+
+- A: PASS; continuous capture and native single-use approval included.
+- B: PASS; real three-field retrieval and two distinct executed follow-up steps.
+- C: PASS; requested code really read, cleanup-purpose status retained.
+- D: PASS; explicit missing-file state preserved through native explanation and cleanup.
+- E: PASS for observed search/synthesis flow; does not naturally exercise mixed failures.
+- Mixed same-batch sources: PASS, live case-mixed-failure genuinely exercises the fixed branch.
+- Sequential failure/recovery: PASS, real failed read followed by a new successful source read.
+
+## A — arithmetic — PASS
+
+Trace seq1–10 is contiguous, observer drops zero. Main execute_code argument hashes and user-message hash match. Seq5 is its nested terminal pre-hook with no scoped IDs; outer code/result establish its relation, rather than pretending it is an independently identified turn.
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +1.979s | 🤔 正在思考中… | seq1 pre_llm_call +1.881s for this exact user request |
+| +5.554s | 🧮 正在计算1+1… | seq4 pre_tool_call execute_code `call_OFpV1Qy3XJKhwwduCquRodOY`; exact code calls terminal `python3 -c 'print(1+1)'`; nested pre-hook seq5 |
+| +7.214s | 🧮 已完成1+1计算，正在核对结果… | seq6 successful execute_code; DB414 output `2\n`, exit_code0, one nested tool call |
+| +8.535s | ✍️ 正在整理1+1… | seq7 subsequent API, seq8 no-tool response, seq9/10 normal completion; native final DB415 is `2。` |
+
+The native approval7432 appears +5.749s and its approved-once receipt +7.176s. No separate plugin approval state was captured in this brief nested-tool approval; the original native approval is visible and the tool only succeeds after explicit approval. Do not claim the plugin approved it or that this run showed a separate approval label. Approval callbacks are outside the seven-hook observer fixture.
+
+One owned status7431; all its buttons empty. Native final7433 arrives +8.555s; status is deleted +9.627s (1.072s after final). Final snapshot: status absent, answer present, approved-once native receipt present without buttons. Maximum unchanged plugin status is 3.575s (+1.979→+5.554). There is no persistent completion card or duplicate status. The terminal transition appears 20ms before final delivery; this is one completion transition, not an edit flood.
+
+
+## B — weather — PASS
+
+Trace seq11–28 contiguous, zero drops; all six main pre/post argument hashes match. No web_search is called in this run: the model directly retrieves public API data through execute_code→web_extract, and the plugin does not invent a search stage.
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +1.122s | 🤔 正在思考中… | seq11 pre_llm_call for exact prompt |
+| +2.778s | 🤔 正在分析上海未来 7 天的天气… | seq12 pre_api_request；仅分析任务，不虚构搜索 |
+| +11.007s | 📖 正在读取上海未来 7 天的天气数据… | seq14 execute_code call_I3h4V9bblIHvNSyzxi4bigZ9，实际嵌套web_extract（seq15）请求Open-Meteo天气API |
+| +13.015s | 📊 已获取温度、湿度、风速数据，正在整理上海未来 7 天的天气… | seq16成功，DB419嵌套results.content为完整fenced JSON；温度min/max各7值、风速7值、湿度168小时值 |
+| +15.187s | ✍️ 正在整理上海未来 7 天的天气变化… | seq17后续API+结果hold后的天气变化整理 |
+| +25.651s | ⚙️ 正在执行上海未来 7 天的天气的相关步骤… | seq19 execute_code call_cQBrcdkt0g4UJR7Uv3k5pjCg：解析既有结果并循环统计/打印，保守相关步骤标签 |
+| +27.339s | 📊 当前步骤已完成，正在核对上海未来 7 天的天气的结果… | seq20成功，DB421实际输出7天温度/湿度均值/风速；只称当前步骤完成 |
+| +29.162s | ✍️ 正在整理上海未来 7 天的天气变化… | seq21后续模型周期，已完成结果转整理；随后的seq23/24工具在5ms内完成 |
+| +30.829s | 📊 当前步骤已完成，正在核对上海未来 7 天的天气的结果… | seq24另一execute_code call_2XOWUSfKXre4TNSuwdRCIoLs 成功，DB423实际7日期对应星期；不是无事件重复 |
+| +32.995s | ✍️ 正在整理上海未来 7 天的天气变化… | seq25后续API+3秒结果hold后的天气变化整理 |
+
+The explicit temperature/humidity/wind receipt is supported by real numeric arrays, not URL parameter names or requested fields. Both later “当前步骤已完成” labels map to **distinct calls of the same execute_code tool**: first data formatting/statistics, then weekday lookup. Loops and mixed operations use a conservative generic action; this does not assert which internal statement is executing. No result says the whole weather task has completed prematurely. No approval or native interim occurred.
+
+One status7435 with empty buttons. Native final7436 +41.616s; deletion+42.507s (0.891s after final). Final snapshot confirms status absent and answer present. Longest unchanged status10.464s (+15.187→+25.651), an actual model cycle reviewing retrieved weather data. The later final-summary hold is9.512s. No raw query/code/API URL leakage, duplicate bubble or permanent completion card. Forecast truth is not independently re-researched; this acceptance verifies that visible progress claims follow retrieved data and native execution.
+
+
+## C — PASS
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +1.888s | 🤔 正在思考中… | seq29 pre_llm_call |
+| +3.444s | 🤔 正在分析Telegram 状态消息的清理代码… | seq30 pre_api_request；保留用户要检查的清理目的 |
+| +6.100s | 📖 正在查阅hermes-agent 使用说明… | seq32 skill_view call_71qoj95wzniV0w630DSf63tL，name=hermes-agent |
+| +7.762s | 📖 已读取hermes-agent 使用说明，正在梳理内容… | seq33成功，DB427非空指南正文 |
+| +9.923s | ✍️ 正在总结Telegram 状态消息的清理逻辑… | seq34后续模型调用及guide-result hold；并非声称已经读过源码 |
+| +11.716s | 📖 正在检查Telegram 状态消息的清理代码… | seq36/37 read_file：指定telegram.py/adapter.py，offset1/limit2000 |
+| +13.384s | 📖 已读取Telegram 状态消息的清理代码，正在梳理内容… | seq38/39成功，DB429/430非空源码且未截断 |
+| +15.618s | ✍️ 正在总结Telegram 状态消息的清理逻辑… | seq40后续API请求，真实源码信息总结阶段 |
+
+Trace seq29–43 contiguous, zero drops; all six main pre/post tool argument hashes and initial user hash match. Actual operations are exactly one skill_view and two read_file calls; no mutation tool. Both requested installed files return their full content (`truncated=false`). The guide-read status is distinct from the code-read status. The earlier guide-summary label revisits summary before code reading, but makes no unsupported assertion about unseen code. The short “正在检查” can arrive just after server-side reads finish due transport throttling; cross-machine tens of milliseconds are not treated as fabricated activity.
+
+One status7438, empty buttons. Native final7439 +37.318s; deletion+38.202s (0.884s later). Status absent/answer present in final snapshot. Longest unchanged state22.584s (+15.618→+38.202), a source-grounded code-summary phase with one public model cycle; no tool ran during that wait. No native interim, new buttons, completion card, or file write.
+
+
+## D — PASS
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +1.118s | 🤔 正在思考中… | seq44 pre_llm_call |
+| +2.775s | 🤔 正在分析指定文件… | seq45 pre_api_request；分析指定文件 |
+| +4.455s | ⚠️ 未找到指定文件，正在整理说明… | seq47 read_file call_e7jzSDjDStmUApiIfVYhEUyZ，seq48 error；DB434 content空且明确File not found。seq49模型继续并不抹去错误 |
+
+Trace seq44–52 contiguous, zero drops; both argument hashes and user hash match. Exactly one read_file attempts the given nonexistent path. There is no successful source peer or retry. The missing-file error is visible in the plugin state before the native explanation, confirming the mixed-batch fix does not soften the wholly failed D case.
+
+One status7441, empty buttons. Native final7442 +5.881s; deletion+6.819s (0.938s later). Final snapshot confirms status absent and answer present. Maximum unchanged state2.364s (+4.455→+6.819), correctly preserving the missing-file result. No success claim, fallback claim, duplicate bubble, or permanent completion card.
+
+
+## E — news — PASS for observed flow
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +1.467s | 🤔 正在思考中… | seq53 pre_llm_call，匹配本轮prompt hash |
+| +3.074s | 🤔 正在分析最近 7 天 OpenAI 的重要公开新闻… | seq54 pre_api_request，只表示分析 |
+| +6.010s | 📖 正在查阅company-news-research 使用说明… | seq56/59 skill_view company-news-research 成功（另一指南57/58成功），DB438非空正文 |
+| +7.678s | 📊 当前步骤已完成，正在核对最近 7 天 OpenAI 的重要公开新闻的结果… | seq60/61 terminal date -Iseconds exit0、DB440真实日期；保守当前步骤成功，不表示新闻任务完成 |
+| +9.836s | ✍️ 正在汇总最近 7 天 OpenAI 的重要公开新闻… | seq62后续API+结果hold结束 |
+| +15.010s | 🔎 正在搜索最近 7 天 OpenAI 的重要公开新闻… | seq64–69六个真实web_search启动 |
+| +16.725s | 📊 已找到 10 条搜索结果，正在整理最近 7 天 OpenAI 的重要公开新闻… | seq74当前call_nJlBIp2bEQUS29yE4jP7kSmA/DB447真实data.web长度10；其他同批也均10 |
+| +20.938s | ✍️ 正在汇总最近 7 天 OpenAI 的重要公开新闻… | seq76下一API及result hold，整理现有搜索结果 |
+| +26.613s | 🔎 正在搜索最近 7 天 OpenAI 的重要公开新闻… | seq78–85八个真实web_search启动 |
+| +28.290s | 📊 已找到 8 条搜索结果，正在整理最近 7 天 OpenAI 的重要公开新闻… | seq86当前call_bWxJMY8afpPbVwAc7XzQ6YrX/DB456真实data.web长度8；其他同批也均8 |
+| +32.464s | ✍️ 正在汇总最近 7 天 OpenAI 的重要公开新闻… | seq94后续API真实开始+27.803，seq95到+79.871返回无工具响应，已有搜索证据支持汇总 |
+
+The file contains50 hook rows; this exact E turn is **seq53–97, 45 rows**, all contiguous and zero drops. Seq98–102 belong to a different turn_id after E completed and are not used to justify E's state. All34 main-tool pre/post argument hashes match. Actual E tools are two skill_view, one read-only date command and fourteen web_search. There is no web_extract, mutation, native interim or tool failure in E. Thus this run does not claim mixed-source/recovery coverage. Search snippets/results supply the native answer; this audit does not conduct independent external fact checking of news.
+
+Two visible result counts10/8 match the selected returned arrays, not merely request limits or unique news counts. No raw search syntax, URLs or long query fragments appear in the owned status. The `date -Iseconds` form falls back to conservative “current step completed”; unlike round2 it no longer says the whole news task succeeded. No `telegram_ux_update` call is needed or observed.
+
+One status7444, empty buttons. Native final7445 +80.372s; deletion+81.025s (0.653s later). Final snapshot confirms status absent and final present. Longest unchanged state is **48.561s** (+32.464→+81.025), accurately labelled news synthesis, with no intervening tool operation. A long real model cycle is not evidence of a stuck status or fictional progress; no invented stages were inserted. No permanent completion card.
+
+
+## Additional mixed candidate — two successful pages, NOT mixed-failure coverage
+
+Trace seq108–118, zero drops; four tool-argument hashes match. Both requested public pages actually succeeded this time. The earlier AP extraction failure is not fabricated into this run. AP content is partial/truncated but nonempty; the native answer explicitly notes this. No retry or mutation occurs.
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +0.962s | 🤔 正在思考中… | seq108 pre_llm_call |
+| +2.741s | 🤔 正在分析最近 7 天 OpenAI 公开新闻中的两篇资料… | seq109 pre_api_request |
+| +6.418s | 📖 正在阅读最近 7 天 OpenAI 公开新闻中的两篇资料相关资料… | seq111/112两独立web_extract同一API批次，真实并行请求两页 |
+| +8.075s | 📖 已读取最近 7 天 OpenAI 公开新闻中的两篇资料，正在梳理内容… | seq113/114均statusok，DB460/461各有11088/15328字符正文、error:null |
+| +10.271s | ✍️ 正在汇总最近 7 天 OpenAI 公开新闻中的两篇资料… | seq115下一模型请求及result hold，整理两篇已获得内容 |
+
+One status7448, empty buttons; native final7449 +28.450s, delete+29.380s (0.930s later). Longest unchanged summary19.109s. Final snapshot confirms owned status absent/answer present. Lifecycle and truthful double-success flow PASS; required mixed-failure branch remains untested by this case.
+
+
+## Additional mixed-failure — real same-batch success + failure — PASS
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +1.253s | 🤔 正在思考中… | seq119 pre_llm_call |
+| +2.996s | 🤔 正在分析最近 7 天 OpenAI 公开新闻中的两篇资料… | seq120 pre_api_request |
+| +7.418s | 📖 正在阅读最近 7 天 OpenAI 公开新闻中的两篇资料相关资料… | seq122/123同API:1两次真实web_extract启动；时钟差不足以用8ms判定倒序 |
+| +9.097s | ⚠️ 部分最近 7 天 OpenAI 公开新闻中的两篇资料资料读取失败，正在整理已有结果… | seq124当前调用error+seq125同批另一读取ok+seq126真实下一模型请求；合并的是已观测同批混合结果 |
+| +11.265s | ⚠️ 部分资料读取失败，正在汇总最近 7 天 OpenAI 公开新闻中的两篇资料… | seq126后续API已持续超过3秒，带失败限定地汇总成功资料；seq127–129最终阶段继续保留限定 |
+
+Trace seq119–129 contiguous, zero drops; four main-tool argument hashes and prompt hash match. The two direct web_extract calls share the exact API:1 request ID and are both started before either completes:
+
+- seq122 `call_ZSyutWLtv2ofQd58sHw1PLmN`: official OpenAI page; seq125 succeeds, DB465 contains8838 characters of正文 and `error:null`.
+- seq123 `call_OSMLCMJAYvBW97nWHE25hD4z`: example.invalid URL; seq124 fails, DB466 has empty content and `Blocked: URL targets a private or internal network address`. This is an actual tool URL-guard rejection, not a fabricated body or an asserted remote HTTP/DNS outage. No bypass was attempted.
+
+The failed call is the last-started/current call; success arrives afterward from the other call. At seq126 next model request, the merged presentation correctly keeps both facts. Partial-failure wording persists through task synthesis and terminal display. This directly exercises the previously missing inverse case, rather than relying only on unit tests or an unrelated successful date command. No retry, script, file mutation or `telegram_ux_update` call occurs. Native final accurately distinguishes the received official article from the rejected empty result.
+
+One status7451, empty buttons. Native final7452 +15.347s; deletion+16.254s (0.907s later). Final snapshot confirms status absent/answer present. Longest unchanged interval4.989s (+11.265→+16.254), partial-failure-qualified synthesis. No whole-task failure overwrites available results. P3-only wording observation: concatenating a task ending with “两篇资料” creates “两篇资料资料” in one status; it does not change the factual scope or lifecycle result.
+
+
+## Additional sequential recovery — PASS
+
+| Client time | Visible plugin state | Actual public evidence |
+|---|---|---|
+| +1.163s | 🤔 正在思考中… | seq130 pre_llm_call |
+| +2.860s | 🤔 正在分析核实 OpenAI 法律产品的公开资料… | seq131 pre_api_request，仅分析任务 |
+| +4.508s | ⚠️ 这次读取核实 OpenAI 法律产品的公开资料没有成功 | seq133/134首次web_extract的真实URL guard rejection，DB470正文空；seq135不抹掉失败 |
+| +7.699s | ↪️ 再次尝试，正在阅读核实 OpenAI 法律产品的公开资料相关资料… | seq137真实新web_extract已启动；相同工具、同一用户任务、不同公开来源URL，故任务层面再次尝试，不是再次请求被拒绝URL |
+| +9.361s | 📖 已读取核实 OpenAI 法律产品的公开资料，正在梳理内容… | seq138 statusok，DB472官方页3083字符非空正文、error:null |
+| +11.530s | ✍️ 正在整理核实 OpenAI 法律产品的公开资料… | seq139后续API+结果hold，seq140–142正常响应/结束，成功读取后整理真实内容 |
+
+Trace seq130–142 contiguous, zero drops; four tool-argument hashes and prompt hash match. API:1 starts/finishes the invalid-URL extraction with actual guard rejection. Only after the subsequent model result does API:2 start the official-page extraction; this is sequential, not a parallel batch. The native final honestly records the first failure and the later successful public material. No bypass, retry of the rejected URL, script or mutation occurs.
+
+“再次尝试” is supported as another attempt to read material for the same task; both calls use web_extract but point to different URLs. The current source selects `retry` for the same tool name and `alternative` for a different tool. The label does not assert that the failing URL itself recovered or that the failure was a remote HTTP error. A model request alone did not invent recovery: a real new pre_tool event preceded the recovery state.
+
+One status7454, empty buttons; final7455 +11.746s, delete+12.683s (0.937s later). Final snapshot confirms status absent/answer present. Longest unchanged state3.191s (+4.508→+7.699), the first explicit failure pending the real follow-up action. No permanent completion card or late owned status appears.
+
+## Consolidated final-version metrics and bounded conclusion
+
+| Case | First status (s) | Visible versions | Longest unchanged (s) | Native final (s) | Delete (s) | Delete after final (s) |
+|---|---:|---:|---:|---:|---:|---:|
+| A-final | 1.979 | 4 | 3.575 | 8.555 | 9.627 | 1.072 |
+| B-final | 1.122 | 10 | 10.464 | 41.616 | 42.507 | 0.891 |
+| C | 1.888 | 8 | 22.584 | 37.318 | 38.202 | 0.884 |
+| D | 1.118 | 3 | 2.364 | 5.881 | 6.819 | 0.938 |
+| E | 1.467 | 11 | 48.561 | 80.372 | 81.025 | 0.653 |
+| mixed | 0.962 | 5 | 19.109 | 28.450 | 29.380 | 0.930 |
+| mixed-failure | 1.253 | 5 | 4.989 | 15.347 | 16.254 | 0.907 |
+| recovery | 1.163 | 6 | 3.191 | 11.746 | 12.683 | 0.937 |
+
+A–E numeric metrics match `calculated-metrics.json`. The additional cases were independently derived from their raw events. These eight completed live cases show **eight owned status messages, all deleted**, with every native final preserved in its final snapshot and no ordinary inline keyboard or permanent completion card. Primary A–E first status latency is1.118–1.979s; deletion follows the native final by0.653–1.072s across all eight cases.
+
+No additional confirmed P1/P2 remains in this audited final runtime on the exercised paths. Both prior confirmed P2 issues have concrete final evidence: “current step” success scope in B/E, and real same-batch mixed outcome preserved into synthesis in mixed-failure. D retains an unambiguous wholly failed missing-file result. Query strings are not exposed; source/task-specific facts, real failures and real follow-up actions drive the observed states.
+
+Limits: this is finite live UX evidence, not a guarantee of every provider/network failure, every arbitrary script classification, or Telegram native delivery ordering. The candidate still conservatively labels unsupported mixed scripts; long genuine model calls can leave truthful synthesis text unchanged. There is a nonblocking P3 duplicated-word observation in the two-page supplemental task. External news/weather correctness was not independently researched. Native approval is evidenced in A; this run does not claim a separately rendered plugin approval label for its brief nested approval. Different-turn background hook rows are explicitly excluded. The later smoke after removal of the test observer is outside this seven-hook audit and must not be represented as newly hook-correlated. Native usage/stop/media and disabled-baseline checks are owned by the root acceptance workflow, not independently re-certified by this report.
+
+
+# Historical temporary-progress live Telegram acceptance — 2026-09-20
 
 ## Scope and source proof
 
