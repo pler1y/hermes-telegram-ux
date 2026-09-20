@@ -1,3 +1,9 @@
+# v2.0.0 release candidate
+
+Release-preparation validation is recorded separately in [VALIDATION-v2.md](VALIDATION-v2.md). The accepted runtime is `c5b8aef94d1f096fbad9ad782b2ad312e9254d33`; this release preserves its Python payload. The historical live Telegram records below retain their actual `1.9.0-catalog.1` metadata and are not represented as a fresh v2 deployment or live test.
+
+---
+
 # Final product convergence — 2026-09-20
 
 ## Accepted source and product scope

@@ -1,5 +1,5 @@
 name: hermes-telegram-ux-catalog
-version: 1.9.0-catalog.1
+version: 2.0.0
 description: Task-aware temporary Telegram progress with automatic cleanup through public Hermes APIs.
 author: pler1y
 license: MIT

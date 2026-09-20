@@ -8,7 +8,7 @@ git -C /tmp/catalog-core checkout --detach 3c3ab69abb9b08683b5eb15b4e2b8be1198c8
 (cd /tmp/catalog-core && uv sync --frozen --no-dev --no-install-project --extra messaging --python 3.11)
 ```
 
-From the Catalog-safe source checkout:
+From the reviewed v2 release checkout:
 
 ```bash
 CATALOG_PYTHON=/tmp/catalog-core/.venv/bin/python
@@ -20,10 +20,13 @@ export HERMES_HOME="$(mktemp -d)"
 "$CATALOG_PYTHON" -m hermes_cli.main plugins validate . --json
 "$CATALOG_PYTHON" -m hermes_cli.main plugins doctor . --ci
 "$CATALOG_PYTHON" scripts/check_native.py --core /tmp/catalog-core --ref HEAD
+"$CATALOG_PYTHON" scripts/check_upgrade.py --core /tmp/catalog-core --ref HEAD
 "$CATALOG_PYTHON" scripts/build_release.py --ref HEAD
 ```
 
-The last two commands read committed Git objects; commit the reviewable candidate first. They never package uncommitted changes. Builds have fixed ZIP metadata, a reviewed allowlist, per-file hashes and a source SHA. `check_native.py` exercises both native Git installation at that SHA and the README's ZIP installation, the actual validators, disabled/enabled discovery, state cleanup, disable/remove, unrelated-config preservation and before/after hashes of all tracked Hermes files. Its deliberately undeclared hook must fail the official validator.
+The last three commands read committed Git objects; commit the reviewable candidate first. They never package uncommitted changes. Builds have fixed ZIP metadata, a reviewed allowlist, per-file hashes and a source SHA. `check_native.py` exercises native Git installation and verified ZIP extraction at that SHA, actual validators, disabled/enabled discovery, disable/remove, unrelated-config preservation and before/after hashes of all tracked Hermes files. Its deliberately undeclared hook must fail the official validator. ZIP extraction is manual deployment, not a ZIP feature of the Hermes installer. Removal deletes code/install metadata, not user configuration or external plugin-data.
+
+`check_upgrade.py` installs the real historical menu-bearing `1.9.0-catalog.1` revision in disposable homes, then tests same-ID pinned replacement with the exact v2 SHA. It checks both old Git and old ZIP origins, single-plugin registration, retained configuration and old state, removed menus, the public progress lifecycle through synthetic transport, enable/disable/remove and unchanged core. No production installation or live Telegram account is involved. See `docs/PLUGIN-ID.md` and `docs/VALIDATION-v2.md` for the identity decision and exact result scope.
 
 The native Git harness acknowledges scanner caution for its own reviewed local fixture using the documented `--force` flag. Scanning is not disabled; dangerous findings remain blocked. Official validation/doctor are mandatory, and tests must not be skipped to get a green run. Never copy this fixture trust flag into an unreviewed public installation command.
 

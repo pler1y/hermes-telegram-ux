@@ -1,3 +1,17 @@
+# v2.0.0 主线收敛准备 — 2026-09-20
+
+已经验收的候选 `c5b8aef94d1f096fbad9ad782b2ad312e9254d33` 已原样上传 `codex/catalog-experience`。fetch 后确认远端旧 main 仍为 `3b2175199d8d9dbafaa39e13c1f5dafd4bf0cfcb`，并已将同一提交保存到 `legacy/full-1.8.3`。`v1.8.3` 保持 `1ed97bfbe9071a179e1a2b8fcc260a573ecc6364` 不动。
+
+`release/v2.0.0` 从候选创建。历史整合提交 `6103f23f65d15d1a0f125b13be817eb7a4e1de90` 的两个父提交依次为上述候选与旧 Full main。采用 `git merge --no-ff -s ours origin/main` 的原因是已审核决定整体使用新插件文件树，同时保留旧 Full 的全部祖先；不是自动取舍未知的代码冲突。整合前后整个文件树经 `git diff --exit-code c5b8aef 6103f23` 验证无差异，两个父提交均为后续发布线祖先。
+
+发布准备只更新版本、安装/兼容/迁移文档和发布验证。`catalog/` 与 `__init__.py` 保持候选字节不变，manifest 仅版本改为 `2.0.0`。不引入 Full `plugin/` runtime、不恢复 interface/preferences，不修改真实测试 Bot 或 Hermes core。
+
+内部 ID 保留 `hermes-telegram-ux-catalog`；原因见 [ID 调查](PLUGIN-ID.md)，旧用户步骤见 [迁移](MIGRATION-v2.md)，当前结果见 [v2 验证](VALIDATION-v2.md)。未来只维护 Hermes Telegram UX，Full 只作历史参考。
+
+本阶段允许上传候选、保存 legacy、上传发布准备分支并创建 `release/v2.0.0 → main` PR。main 合并、v2 Tag/Release、默认分支调整、Catalog 更新与删除旧分支均留待下一次正式授权。旧阶段“不 push”等记录属于当时的范围，保留如下。
+
+---
+
 # Hermes Telegram UX 收敛说明
 
 ## 产品与验收边界

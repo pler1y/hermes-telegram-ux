@@ -1,6 +1,6 @@
 # Hermes Telegram UX public capability inventory
 
-Source rechecked for product convergence on 2026-09-20 against official Hermes **`3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`**, Hermes **0.21.3**. This document describes the current temporary-progress candidate, not a new deployment or compatibility test result. The Full baseline is `8e38243614c1ecc37e0cdcbd4e6e223f920ec895`; its private integration is absent from the Catalog runtime.
+Source rechecked for product convergence on 2026-09-20 against official Hermes **`3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`**, Hermes **0.21.3**. The v2.0.0 release candidate preserves the accepted runtime at `c5b8aef94d1f096fbad9ad782b2ad312e9254d33`; release preparation changes metadata and documentation, not these API interactions. Full 1.8.3 is preserved at `3b2175199d8d9dbafaa39e13c1f5dafd4bf0cfcb` (same tree as tag `v1.8.3`); `8e38243614c1ecc37e0cdcbd4e6e223f920ec895` is the two lines' common ancestor. Full private integration is absent from the v2 runtime.
 
 Primary references at the checked revision:
 
