@@ -7,7 +7,7 @@ LABELS = {
     "zh": {
         "working": "🤔 正在思考中…", "api": "🤔 正在处理你的问题…",
         "approval": "🔐 等待审批，请使用 Hermes 的审批消息",
-        "smart": "🔐 正在评估审批", "interim": "🤔 正在处理你的问题…",
+        "smart": "🔐 正在评估审批",
         "tool_error": "⚠️ 这一步没有成功，等待后续处理",
         "tool_cancelled": "↩️ 这一步已取消",
         "api_error": "⚠️ 模型请求失败，等待 Hermes 后续处理",
@@ -16,12 +16,11 @@ LABELS = {
         "finalizing": "✍️ 正在整理最终回答…", "failed": "⚠️ 本轮运行异常结束",
         "interrupted": "⏹ 本轮运行已中断", "unknown_end": "正在清理临时状态…",
         "expired": "⌛ 状态更新已超时，请以 Hermes 后续回复为准",
-        "help": "Hermes Telegram UX · Catalog-safe\n用一条临时气泡显示当前任务进度，回合结束后自动清理。\n/new、/stop、审批、最终回答和附件由 Hermes 处理。",
     },
     "en": {
         "working": "🤔 Thinking…", "api": "🤔 Working on your request…",
         "approval": "🔐 Awaiting approval — use the Hermes approval message",
-        "smart": "🔐 Evaluating approval", "interim": "🤔 Working on your request…",
+        "smart": "🔐 Evaluating approval",
         "tool_error": "⚠️ This step did not succeed; awaiting further handling",
         "tool_cancelled": "↩️ This step was cancelled",
         "api_error": "⚠️ Model request failed; awaiting Hermes handling",
@@ -30,7 +29,6 @@ LABELS = {
         "finalizing": "✍️ Preparing the final answer…", "failed": "⚠️ Turn ended with an error",
         "interrupted": "⏹ Turn interrupted", "unknown_end": "Clearing temporary status…",
         "expired": "⌛ Status updates expired; see subsequent Hermes replies",
-        "help": "Hermes Telegram UX · Catalog-safe\nShows task progress in one temporary bubble, removed when the turn ends.\nHermes handles /new, /stop, approvals, final answers and attachments.",
     },
 }
 
@@ -165,7 +163,7 @@ def note_text(turn, language):
     return ""
 
 
-def status_text(turn, language, ending=None, now=None, detailed=None):
+def status_text(turn, language, ending=None, now=None):
     """Execution/result evidence outranks generic model activity.
 
     A short result hold is followed by a task-specific synthesis label only
@@ -206,8 +204,6 @@ def status_text(turn, language, ending=None, now=None, detailed=None):
                 text = (f"🤔 Analyzing {turn.user_task}…" if language == "en" else f"🤔 正在分析{turn.user_task}…")
             if not text:
                 text = LABELS[language]["working"]
-    if not turn.preferences.get("emoji", True):
-        text = re.sub(r"^[^\w\u3400-\u9fff]+\s*", "", text)
     limit = 110 if language == "en" else 60
     if len(text) > limit:
         shortened = text[:limit - 1].rstrip(" ，,。.!…")

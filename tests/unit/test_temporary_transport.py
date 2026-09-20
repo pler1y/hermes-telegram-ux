@@ -49,17 +49,12 @@ class PublicAdapter:
         return result
 
 
-class ForbiddenStatusUI:
-    def __getattr__(self, name):
-        raise AssertionError("Temporary status must not access UI: " + name)
-
-
 class TemporaryTransportTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.ctx, self.adapter = TaskContext(), PublicAdapter()
         self.expired = []
         self.transport = TelegramPanels(self.ctx, self.adapter, 0.025, 1,
-            self.expire, interface=ForbiddenStatusUI(), cleanup_delay=0.01)
+            self.expire, cleanup_delay=0.01)
         self.key = ("session", "turn")
         self.route = Route("-10042", "user-message", "7", "user")
 

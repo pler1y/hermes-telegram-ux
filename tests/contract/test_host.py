@@ -38,7 +38,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         os.environ["HERMES_BUNDLED_PLUGINS"] = str(home / "bundled")
         # Legacy final_summary must not bring answer rewriting back. A short
         # cleanup window keeps the actual host lifecycle test deterministic.
-        (home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": [NAME], "entries": {NAME: {"settings": {"final_summary": True, "cleanup_delay": 0.005}}}}}))
+        (home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": [NAME], "entries": {NAME: {"settings": {"final_summary": True, "progress": False, "emoji": False, "cleanup_delay": 0.005}}}}}))
         self.manager = PluginManager()
         self.manager.discover_and_load()
         self.sent, self.edits, self.deleted = [], [], []
@@ -87,6 +87,11 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(set(HOOKS) <= VALID_HOOKS)
         manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text())
         self.assertEqual(set(manifest["provides_hooks"]), set(HOOKS))
+        self.assertEqual(len(HOOKS), 16)
+        self.assertNotIn("pre_command", HOOKS)
+        self.assertNotIn("tgux", self.manager._plugin_commands)
+        self.assertEqual(manifest["config_schema"]["language"]["default"], "auto")
+        self.assertFalse({"progress", "emoji"} & set(manifest["config_schema"]))
         self.assertTrue(all(self.manager.has_hook(name) for name in HOOKS))
         self.assertFalse(self.manager.has_hook("transform_llm_output"))
         self.assertTrue(self.manager.has_hook("post_llm_call"))
@@ -126,6 +131,12 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         try:
             self.assertFalse(any(disabled.has_hook(name) for name in HOOKS))
             self.assertEqual(disabled.get_platform_handler_factories("telegram"), [])
+            self.assertNotIn("tgux", disabled._plugin_commands)
+            from tools.registry import registry
+            from catalog.experience import TOOL
+            self.assertIsNone(registry.get_entry(TOOL, scope=disabled.scope_key))
+            self.assertEqual(disabled.invoke_hook("pre_llm_call", platform="telegram", session_id="off", turn_id="off"), [])
+            self.assertEqual(disabled.invoke_hook("transform_llm_output", platform="telegram", response_text="MEDIA:/tmp/native.csv"), [])
         finally:
             disabled.unload()
 
@@ -145,8 +156,9 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.manager.unload(NAME)
         self.assertIsNone(registry.get_entry(TOOL, scope=self.manager.scope_key))
 
-    async def test_authorized_command_opens_scoped_sdk_menu_and_unload_removes_handler(self):
-        handlers, messages = [], []
+    async def test_native_handlers_and_commands_are_untouched(self):
+        approval = object()
+        handlers, messages = [approval], []
 
         async def send_message(**kwargs):
             messages.append(kwargs)
@@ -156,21 +168,38 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
                                  bot=SimpleNamespace(send_message=send_message))
         factory = self.manager.get_platform_handler_factories("telegram")[0][0]
         factory(native, self.telegram)
-        incoming = SimpleNamespace(internal=False, text="/tgux", message_id="3",
-            source=SimpleNamespace(platform="telegram", chat_id="10", user_id="10", thread_id="42"))
-        self.invoke("pre_gateway_dispatch", event=incoming)
-        self.invoke("pre_command", surface="gateway", command="tgux", platform="telegram", session_key="opaque")
-        # Test-only inspection of the real host registry; runtime uses only the registrar.
-        command = self.manager._plugin_commands["tgux"]["handler"]
-        self.assertIsNone(command(""))
+        for command in ("new", "stop", "usage", "tgux"):
+            incoming = SimpleNamespace(internal=False, text="/" + command, message_id="3",
+                source=SimpleNamespace(platform="telegram", chat_id="10", user_id="10", thread_id="42"))
+            self.invoke("pre_gateway_dispatch", event=incoming)
+            self.assertEqual(self.invoke("pre_command", surface="gateway", command=command,
+                                         platform="telegram", session_key="opaque"), [])
         await asyncio.sleep(.03)
-        self.assertEqual(len(messages), 1)
-        self.assertEqual(messages[0]["message_thread_id"], "42")
-        self.assertTrue(messages[0]["reply_markup"].inline_keyboard)
-        self.assertEqual(len(handlers), 1)
+        self.assertNotIn("tgux", self.manager._plugin_commands)
+        self.assertFalse(messages or self.sent)
+        self.assertEqual(handlers, [approval])
         self.manager.unload(NAME)
         await asyncio.sleep(.03)
-        self.assertFalse(handlers)
+        self.assertEqual(handlers, [approval])
+
+    async def test_global_reenable_restores_public_observation_only(self):
+        self.manager.unload()
+        (self.home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": []}}))
+        disabled = PluginManager()
+        disabled.discover_and_load()
+        self.assertFalse(disabled.has_hook("pre_llm_call"))
+        disabled.unload()
+        (self.home / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": [NAME]}}))
+        enabled = PluginManager()
+        enabled.discover_and_load()
+        try:
+            self.assertTrue(enabled.has_hook("pre_llm_call"))
+            self.assertEqual(len(enabled.get_platform_handler_factories("telegram")), 1)
+            self.assertFalse(enabled.has_hook("transform_llm_output"))
+            self.assertFalse(enabled.has_hook("pre_command"))
+            self.assertNotIn("tgux", enabled._plugin_commands)
+        finally:
+            enabled.unload()
 
 
 if __name__ == "__main__":

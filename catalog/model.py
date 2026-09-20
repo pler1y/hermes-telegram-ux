@@ -48,14 +48,9 @@ class Turn:
     apis: dict = field(default_factory=dict)
     api_attempts: dict = field(default_factory=dict)
     approvals: dict = field(default_factory=dict)
-    interims: set = field(default_factory=set)
     last: str = "working"
-    capped: bool = False
-    started: float = 0.0
-    preferences: dict = field(default_factory=dict)
+    language: str = "zh"
     note: dict = field(default_factory=dict)
-    children: dict = field(default_factory=dict)
-    retries: int = 0
     user_task: str = ""
     observations: dict = field(default_factory=dict)
     progress: dict = field(default_factory=dict)
@@ -64,14 +59,12 @@ class Turn:
     current_call: str = ""
     current_request: str = ""
     current_kind: str = "initial"
-    iteration: int = -1
     finalizing: bool = False
     result_at: float = 0.0
     model_since: float = 0.0
     last_failure: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        self.started = self.touched
         self.set_task(self.user_task)
 
     def set_task(self, text):
@@ -84,8 +77,7 @@ class Turn:
     def put(self, bucket, key, value):
         if not key:
             return False
-        if key not in bucket and sum(map(len, (self.tools, self.apis, self.approvals, self.interims, self.children, self.note_calls))) >= 512:
-            self.capped = True
+        if key not in bucket and sum(map(len, (self.tools, self.apis, self.approvals, self.note_calls))) >= 512:
             return False
         bucket[key] = value
         return True
@@ -133,12 +125,9 @@ class Turn:
                 if self.note and self.current_kind != "tool":
                     self.current_kind = "note"
             return
-        if event in {"subagent_start", "subagent_stop"}:
-            child = identity(data.get("child_session_id"))
-            status = "running" if event == "subagent_start" else data.get("child_status")
-            status = status if status in {"running", "completed", "failed", "interrupted", "error"} else "ended"
-            if event != "subagent_start" or child not in self.children:
-                self.put(self.children, child, status)
+        if event in {"subagent_start", "subagent_stop", "on_interim_message"}:
+            # Preserve correlated activity/TTL without a second task tree,
+            # interim transcript, or unused statistics. Never render raw text.
             return
         call, request = identity(data.get("tool_call_id")), identity(data.get("api_request_id"))
         if event == "pre_tool_call":
@@ -204,12 +193,6 @@ class Turn:
             self.current_request, self.current_kind = request, "api"
             if self.last not in {"tool_error", "tool_cancelled"}:
                 self.last = "working"
-            count = data.get("api_call_count")
-            if type(count) is int:
-                self.iteration = max(self.iteration, count)
-            retry = data.get("retry_count", 0)
-            if type(retry) is int and 0 <= retry <= 100:
-                self.retries = retry
         elif event in {"post_api_request", "api_request_error"}:
             retry = data.get("retry_count")
             if type(retry) is int and retry < self.api_attempts.get(request, 0):
@@ -218,7 +201,7 @@ class Turn:
                 return
             if not self.put(self.apis, request, "ok" if event == "post_api_request" else "error"):
                 return
-            if request == self.current_request and self.current_kind in {"api", "stream", "note"}:
+            if request == self.current_request and self.current_kind in {"api", "note"}:
                 if event == "api_request_error":
                     self.last = "api_error"
                 elif self.last not in {"tool_error", "tool_cancelled"}:
@@ -246,22 +229,6 @@ class Turn:
             choices = {"once", "session", "always", "deny", "timeout", "cancelled", "notify_failed", "smart_approve", "smart_deny"}
             if self.put(self.approvals, call, choice if isinstance(choice, str) and choice in choices else "unknown") and (self.current_kind != "tool" or call == self.current_call):
                 self.last = {"timeout": "approval_timeout", "notify_failed": "approval_failed", "cancelled": "approval_cancelled", "deny": "approval_denied", "smart_deny": "approval_denied"}.get(choice, "working")
-        elif event in {"on_stream_start", "on_stream_delta", "on_stream_end"}:
-            count = data.get("iteration")
-            if type(count) is not int or count != self.iteration or self.current_kind not in {"api", "stream"}:
-                return
-            if event == "on_stream_delta" and data.get("kind") != "text":
-                return
-            # Text may belong to an intermediate tool iteration. Never call it a final answer.
-            self.current_kind = "stream"
-        elif event == "on_interim_message":
-            count = data.get("iteration")
-            if type(count) is int and count not in self.interims:
-                if sum(map(len, (self.tools, self.apis, self.approvals, self.interims, self.children, self.note_calls))) < 512:
-                    self.interims.add(count)
-                else:
-                    self.capped = True
-            # No raw text: asynchronous interim notifications may arrive after newer tools.
         elif event == "post_llm_call":
             self.finalizing = True
             self.current_kind, self.last = "finalizing", "finalizing"
@@ -278,9 +245,6 @@ class Turn:
             return self.last, ""
         if self.current_kind == "tool":
             return "tool", self.tools.get(self.current_call, ("tool", ""))[0]
-        if self.current_kind in {"api", "stream", "generating"}:
+        if self.current_kind in {"api", "generating"}:
             return "api", ""
         return "working", ""
-
-    def counts(self):
-        return len(self.tools), len(self.apis), sum(status in {"error", "blocked"} for _, status in self.tools.values())

@@ -36,7 +36,7 @@ class Panel:
 
 
 class TelegramPanels:
-    def __init__(self, ctx, adapter, interval, ttl, expire, interface=None,
+    def __init__(self, ctx, adapter, interval, ttl, expire,
                  heartbeat=None, cleanup_delay=1.0):
         self.ctx = ctx
         self.adapter = adapter
@@ -44,8 +44,6 @@ class TelegramPanels:
         self.interval = interval
         self.ttl = ttl
         self.expire = expire
-        # Kept as a compatible argument for older callers. Ordinary status
-        # messages never attach a keyboard or call the independent /tgux UI.
         self.heartbeat = heartbeat
         try:
             delay = float(cleanup_delay)
@@ -64,11 +62,11 @@ class TelegramPanels:
         while len(self.blocked) > 2048:
             self.blocked.popitem(last=False)
 
-    def publish(self, key, route, text, terminal=False, view=None):
+    def publish(self, key, route, text, terminal=False):
         if not self.closed and not self.loop.is_closed():
-            self.loop.call_soon_threadsafe(self.accept, key, route, text, terminal, view)
+            self.loop.call_soon_threadsafe(self.accept, key, route, text, terminal)
 
-    def accept(self, key, route, text, terminal, view=None):
+    def accept(self, key, route, text, terminal):
         if self.closed or key in self.blocked or not isinstance(text, str):
             return
         panel = self.panels.get(key)
@@ -209,7 +207,7 @@ class TelegramPanels:
                     if self.heartbeat and not panel.terminal and time.monotonic() - panel.touched < self.ttl:
                         refreshed = self.heartbeat(key)
                         if refreshed:
-                            panel.text = refreshed[0]
+                            panel.text = refreshed
         except asyncio.CancelledError:
             raise
         except Exception as exc:

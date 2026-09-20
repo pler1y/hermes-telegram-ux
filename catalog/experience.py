@@ -43,9 +43,7 @@ def progress_tool(args, **kwargs):
                        "message": "Public update recorded when this Telegram turn has a supported route. Continue the task; do not repeat this update as a separate message."}, ensure_ascii=False)
 
 
-def turn_guidance(prefs):
-    if not prefs.get("progress"):
-        return None
+def turn_guidance():
     return {"context": (
         "For substantial work in this Telegram turn, telegram_ux_update can briefly describe "
         "the task goal, current action, a verified finding, or an intended next step. "
@@ -53,5 +51,5 @@ def turn_guidance(prefs):
         "Write a concise public milestone, not reasoning, raw commands, secrets, percentages, "
         "or unverified success. Findings must be supported by actual results; intentions are not completed work. "
         "The plugin renders one temporary status, so do not repeat its update as a separate interim message. "
-        "For a simple answer no progress tool is needed. Deliver the answer and attachments normally."
+        "For a simple answer no progress tool is needed."
     )}

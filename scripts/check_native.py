@@ -42,7 +42,7 @@ def probe(enabled):
         # or another source checkout imported beside the test script.
         manifest = yaml.safe_load((Path(os.environ["HERMES_HOME"]) / "plugins" / NAME / "plugin.yaml").read_text())
         hooks = set(manifest["provides_hooks"])
-        assert info["hooks"] == len(hooks) and info["tools"] == 1 and info["middleware"] == 0, info
+        assert info["hooks"] == len(hooks) and info["tools"] == 1 and info["middleware"] == 0 and info["commands"] == 0, info
         assert all(manager.has_hook(name) for name in hooks)
         assert manager.has_hook("post_llm_call")
         assert not manager.has_hook("transform_llm_output")

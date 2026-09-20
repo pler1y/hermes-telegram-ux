@@ -1,6 +1,6 @@
-# Catalog-safe public capability inventory
+# Hermes Telegram UX public capability inventory
 
-Source rechecked on 2026-09-20 against official Hermes **`3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`**, Hermes **0.21.3**. This document describes the current temporary-progress candidate, not a new deployment or compatibility test result. The Full baseline is `8e38243614c1ecc37e0cdcbd4e6e223f920ec895`; its private integration is absent from the Catalog runtime.
+Source rechecked for product convergence on 2026-09-20 against official Hermes **`3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`**, Hermes **0.21.3**. This document describes the current temporary-progress candidate, not a new deployment or compatibility test result. The Full baseline is `8e38243614c1ecc37e0cdcbd4e6e223f920ec895`; its private integration is absent from the Catalog runtime.
 
 Primary references at the checked revision:
 
@@ -12,7 +12,7 @@ Primary references at the checked revision:
 
 ## Registered hooks
 
-The runtime declares 17 hooks. `post_llm_call` replaces `transform_llm_output`; the plugin does not transform final answers.
+The runtime declares 16 hooks. `post_llm_call` replaces `transform_llm_output`; the plugin does not transform final answers.
 
 | Hook | Public inputs consumed | Current use and fallback |
 |---|---|---|
@@ -25,12 +25,11 @@ The runtime declares 17 hooks. `post_llm_call` replaces `transform_llm_output`; 
 | `api_request_error` | Request identity | Show observed request failure; do not invent a retry. |
 | `pre_approval_request` | Turn/tool-call identity, surface | Reflect prompted/smart waiting. Native approval remains authoritative. |
 | `post_approval_response` | Identity and choice | Reflect observed outcome; unknown choice is not approval. |
-| `on_interim_message` | Session/turn/iteration | Deduplicate public interim events without copying text or replacing a newer tool phase. |
+| `on_interim_message` | Session/turn/iteration | Refresh correlated activity without storing/copying interim text or replacing a newer tool phase. |
 | `post_llm_call` | Session/turn identity | Enter finalizing after the tool loop. Ignore answer text; no final-answer transform/send. |
 | `on_session_end` | Session/turn identity, completed/failed/interrupted | Set terminal presentation, request cleanup, release turn state. Normal completion shows finalizing, not a permanent completion card. |
 | `on_session_finalize` / `on_session_reset` | Outgoing session identity | Discard matching plugin state/messages; no absent-ID cross-session cleanup. |
-| `subagent_start` / `subagent_stop` | Explicit parent session/turn and child session IDs | Observe correlated child lifecycle only; no task-tree lookup, cancellation or raw child summaries. |
-| `pre_command` | Surface/platform/canonical command | Authorize only the matching ticket for native `/tgux` dispatch; no directive or private dispatch. |
+| `subagent_start` / `subagent_stop` | Explicit parent session/turn and child session IDs | Refresh the explicitly correlated parent activity only; no child tree/storage, cancellation or raw child summaries. |
 
 Callbacks accept additive keyword fields. State is bounded to 128 active turns and 512 observed event identities per turn. Only known `(session_id, turn_id)` pairs affect a turn. Approval events without a session ID require a unique matching turn ID. Terminal state prevents late events from reopening progress.
 
@@ -70,11 +69,11 @@ Normal `on_session_end` requests finalizing and cleanup. `cleanup_delay` default
 
 Final answers, streaming, attachments, approvals, `/stop`, interruptions, task timeouts and recovery remain native. Plugin idle expiry ends its display, not the underlying task.
 
-## Independent menu and preferences
+## Installation language and lifecycle services
 
-`ctx.register_command("tgux", ...)` opens a separately requested menu after authorized command observation. The platform factory locally imports the reviewed Telegram SDK types: `InlineKeyboardButton`, `InlineKeyboardMarkup`, `ReplyKeyboardMarkup`, `CallbackQueryHandler`. Scoped `tgux2:` callbacks validate user/chat/topic/message/expiry and operate only on owned menu messages. The SDK menu is not attached to status messages.
+No command, menu, callback handler, keyboard or per-user preference store is registered. `language` is the only presentation choice, configured as `auto`, `zh` or `en`. Auto reads bounded current public message text only, ignores paths/URLs/code blocks, chooses Chinese for Chinese text and English for English text, and falls back to Chinese for ambiguous input. No history, profile or state lookup is used.
 
-`ctx.state.get/set` stores hashed user/chat/topic keys. Choices are language, progress and emoji; old detail/statistics/elapsed/style/follow-up preferences are ignored. Native command shortcuts remain user-sent reply-keyboard messages through ordinary ingress. No `inject_message` or private command method is called. `ctx.spawn_task` supervises async display work; `ctx.on_unload` cleans up registrations, menu callbacks and active work.
+`ctx.get_config` reads language and the existing edit-interval, idle-expiry and cleanup-delay controls. `ctx.spawn_task` supervises only owned display workers; `ctx.on_unload` cleans up their registrations and messages. The runtime no longer imports Telegram SDK types or uses `ctx.state`, `register_command`, native bot methods or callback registration.
 
 ## Evaluated public interfaces not used
 

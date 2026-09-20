@@ -208,7 +208,7 @@ class PriorityTests(unittest.TestCase):
         turn.observe('post_api_request', {'api_request_id': 'api-1', 'retry_count': 1, 'assistant_tool_call_count': 1}, 5)
         self.assertEqual(turn.current_kind, 'working')
         self.assertEqual(turn.apis, {'api-1': 'ok'})
-        self.assertEqual(turn.counts()[1], 1)
+        self.assertEqual(len(turn.apis), 1)
 
     def test_generic_public_note_does_not_replace_verified_search_result(self):
         turn = self.begin('上海天气')
@@ -265,7 +265,7 @@ class VisiblePriorityTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(2.1)
         self.assertTrue(any('汇总最近 7 天 OpenAI 新闻' in item['content'] for item in telegram.edits))
         self.assertEqual(adapter.turns[('s1', 't1')].touched, 10)
-        self.assertEqual(adapter.transport.panels[('s1', 't1')].text, adapter.refresh(('s1', 't1'))[0])
+        self.assertEqual(adapter.transport.panels[('s1', 't1')].text, adapter.refresh(('s1', 't1')))
         adapter.on_session_end(**ids, completed=True)
         await asyncio.wait_for(asyncio.gather(*ctx.tasks), 1)
         adapter.close()

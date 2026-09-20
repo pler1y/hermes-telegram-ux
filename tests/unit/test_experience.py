@@ -1,36 +1,33 @@
 import asyncio
-from copy import deepcopy
-import time
 from types import SimpleNamespace
 import unittest
 
 from catalog.adapter import HermesCatalogAdapter
-from catalog.experience import TOOL, normalize_note
+from catalog.experience import TOOL, normalize_note, turn_guidance
 from catalog.model import Turn
-from catalog.preferences import Preferences
 from catalog.presentation import status_text
-from catalog.telegram import Route
 from test_catalog import ContextStub, TelegramStub, event, start
 
 
-class MemoryState:
+class ForbiddenState:
     def __init__(self):
-        self.data = {}
-        self.fail = False
+        self.accesses = []
 
-    def get(self, key, default=None):
-        return deepcopy(self.data.get(key, default))
+    def get(self, *args, **kwargs):
+        self.accesses.append("get")
+        raise AssertionError("Runtime must not read old preferences")
 
-    def set(self, key, value):
-        if self.fail:
-            raise ValueError("quota")
-        self.data[key] = deepcopy(value)
+    def set(self, *args, **kwargs):
+        self.accesses.append("set")
+        raise AssertionError("Runtime must not persist preferences")
 
 
 class Native:
     def __init__(self):
         self.bot = self
-        self.handlers, self.messages, self.markups, self.edits = [], [], [], []
+        self.approval_handler = object()
+        self.handlers = [self.approval_handler]
+        self.messages, self.markups, self.edits = [], [], []
 
     def add_handler(self, handler):
         self.handlers.append(handler)
@@ -49,53 +46,7 @@ class Native:
         self.edits.append(kwargs)
 
 
-class Query:
-    def __init__(self, card, action, owner=None, chat=None, topic=None, message=None):
-        self.data = "tgux2:" + card.token + ":" + action
-        self.from_user = SimpleNamespace(id=owner or card.route.owner_id)
-        self.message = SimpleNamespace(chat=SimpleNamespace(id=chat or card.route.chat_id),
-            message_id=message or card.message_id, message_thread_id=topic or card.route.thread_id)
-        self.answers, self.edits, self.deleted = [], [], False
-
-    async def answer(self, *args, **kwargs):
-        self.answers.append((args, kwargs))
-
-    async def edit_message_text(self, **kwargs):
-        self.edits.append(kwargs)
-
-    async def delete_message(self):
-        self.deleted = True
-
-
-class PreferenceTests(unittest.TestCase):
-    def setUp(self):
-        self.ctx = ContextStub()
-        self.ctx.state = MemoryState()
-
-    def test_preferences_survive_reload_and_do_not_change_other_users_or_topics(self):
-        prefs = Preferences(self.ctx)
-        a, b, c = Route("-10", "1", "2", "10"), Route("-10", "2", "2", "11"), Route("-10", "3", "3", "10")
-        prefs.toggle(a, "language")
-        self.assertEqual(Preferences(self.ctx).read(a)["language"], "en")
-        self.assertEqual(prefs.read(b)["language"], "zh")
-        self.assertEqual(prefs.read(c)["language"], "zh")
-        self.assertEqual(self.ctx.settings, {})
-
-    def test_invalid_saved_types_do_not_enable_behavior(self):
-        route = Route("10", "1", None, "10")
-        prefs = Preferences(self.ctx)
-        self.ctx.state.set(prefs.key(route), {"progress": 1, "language": "xx", "surprise": True})
-        self.assertIs(prefs.read(route)["progress"], True)
-        self.assertEqual(prefs.read(route)["language"], "zh")
-        self.assertNotIn("surprise", prefs.read(route))
-
-    def test_failed_save_does_not_claim_or_apply_success(self):
-        prefs, route = Preferences(self.ctx), Route("10", "1", None, "10")
-        self.ctx.state.fail = True
-        with self.assertRaises(ValueError):
-            prefs.toggle(route, "language")
-        self.assertEqual(prefs.read(route)["language"], "zh")
-
+class PublicNoteTests(unittest.TestCase):
     def test_public_notes_are_bounded_and_cannot_be_commands_or_delivery_directives(self):
         note = normalize_note({"goal": "x" * 1000, "finding": "MEDIA:/secret", "next": "a\n\u202eb",
                                "followups": ["/stop", "Continue", "Continue"], "hidden": "secret"})
@@ -114,16 +65,22 @@ class PreferenceTests(unittest.TestCase):
         self.assertNotIn("%", text)
         self.assertNotIn("完成", text)
 
-    def test_no_emoji_does_not_remove_words_from_plain_status(self):
-        turn = Turn("s", "t", time.monotonic(), preferences={"emoji": False})
-        self.assertFalse(status_text(turn, "en", "unknown_end")[0].isspace())
-        self.assertFalse(status_text(turn, "zh").startswith("⏳"))
+    def test_guidance_only_describes_public_progress(self):
+        guidance = turn_guidance()
+        self.assertEqual(set(guidance), {"context"})
+        context = guidance["context"]
+        self.assertIn("telegram_ux_update", context)
+        self.assertIn("verified", context)
+        self.assertIn("not reasoning", context)
+        self.assertIn("interim", context)
+        self.assertNotIn("attachments", context)
+        self.assertNotIn("/tgux", context)
 
 
 class ExperienceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.ctx = ContextStub()
-        self.ctx.state = MemoryState()
+        self.ctx.state = ForbiddenState()
         self.adapter = HermesCatalogAdapter(self.ctx)
         self.adapter.register()
         self.native, self.telegram = Native(), TelegramStub()
@@ -145,76 +102,53 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         await self.settle()
         return result
 
-    async def menu(self):
-        incoming = event()
-        incoming.text = "/tgux"
-        self.adapter.pre_gateway_dispatch(event=incoming)
-        self.adapter.pre_command(surface="gateway", command="tgux", platform="telegram")
-        self.assertIsNone(self.adapter.help_command())
+    async def test_no_commands_handlers_or_persistent_preferences(self):
+        await self.begin()
+        self.assertEqual(self.ctx.commands, {})
+        self.assertNotIn("pre_command", self.ctx.hooks)
+        self.assertEqual(self.native.handlers, [self.native.approval_handler])
+        self.assertFalse(self.native.messages or self.native.markups or self.native.edits)
+        self.assertFalse(self.ctx.state.accesses)
+        self.adapter.close()
         await self.settle()
-        return list(self.adapter.interface.cards.values())[-1]
+        self.assertEqual(self.native.handlers, [self.native.approval_handler])
 
-    async def click(self, card, action, **kwargs):
-        query = Query(card, action, **kwargs)
-        await self.adapter.interface.callback(SimpleNamespace(callback_query=query), None)
-        return query
-
-    async def test_menu_requires_authorized_command_not_just_incoming_text(self):
-        incoming = event()
-        incoming.text = "/tgux"
-        self.adapter.pre_gateway_dispatch(event=incoming)
-        self.assertIsInstance(self.adapter.help_command(), str)
-        await self.settle()
-        self.assertFalse(self.native.messages)
-        card = await self.menu()
-        self.assertEqual(card.route.owner_id, "101")
-        self.assertIn("任务助手", self.native.messages[-1]["text"])
-        # Consumed ticket cannot create another card.
-        self.assertIsInstance(self.adapter.help_command(), str)
-
-    async def test_sdk_callback_scope_leaves_native_buttons_alone(self):
-        import re
-        handler = self.native.handlers[0]
-        self.assertIsNone(re.match(handler.pattern, "approve:123"))
-        self.assertIsNotNone(re.match(handler.pattern, "tgux2:abc:close"))
-
-    async def test_card_owner_chat_topic_message_and_expiry_checked(self):
-        card = await self.menu()
-        for mismatch in ({"owner": "999"}, {"chat": "999"}, {"topic": "999"}, {"message": "999"}):
-            query = await self.click(card, "set_language", **mismatch)
-            self.assertTrue(query.answers[0][1]["show_alert"])
-        self.assertFalse(self.ctx.state.data)
-        card.expires = 0
-        query = await self.click(card, "close")
-        self.assertFalse(query.deleted)
-
-    async def test_settings_save_and_take_effect_next_turn(self):
-        card = await self.menu()
-        await self.click(card, "set_language")
+    async def test_legacy_settings_do_not_disable_progress_or_restore_old_ui(self):
+        self.adapter.close()
+        self.ctx.settings.update(progress=False, emoji=False, final_summary=True,
+                                 display="detail", wait_hint=True, followups=True)
+        self.adapter = HermesCatalogAdapter(self.ctx)
+        self.adapter.register()
+        self.ctx.factory(self.native, self.telegram)
+        self.adapter.transport.interval = .001
+        self.adapter.transport.cleanup_delay = .001
         result = await self.begin()
         self.assertIn("telegram_ux_update", result["context"])
-        self.assertIn("Thinking", self.telegram.sent[-1]["content"])
-        self.assertEqual(self.ctx.settings, {})
+        self.assertEqual(self.telegram.sent[-1]["content"], "🤔 正在思考中…")
+        self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
+        await self.settle()
+        self.assertEqual(len(self.telegram.deleted), 1)
+        self.assertFalse(self.ctx.state.accesses)
+        self.assertFalse(self.native.messages or self.native.markups or self.native.edits)
+        for item in self.telegram.sent + self.telegram.edits:
+            self.assertNotIn("reply_markup", item)
+            for obsolete in ("已用时", "本轮记录", "继续处理", "关闭提示"):
+                self.assertNotIn(obsolete, item["content"])
 
-    async def test_save_failure_is_visible_and_leaves_setting_unchanged(self):
-        card = await self.menu()
-        self.ctx.state.fail = True
-        query = await self.click(card, "set_language")
-        self.assertIn("Action failed", query.answers[-1][0][0])
-        self.assertFalse(query.edits)
+    async def test_native_commands_remain_unhandled_and_do_not_create_status(self):
+        for name in ("/new", "/stop", "/usage", "/tgux"):
+            incoming = event()
+            incoming.text = name
+            self.adapter.pre_gateway_dispatch(event=incoming)
+        await self.settle()
+        self.assertEqual(self.ctx.commands, {})
+        self.assertNotIn("pre_command", self.ctx.hooks)
+        self.assertFalse(self.telegram.sent or self.native.messages)
+        self.assertEqual(self.native.handlers, [self.native.approval_handler])
 
-    async def test_standalone_menu_close_does_not_touch_running_status(self):
-        card = await self.menu()
-        await self.begin()
-        query = await self.click(card, "close")
-        self.assertTrue(query.deleted)
-        self.assertIn(("s1", "t1"), self.adapter.turns)
-        self.assertIn(("s1", "t1"), self.adapter.routes)
-        self.assertFalse(self.telegram.deleted)
 
     async def test_normal_status_never_creates_a_menu(self):
         await self.begin()
-        self.assertFalse(self.adapter.interface.cards)
         self.assertFalse(self.native.messages or self.native.markups or self.native.edits)
         self.assertNotIn("reply_markup", self.telegram.sent[0])
 
@@ -265,12 +199,11 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("结果", text)
         self.assertNotIn("not copied", text)
         self.assertLessEqual(len(text.splitlines()), 2)
-        self.assertEqual(self.adapter.turns[("s1", "t1")].counts()[0], 0)
-        self.assertNotIn("wrong", self.adapter.turns[("s1", "t1")].children)
+        self.assertFalse(self.adapter.turns[("s1", "t1")].tools)
+        self.assertNotIn("wrong", repr(self.adapter.turns[("s1", "t1")]))
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         await self.settle()
         self.assertEqual(len(self.telegram.deleted), 1)
-        self.assertFalse(self.adapter.interface.cards)
 
     async def test_blocked_progress_tool_never_claims_its_note(self):
         await self.begin()
@@ -289,7 +222,6 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         await self.settle()
         self.assertEqual(len(self.telegram.sent), 1)
         self.assertEqual(len(self.telegram.deleted), 1)
-        self.assertFalse(self.adapter.interface.cards)
         self.assertTrue(all("已结束" not in call["content"] for call in self.telegram.sent + self.telegram.edits))
 
     async def test_native_reply_is_never_transformed_even_with_old_preference(self):
@@ -299,36 +231,6 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         self.adapter.observe("post_llm_call", session_id="s1", turn_id="t1", assistant_response="native answer not copied")
         await self.settle()
         self.assertNotIn("native answer not copied", self.telegram.edits[-1]["content"])
-
-    async def test_progress_off_still_allows_menu_and_native_answer(self):
-        card = await self.menu()
-        await self.click(card, "set_progress")
-        self.assertIsNone(await self.begin())
-        self.assertFalse(self.telegram.sent)
-        self.assertIn(("s1", "t1"), self.adapter.turns)
-        self.assertNotIn("transform_llm_output", self.ctx.hooks)
-
-    async def test_settings_do_not_offer_removed_card_features(self):
-        card = await self.menu()
-        query = await self.click(card, "settings")
-        buttons = [button.text for row in query.edits[-1]["reply_markup"].inline_keyboard for button in row]
-        text = " ".join(buttons)
-        for obsolete in ("详情", "耗时", "答案统计", "后续操作", "对话优化", "进度详略"):
-            self.assertNotIn(obsolete, text)
-        self.assertIn("语言", text)
-        self.assertIn("进度提示", text)
-
-    async def test_native_commands_are_user_sent_and_not_injected(self):
-        card = await self.menu()
-        await self.click(card, "commands")
-        keyboard = self.native.messages[-1]["reply_markup"]
-        self.assertIn("/stop", [row[0].text for row in keyboard.keyboard])
-        self.assertFalse(self.adapter.turns)
-
-    async def test_unload_removes_scoped_sdk_handler(self):
-        self.adapter.close()
-        await self.settle()
-        self.assertFalse(self.native.handlers)
 
 
 if __name__ == "__main__":

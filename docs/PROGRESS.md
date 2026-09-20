@@ -1,6 +1,15 @@
 # Catalog-safe development
 
-Current goal: task-aware progress in one temporary Telegram bubble, followed by cleanup. Hermes retains execution, task control, approvals, final-answer and attachment delivery. Full remains on its original main checkout, including pre-existing untracked research.
+Current goal: converge on Hermes Telegram UX as the only maintained product, preserving the accepted task-aware temporary-message core. Full remains historical reference on its existing checkout; no history, tag or branch is deleted.
+
+## Final product convergence — 2026-09-20
+
+- Frozen accepted baseline: `77c4a116166e10acf1681500cd51cadf851950f0`. Task inference/evidence logic and transport timing are preserved.
+- Remove `/tgux`, menus/callback tickets/keyboards, persisted personal preferences, progress/emoji switches, unused completion-era statistics and unregistered stream handling. Keep routing, ownership, activity TTL, bounded state, deduplication and cleanup.
+- Keep only stateless `language: auto/zh/en` and unchanged operator timing controls. Runtime now uses stdlib/local imports only; 16 public hooks, one progress tool, no commands/middleware.
+- Full comparison found no essential migration gap; do not migrate further Full features. Auxiliary/background bubbles remain outside scope without simple reliable public routing.
+- Final checks passed:161unit,7contract,boundary,official validate10/10 with zero warnings,and doctor16hooks/1tool. Real A–F plus multi-page recovery,removed-command,auto-English and post-observer cleanup smoke passed. Nine task statuses were deleted; native split answers and a separate background notification remained native. Full evidence and known P3 wording limitations are in `VALIDATION.md`.
+- Runtime `4440c7c2a0fd88973288ee8d88732fb2b264600dc2ebe4fe3a19806a2d326437` remains on the dedicated test Bot. Observer removed; only intentional config change is `language: auto`; all13,490 tracked core files unchanged. No remote publication or branch migration performed.
 
 ## Progress Intelligence development — 2026-09-20
 

@@ -20,14 +20,15 @@ class BoundaryTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertTrue(scan(source, "fixture.py"))
 
-    def test_telegram_import_allowlist_is_exact_and_factory_scoped(self):
-        source = "def wire_telegram():\n    from telegram import InlineKeyboardButton\n"
-        self.assertEqual(scan(source, "catalog/adapter.py"), [])
-        for bad, filename in ((source, "catalog/interface.py"),
-                              ("from telegram import InlineKeyboardButton", "catalog/adapter.py"),
-                              (source.replace("InlineKeyboardButton", "Bot"), "catalog/adapter.py"),
-                              (source.replace("wire_telegram", "other"), "catalog/adapter.py")):
-            self.assertTrue(scan(bad, filename))
+    def test_native_sdk_imports_are_rejected_even_inside_factory(self):
+        for source in (
+            "from telegram import InlineKeyboardButton",
+            "from telegram.ext import CallbackQueryHandler",
+            "def wire_telegram():\n    from telegram import InlineKeyboardButton\n",
+            "def wire_telegram():\n    from telegram.ext import CallbackQueryHandler\n",
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(scan(source, "catalog/adapter.py"))
 
 
 if __name__ == "__main__":

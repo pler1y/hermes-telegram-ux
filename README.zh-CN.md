@@ -1,94 +1,60 @@
-# Hermes Telegram UX · Hermes插件版
+# Hermes Telegram UX
 
-**1.9.0-catalog.1 · 公开插件版** · [发行记录](https://github.com/pler1y/hermes-telegram-ux/releases)
+[English](README.md)
 
-用一条临时气泡显示 Hermes 正在为当前任务做什么：先给出反馈，再随实际工作更新，回合结束后清理。任务补充、排队、停止、审批、流式输出以及答案和文件交付继续使用 Hermes 原生能力。
+用一条临时 Telegram 气泡告诉你 Hermes 正在为当前任务做什么。开始工作时给出反馈，随后按真实工具动作和结果更新，任务结束后自动清理。安装、启用，然后正常聊天即可。
 
-本版仅使用公开插件接口，目标基线为 Hermes 0.21.3。源码在同仓库 `catalog-safe` 分支独立更新，发行标签使用 `catalog-v*`；尚未进入官方 Plugin Catalog。开发候选的安装包以提交记录为准，发行链接在发布后可用。
-
-当前工作区正在修订此候选，尚未因此产生新发行。已有测试和部署记录仅对应其中注明的源码提交，不代表当前工作区已经部署。
+当前公开插件实现是今后唯一维护的正式产品。旧 Full 停止开发和跟随 Hermes 更新，仅作历史与 UX 参考，Git 历史和旧 Tag 保留。本目录是尚未发布的收敛候选，尚未改变远端默认分支或创建新版 Release。技术标识 `hermes-telegram-ux-catalog` 暂时保留，以兼容现有安装；它不再代表第二个产品版本。
 
 ## 使用体验
 
-- **尽早反馈**：在能够可靠关联执行身份的公开回合阶段，先安排“正在思考中…”，再处理任务摘要。后续状态编辑同一条消息，并保留节流和去重。
-- **任务相关进度**：从用户任务、实际工具名称和有限的公开参数中提取任务对象。例如搜索 query 可以成为“正在搜索上海未来 7 天的天气…”。已识别的结构化结果可提供搜索结果数量、实际包含的天气字段等事实；信息不足时安全降级。
-- **公开进度说明**：保留 `telegram_ux_update`，供模型给出简短的目标、当前动作、发现和下一步。公开模型说明与工具结果证据分开处理，不展示隐藏思考、原始命令或工具全文。
-- **临时、简洁的气泡**：通常一行，最多两行。不显示耗时、调用统计或普通任务按钮；正常结束进入最终整理阶段，经过短暂清理窗口后删除。
-- **独立设置入口**：`/tgux` 保留首页、示例、原生命令、帮助和设置。只保存当前用户/聊天/话题的语言、进度和表情偏好，从下一轮生效。菜单不附在每轮状态下面。
-- **原生控制与交付**：执行中补充要求、使用 `/stop`、审批以及最终答案和附件都由 Hermes 处理。插件不修改最终正文。
+- **同一条状态持续更新**：保留消息归属、节流、去重和迟到事件保护。
+- **动作与任务对应**：搜索新闻、检查清理代码、读取天气数据等状态来自实际工具活动。
+- **有依据才展示结果**：搜索返回数量、确实取得的数据字段、文件不存在、失败和实际后续尝试。不展示原始 Query、路径、命令或隐藏推理。
+- **长任务仍有明确对象**：工具阶段结束并进入后续模型请求后，转为相关任务的整理或汇总，不编造阶段制造更新。
+- **结束后清理**：只删除插件自己的临时状态。执行、审批、`/stop`、流式输出、最终答案、附件及原生投递恢复由 Hermes 负责。
 
-普通状态不再保留“✓ 本轮处理已结束”卡片，也不附带“继续处理 / 详情 / 设置 / 关闭提示”。旧的详细显示、答案统计、耗时、对话指引和后续操作偏好不再生效。插件表情设置不改变 Hermes 原生消息反应。
+没有完成卡、按钮、欢迎页、详情、继续处理或设置面板，也没有 `/tgux` 命令。不需要进度提示时，通过 Hermes 禁用插件即可。模型可以使用公开进度工具补充必要的里程碑，但自动工具进度不依赖它。
 
-进度和菜单需要可靠的入站上下文。插件仅在执行身份匹配后或已授权的 `/tgux` 命令路径使用单次、60 秒有效的票据；鉴权前不发送消息。检查过的公开 API 没有普通消息“鉴权后、`pre_llm_call` 前且具有可靠路由”的通知，因此第一条气泡仍在 `pre_llm_call` 安排，之前的延迟属于公开插件生命周期限制。丢失上下文、重连或无法关联的排队/后台执行沿用原生显示。
+## 安装与升级
 
-`on_session_end` 代表 Agent 回合结束，不代表 Telegram 已经收到答案。清理窗口只是短暂等待，无法保证气泡一定在最终答案成功投递之后才删除；网络较慢时气泡可能先消失。首次发送结果不明时不重发，编辑失败不另发一条气泡。删除采用有限尝试，失败只影响临时状态，可能留下未删除的消息，不影响 Hermes 最终回答。
+需要已经能正常使用 Telegram 的 Hermes。已验证官方基线为 **Hermes 0.21.3**，commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`；后续版本需重新验证兼容性。无需额外运行时 Python 依赖，不修改 Hermes core。
 
-## 安装发布包
-
-需要已能正常使用 Telegram 的 Hermes 0.21.3+、Python 3.11–3.13。先结束活动任务并停止该测试 Gateway。不要在同一 Gateway 同时启用 Full 和 Catalog-safe。
-
-从[本版发行页](https://github.com/pler1y/hermes-telegram-ux/releases/tag/catalog-v1.9.0-catalog.1)下载 ZIP 和同名 `.zip.sha256` 文件，在下载目录校验后安装：
+使用从目标提交构建并审核过的 ZIP，核对 SHA256 和包内 `PROVENANCE.json`，将内容放入 `${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog`。升级前先停止 Gateway 并备份原插件目录，不要在同一 Gateway 同时启用历史 Full。
 
 ```bash
-cd /absolute/path/to/delivery
-shasum -a 256 -c hermes-telegram-ux-catalog-1.9.0-catalog.1.zip.sha256
-CATALOG_HOME="${HERMES_HOME:-$HOME/.hermes}"
-CATALOG_DIR="$CATALOG_HOME/plugins/hermes-telegram-ux-catalog"
-test ! -e "$CATALOG_DIR" && mkdir -p "$CATALOG_DIR" && \
-  unzip -q hermes-telegram-ux-catalog-1.9.0-catalog.1.zip -d "$CATALOG_DIR"
-hermes plugins validate "$CATALOG_DIR"
+hermes plugins validate /absolute/path/to/plugins/hermes-telegram-ux-catalog --json
+hermes plugins doctor /absolute/path/to/plugins/hermes-telegram-ux-catalog --ci
 hermes plugins enable hermes-telegram-ux-catalog
 ```
 
-重启同一 Gateway，在 Telegram 发送 `/tgux`，然后发一条普通请求。ZIP 内的 `PROVENANCE.json` 记录完整源码提交及逐文件摘要。无额外 Python 依赖，不需要运行自定义安装脚本或修改 Hermes core。
+重启 Gateway，发送一条普通任务即可，没有额外设置菜单。当前候选尚未发布为新 Tag，不要直接安装远端旧默认分支并期待得到此实现。后续统一方式见 [仓库收敛说明](docs/CONVERGENCE.md)。
 
-也可通过原生 Git 安装固定发布版本：
+需要关闭时，运行 `hermes plugins disable hermes-telegram-ux-catalog` 并重启 Gateway；确认原生聊天正常后，可用 `hermes plugins remove hermes-telegram-ux-catalog` 移除。本版不再读写个人偏好数据。已有旧偏好文件即使留在插件专属目录，也不会再生效；无需数据迁移或破坏性删除。
 
-```bash
-CATALOG_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/catalog-v1.9.0-catalog.1 | cut -f1)"
-test "${#CATALOG_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
-hermes plugins install https://github.com/pler1y/hermes-telegram-ux --ref "$CATALOG_COMMIT" --no-enable
-hermes plugins validate "${HERMES_HOME:-$HOME/.hermes}/plugins/hermes-telegram-ux-catalog"
-hermes plugins enable hermes-telegram-ux-catalog
-```
+## 配置
 
-升级继续选择 `catalog-v*` 发布，核对版本后用新 SHA 重装（原生安装加 `--force`），然后验证和启用。不要省略 `--ref`；仓库默认 `main` 提供完整版。两版安装包互不包含，版本号和兼容范围分别维护。
-
-## 设置
-
-只在 Hermes `config.yaml` 中合并本插件命名空间，保留其余配置：
+默认无需配置。确有需要时，可在 `plugins.entries.hermes-telegram-ux-catalog.settings` 下设置：
 
 ```yaml
-plugins:
-  entries:
-    hermes-telegram-ux-catalog:
-      settings:
-        language: zh       # zh / en
-        progress: true
-        emoji: true
-        update_interval: 1.5
-        status_ttl: 600
-        cleanup_delay: 1.0
+language: auto
+update_interval: 1.5
+status_ttl: 600
+cleanup_delay: 1.0
 ```
 
-管理员默认设置在 Gateway 启动时读取；用户可通过 `/tgux` 保存语言、进度和表情的覆盖值。`update_interval` 限制在 1–30 秒，`status_ttl` 在 30–3600 秒，`cleanup_delay` 在 0–5 秒，默认 1 秒。长时间没有新事件时，插件状态可短暂提示更新超时，然后进入清理；不会取消模型或工具。
+语言可选 `auto / zh / en`。`auto` 按本轮文本选择中英文，忽略代码块、URL 和路径；纯数字或仅媒体输入回退中文。它是有限的中英文判断，不是任意语言识别。混合语言任务可以由管理员固定语言，不需要维护用户、聊天、Topic 的偏好系统。
 
-安装不会修改 Hermes 的逐字流式输出、工具进度或中途消息开关。已有原生提示可能与插件状态同时显示。插件不注册最终文字变换，也不接管流式消息。
+其余三项为部署层可靠性参数：编辑节流 1–30 秒，显示无活动超时 30–3600 秒，结束清理等待 0–5 秒；原默认值和时序不变。状态超时不会停止 Hermes 任务。修改配置后重启 Gateway。没有插件内部进度开关或表情开关。
 
-## 关闭、移除和升级
+## 边界
 
-```bash
-hermes plugins disable hermes-telegram-ux-catalog
-# 重启 Gateway，确认原生收发正常后：
-hermes plugins remove hermes-telegram-ux-catalog
-```
+只有入站票据、执行身份、用户、聊天及话题能可靠关联时才显示进度；关联不明时沿用原生行为。鉴权前不发送消息，不查询私有会话或后台任务树补充路由。
 
-升级时先停 Gateway、备份插件目录，验证新包 SHA256，再安装新目录并验证、启用。回退使用备份的旧目录和原配置。活动状态和按钮票据保存在内存中；个人偏好使用公开 `ctx.state` 保存在插件专属数据目录。卸载清除注册、SDK 回调和活动任务，不读写会话数据库；原生 remove 对插件数据的保留策略见 Hermes 提示。
+公开回合结束事件不是 Telegram 最终答案投递回执。清理采用有限尝试，删除失败仍可能留下状态；原生投递较慢时，气泡也可能先删除。不确定首次发送是否成功时不重发，编辑失败不创建替代气泡。Hermes 原生消息仍可独立出现。
 
-## 开发与验证
+运行代码只使用 Python 标准库、公开插件接口及提供的公开 adapter。不再注册 Telegram SDK 按钮回调，不使用 Hermes 私有调用、monkey patch、最终回答变换或第二套任务执行。通过官方验证不等于已进入官方 Plugin Catalog。
 
-此次修订的验收重点是任务相关状态、同消息更新、正确事实边界以及回合结束清理。此前候选的历史结果见 [VALIDATION.md](docs/VALIDATION.md)，其中完成卡和按钮场景不能替代新版临时气泡验收。
+[验收记录](docs/VALIDATION.md) · [测试方法](docs/TESTING.md) · [公开 API](docs/PUBLIC-API.md) · [验收标准](docs/ACCEPTANCE.md) · [Full 审计及仓库收敛](docs/CONVERGENCE.md)
 
-以 [TESTING.md](docs/TESTING.md) 复现开发验证；当前进度见 [PROGRESS.md](docs/PROGRESS.md)，真实体验场景见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。自动化测试与真实 Telegram 结果分别记录。
-
-MIT License。Full 版本请使用独立的 Full 主线及其说明。
+MIT License。

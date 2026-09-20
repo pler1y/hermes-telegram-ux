@@ -317,7 +317,6 @@ class TaskProgressTests(unittest.TestCase):
 
     def test_finalizing_is_terminal_for_progress_and_has_no_old_ui(self):
         turn = self.turn("上海天气")
-        turn.preferences = {"display": "detail", "wait_hint": True}
         self.search(turn)
         turn.observe("post_llm_call", {"response": "final answer"}, 20)
         self.post(turn, "a", "web_search", self.results())
@@ -327,15 +326,15 @@ class TaskProgressTests(unittest.TestCase):
         for old_ui in ("已结束", "已用时", "工具", "继续处理", "详情", "设置", "关闭提示"):
             self.assertNotIn(old_ui, status_text(turn, "zh"))
 
-    def test_progress_memory_and_emoji_preference(self):
+    def test_progress_memory_is_bounded(self):
         turn = self.turn()
-        turn.preferences = {"emoji": False}
         for index in range(600):
             self.pre(turn, str(index), "read_file", {"path": "/private/app.py"})
         self.assertEqual(len(turn.tools), 512)
         self.assertEqual(len(turn.observations), 512)
-        self.assertTrue(turn.capped)
-        self.assertTrue(status_text(turn, "zh").startswith("正在检查"))
+        self.assertNotIn("512", turn.tools)
+        self.assertNotIn("512", turn.observations)
+        self.assertIn("正在检查", status_text(turn, "zh"))
 
     def test_long_query_and_public_action_keep_the_bubble_short(self):
         for language, limit, content in (("zh", 60, "上海未来一周天气和温度变化" * 12),

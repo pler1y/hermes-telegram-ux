@@ -23,22 +23,13 @@ provides_hooks:
   - on_session_end
   - on_session_finalize
   - on_session_reset
-  - pre_command
   - subagent_start
   - subagent_stop
 config_schema:
   language:
     type: str
-    default: zh
-    description: Status language, zh or en. Restart the Gateway after changing settings.
-  progress:
-    type: bool
-    default: true
-    description: Show a separate status message for reliably correlated Telegram turns.
-  emoji:
-    type: bool
-    default: true
-    description: Show emoji in plugin status messages; does not change native reactions.
+    default: auto
+    description: Status language, auto / zh / en. Auto uses current message text; ambiguous input falls back to zh. Restart after changing settings.
   update_interval:
     type: float
     default: 1.5

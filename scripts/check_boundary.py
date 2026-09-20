@@ -7,8 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD = ("__init__.py", "catalog/__init__.py", "catalog/adapter.py", "catalog/model.py",
-           "catalog/presentation.py", "catalog/telegram.py", "catalog/preferences.py",
-           "catalog/experience.py", "catalog/interface.py", "catalog/intelligence.py")
+           "catalog/presentation.py", "catalog/telegram.py", "catalog/language.py",
+           "catalog/experience.py", "catalog/intelligence.py")
 FORBIDDEN_CALLS = {"setattr", "delattr", "eval", "exec", "compile", "__import__", "globals", "locals", "vars"}
 FORBIDDEN_IMPORTS = {"sys", "importlib", "inspect", "ctypes", "subprocess", "marshal", "pickle"}
 
@@ -16,23 +16,14 @@ FORBIDDEN_IMPORTS = {"sys", "importlib", "inspect", "ctypes", "subprocess", "mar
 def scan(source, filename):
     errors = []
     tree = ast.parse(source, filename=filename)
-    sdk_imports = set()
-    if filename == "catalog/adapter.py":
-        for function in ast.walk(tree):
-            if isinstance(function, ast.FunctionDef) and function.name == "wire_telegram":
-                sdk_imports.update(id(node) for node in ast.walk(function) if isinstance(node, ast.ImportFrom))
-    public_sdk = {"telegram": {"InlineKeyboardButton", "InlineKeyboardMarkup", "ReplyKeyboardMarkup"},
-                  "telegram.ext": {"CallbackQueryHandler"}}
     for node in ast.walk(tree):
         issue = None
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = [alias.name for alias in node.names] if isinstance(node, ast.Import) else [node.module or ""]
             relative = isinstance(node, ast.ImportFrom) and node.level > 0
-            sdk = (id(node) in sdk_imports and node.module in public_sdk and
-                   all(alias.name in public_sdk[node.module] and alias.asname is None for alias in node.names))
             for name in names:
                 root = name.split(".")[0]
-                if not relative and not sdk and (root not in sys.stdlib_module_names or root in FORBIDDEN_IMPORTS):
+                if not relative and (root not in sys.stdlib_module_names or root in FORBIDDEN_IMPORTS):
                     issue = f"non-allowlisted import: {name}"
         builtin_type_name = (isinstance(node, ast.Attribute) and node.attr == "__name__"
                              and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
@@ -50,7 +41,7 @@ def scan(source, filename):
                     issue = "unbounded dynamic host lookup"
         if isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del)):
             # Assign only direct fields on plugin-owned objects, never self.host.method.
-            if not isinstance(node.value, ast.Name) or node.value.id not in {"self", "turn", "panel", "ticket", "card", "menu"}:
+            if not isinstance(node.value, ast.Name) or node.value.id not in {"self", "turn", "panel", "ticket"}:
                 issue = "foreign object attribute mutation"
         if issue:
             errors.append(f"{filename}:{node.lineno}: {issue}")
@@ -74,5 +65,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", nargs="?", type=Path, default=ROOT)
     errors = check(parser.parse_args().path)
-    print("\n".join(errors) if errors else "Catalog boundary: PASS (public Telegram factory imports; no Hermes imports, private access or host mutation)")
+    print("\n".join(errors) if errors else "Catalog boundary: PASS (stdlib-only payload; no Hermes imports, private access or host mutation)")
     raise SystemExit(bool(errors))

@@ -12,6 +12,7 @@ class ContextStub:
 
     def __init__(self, **settings):
         self.settings, self.hooks, self.tasks = settings, {}, []
+        self.commands = {}
 
     def get_config(self, key, default=None):
         return self.settings.get(key, default)
@@ -23,7 +24,7 @@ class ContextStub:
         self.factory = factory
 
     def register_command(self, name, cb, **kwargs):
-        self.command = cb
+        self.commands[name] = cb
 
     def register_tool(self, **kwargs):
         self.tool = kwargs
@@ -100,7 +101,8 @@ class StateTests(unittest.TestCase):
         self.feed("post_tool_call", tool_call_id="a", tool_name="read_file", status="error")
         self.feed("pre_tool_call", tool_call_id="a", tool_name="read_file")
         turn = self.adapter.turns[("s1", "t1")]
-        self.assertEqual(turn.counts(), (1, 0, 1))
+        self.assertEqual(turn.tools, {"a": ("read_file", "error")})
+        self.assertFalse(turn.apis)
         self.assertNotEqual(turn.phase()[0], "tool")
 
     def test_api_retries_count_distinct_attempts(self):
@@ -108,17 +110,32 @@ class StateTests(unittest.TestCase):
             self.feed("pre_api_request", api_request_id=rid)
         self.feed("api_request_error", api_request_id="r1", retryable=True)
         self.feed("post_api_request", api_request_id="r2")
-        self.assertEqual(self.adapter.turns[("s1", "t1")].counts(), (0, 2, 0))
+        self.assertEqual(set(self.adapter.turns[("s1", "t1")].apis), {"r1", "r2"})
+        self.assertFalse(self.adapter.turns[("s1", "t1")].tools)
 
-    def test_interim_events_share_the_total_memory_bound(self):
+    def test_activity_hooks_refresh_ttl_without_storing_text_or_changing_progress(self):
+        now = [10.0]
+        self.adapter.clock = lambda: now[0]
+        for index in range(513):
+            self.feed("pre_tool_call", tool_call_id=str(index), tool_name="read_file", args={"path": "/tmp/readme.md"})
         turn = self.adapter.turns[("s1", "t1")]
-        for index in range(511):
-            self.feed("pre_tool_call", tool_call_id=str(index), tool_name="terminal")
-        self.feed("on_interim_message", iteration=1)
-        self.feed("on_interim_message", iteration=2)
-        self.feed("on_interim_message", iteration=True)
-        self.assertEqual(len(turn.interims), 1)
-        self.assertTrue(turn.capped)
+        progress = dict(turn.progress)
+        containers = (len(turn.tools), len(turn.apis), len(turn.approvals), len(turn.note_calls))
+        self.assertEqual(containers, (512, 0, 0, 0))
+        self.assertNotIn("512", turn.tools)
+        now[0] = 11.0
+        self.feed("on_interim_message", iteration=1, text="native interim must not be copied")
+        self.assertEqual(turn.touched, 11.0)
+        now[0] = 12.0
+        self.adapter.observe("subagent_stop", parent_session_id="s1", parent_turn_id="t1",
+                             child_session_id="child", child_status="completed", child_summary="private child summary")
+        self.assertEqual(turn.touched, 12.0)
+        self.assertEqual(turn.progress, progress)
+        self.assertEqual((len(turn.tools), len(turn.apis), len(turn.approvals), len(turn.note_calls)), containers)
+        self.assertNotIn("native interim", repr(turn))
+        self.assertNotIn("private child", repr(turn))
+        self.adapter.observe("subagent_start", parent_session_id="wrong", parent_turn_id="t1", child_session_id="wrong")
+        self.assertEqual(turn.touched, 12.0)
 
     def test_approvals_correlate_by_unique_turn_not_session_key(self):
         self.ctx.hooks["pre_approval_request"](turn_id="t1", tool_call_id="a", session_key="opaque:route", surface="gateway")
@@ -134,7 +151,7 @@ class StateTests(unittest.TestCase):
     def test_concurrent_sessions_and_late_events(self):
         start(self.adapter, "s2", "t2", "102")
         self.feed("pre_tool_call", tool_call_id="a", tool_name="read_file")
-        self.assertEqual(self.adapter.turns[("s2", "t2")].counts(), (0, 0, 0))
+        self.assertFalse(self.adapter.turns[("s2", "t2")].tools or self.adapter.turns[("s2", "t2")].apis)
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         self.feed("post_tool_call", tool_call_id="a", tool_name="read_file", status="ok")
         self.assertNotIn(("s1", "t1"), self.adapter.turns)
@@ -179,13 +196,14 @@ class StateTests(unittest.TestCase):
             if name not in ("pre_llm_call", "pre_gateway_dispatch"):
                 self.assertIsNone(self.ctx.hooks[name](future_field={"x": 1}))
         self.feed("post_tool_call", tool_call_id={}, tool_name="<b>bad</b>", status="ok")
-        self.assertEqual(self.adapter.turns[("s1", "t1")].counts(), (0, 0, 0))
+        self.assertFalse(self.adapter.turns[("s1", "t1")].tools or self.adapter.turns[("s1", "t1")].apis)
 
     def test_event_storage_is_bounded(self):
         for i in range(900):
             self.feed("pre_tool_call", tool_call_id=str(i), tool_name="x")
         self.assertEqual(len(self.adapter.turns[("s1", "t1")].tools), 512)
-        self.assertTrue(self.adapter.turns[("s1", "t1")].capped)
+        self.assertNotIn("512", self.adapter.turns[("s1", "t1")].tools)
+        self.assertEqual(len(self.adapter.turns[("s1", "t1")].observations), 512)
 
     def test_ttl_is_status_expiry_not_a_task_timeout(self):
         now = [0.0]
@@ -197,7 +215,10 @@ class StateTests(unittest.TestCase):
 
     def test_invalid_settings_fall_back_and_unload_clears(self):
         adapter = HermesCatalogAdapter(ContextStub(language="bad", status_ttl="nan", update_interval="oops", cleanup_delay="nan"))
-        self.assertEqual((adapter.language, adapter.ttl, adapter.interval, adapter.cleanup_delay), ("zh", 600, 1.5, 1))
+        self.assertEqual((adapter.ttl, adapter.interval, adapter.cleanup_delay), (600, 1.5, 1))
+        start(adapter, user_message="Please check the forecast")
+        self.assertEqual(adapter.turns[("s1", "t1")].language, "en")
+        adapter.close()
         self.ctx.unload()
         start(self.adapter, "s3", "t3")
         self.assertFalse(self.adapter.turns)

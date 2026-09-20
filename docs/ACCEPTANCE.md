@@ -1,40 +1,36 @@
-# Temporary progress acceptance
+# Hermes Telegram UX acceptance
 
-Use an isolated Telegram test bot and fixed official Hermes core. Record exact source/artifact hashes and distinguish actual Telegram observations from synthetic hook tests. These are criteria, not a claim that the current candidate has passed or been deployed.
+Use only the dedicated test Bot and the fixed official core. Record exact source/runtime hashes; synthetic tests do not prove live Telegram behavior. The Progress Intelligence baseline is `77c4a11`; convergence must preserve its task inference, evidence rules and transport timing.
 
-## Product scenarios
+## Real task regression
 
-| Scenario | Request | Check |
+| Case | Task | Required observation |
 |---|---|---|
-| A: fast answer | `1+1等于多少` | Schedule initial feedback at the first reliably correlated public turn hook. A turn finishing before the worker sends must not leave a late bubble. Preserve the native answer. |
-| B: weather search | `帮我查一下上海未来7天天气` | Status includes actual query/task when available. Recognized results support only observed counts/fields. Never claim missing humidity data. Edit the same message, then clean it up. |
-| C: investigation | `调查最近一周 OpenAI 有什么重要新闻` | Relevant query/task labels appear when observable; an informative investigation does not remain a generic tool-name display throughout. |
-| D: code inspection | `检查这个项目为什么 Telegram 状态消息没有删除` | File/search/test stages correspond to real operations. Safe filenames or recognized Telegram context identify the subject. Printing a test command is not running tests. |
-| E: tool failure | A deliberately failing bounded search/tool fixture | No fabricated success, acquired data or retry. A retry requires a real subsequent attempt. Preserve the native explanation. |
-| F: cleanup | Complete a normal task | Finalizing followed by deletion after a short cleanup window. No permanent “本轮处理已结束”, elapsed timer, details/settings/dismiss/continue buttons or count footer remains. |
+| A | `1+1等于多少？` | Prompt initial feedback, actual calculation if a calculation tool is used, native answer, one owned message deleted. |
+| B | Shanghai seven-day weather, temperature/humidity/wind | Task-specific retrieval; fields only when actual values exist; current-step success scope; task-related synthesis; deletion. |
+| C | Read installed telegram.py/adapter.py cleanup code, no writes | Actual read/inspect stages and the cleanup purpose; native answer and deletion. |
+| D | Read a confirmed nonexistent file | Real missing-file failure remains visible through explanation; no invented success/retry. |
+| E | OpenAI public news from the last seven days | Real search stage, actual returned counts when available, no raw query leakage, task-related long synthesis, deletion. |
+| F | Failed public extraction followed sequentially by another actual source read | Failure appears first; recovery requires the later real pre_tool_call; success only after actual nonempty content. |
 
-Capture message IDs, edits, deletions and native answers. Do not demand exact example wording, invented waiting stages, an initial bubble for a turn completed before sending, or deletion precisely after successful Telegram delivery. `on_session_end` is not a delivery receipt. Record any residual message caused by a real deletion failure.
+Capture every NewMessage/MessageEdited/MessageDeleted event from before sending the prompt and verify final message existence. Record one owned status ID per task, exact visible versions, native answer time, deletion time and longest unchanged state. Correlate tools with the correct public session/turn/call IDs. Exclude different-turn background events and hidden reasoning.
 
-## Automated regression requirements
+A long genuine model request can keep truthful synthesis text unchanged. Do not invent stages or require a fixed example string. Public turn completion is not a Telegram delivery receipt. Short states may be coalesced; a task finishing before the send worker starts must not leave a late bubble.
 
-| Area | Checks |
-|---|---|
-| Lifecycle | One send per turn; same-ID edits; no replacement after edit failure; completion before/during send; late-event suppression; normal/reset/unload cleanup. |
-| Task context | Generic feedback scheduled before extraction; safe user-task reduction; query/file/command target extraction; specific, partial and generic fallback. |
-| Evidence | Structured search counts; actual numeric weather fields; missing-field negative controls; unknown/malformed results; failure precedence; test execution versus test success. |
-| Public notes | Successful progress-tool handling; concise public action; intended next steps/model claims never promoted to verified success; no general answer-style guidance. |
-| Ordering/volume | Identical text does not edit; rapid updates coalesce; old tool/request/interim events cannot rewind newer state; terminal state cannot reopen. |
-| UI | No ordinary-status keyboard, timer, statistics or completion card. Independent `/tgux` has language/progress/emoji only. Old preferences cannot restore removed UI or final-answer annotation. |
-| Isolation | Missing/expired/consumed/mismatched route skips output; user/topic/profile boundaries; no pre-auth send; unknown initial delivery never triggers another send. |
-| Failures | Send/edit/delete error/timeout isolation; bounded cleanup; native final text/attachments unaffected; plugin expiry does not stop Hermes. |
-| Boundary | Real PluginManager hook/manifest agreement; public transport signatures; official validate/doctor; no Hermes private runtime access or mutation. |
+## Product removal checks
 
-Automated transport/host tests do not prove live Telegram delivery, real model note quality, group behavior or compatibility beyond executed core versions. Follow [TESTING.md](TESTING.md); native packaging tests read committed source and cannot validate uncommitted changes.
+- No ordinary completion cards, elapsed/count footers, inline controls, details, continue, close, welcome/navigation/settings pages.
+- `/tgux` is not registered, does not appear in the Bot's current command inventory, and invoking it produces no plugin menu. A native unknown-command reply is not a plugin error.
+- Zero plugin commands, middleware or Telegram SDK callbacks. No persisted preference read/write. Old preferences cannot restore removed UI or disable ordinary progress.
+- Per-turn language auto selection and fixed zh/en overrides; no cross-user/topic language cache. Chinese/English are the supported output labels; ambiguous text defaults to Chinese.
+- Restoring the test configuration/removing temporary observers does not break native replies or owned-message cleanup.
 
-## Native flow checks
+## Automated protections
 
-Retain baseline checks for native file delivery with downloaded contents verified, approval/denial, bounded tool timeout, `/stop` followed by a new conversation, plugin-disabled native chat, independent `/tgux` navigation and scoped preferences. Group/topic and multi-profile live sessions require separate evidence if performed. Plugin status expiry must not be mistaken for task cancellation.
+Preserve Progress Intelligence and all transport race/error tests: early/late completion, reset/unload, send acknowledgement ownership, edit failure without replacement, bounded deletion retry, throttle/coalescing, expired/mismatched/consumed route tickets, user/chat/topic/profile isolation, unknown route fallback, event identity limits, final-answer preservation and official enable/disable lifecycle.
 
-For reproducible approval cases, `tests/fixtures/approval_gate` is a separate test policy plugin requesting native approval for harmless marked `printf` commands. Remove it after testing; it is excluded from release archives. Automation may approve once only for an exactly matched, previously reviewed bounded fixture command, never arbitrary model output.
+Correlated interim/child events remain activity signals so display TTL does not regress; their raw text and unused statistics are not retained. Unregistered stream hooks cannot affect state. No native task cancellation or background-result filtering is implemented.
 
-Historical acceptance used permanent completion cards and buttons. Its results remain in [VALIDATION.md](VALIDATION.md); the old `catalog_experience_acceptance.py` button expectations do not validate this revision. Record new results against current source only after execution.
+Run every unit and contract suite, boundary guard, official validate and doctor, and `git diff --check`. Native Git/ZIP packaging checks use committed objects and must identify the tested commit. Keep packaging output out of the source tree.
+
+Native approval/stop/file behavior remains Hermes-owned. Do not count native approvals as plugin buttons. Additional native stop/file/group/topic testing requires its own evidence; do not silently inherit old tests as new live acceptance. The separate `tests/fixtures/approval_gate` may be used only for its reviewed harmless fixture and removed afterward; it never ships in the package.
