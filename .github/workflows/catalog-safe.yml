@@ -42,6 +42,7 @@ jobs:
           "$PY" scripts/check_boundary.py
           "$PY" -m hermes_cli.main plugins validate . --json
           "$PY" -m hermes_cli.main plugins doctor . --ci
+          "$PY" -m hermes_cli.main plugins compat . --json
           "$PY" scripts/check_native.py --core "$GITHUB_WORKSPACE/core" --ref HEAD
           "$PY" scripts/check_upgrade.py --core "$GITHUB_WORKSPACE/core" --ref HEAD
           "$PY" scripts/build_release.py --ref HEAD

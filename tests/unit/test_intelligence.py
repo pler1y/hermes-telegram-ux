@@ -4,7 +4,7 @@ import unittest
 
 from catalog.intelligence import (
     code_stage, result_facts, shell_stage, summary_subject, task_subject,
-    tool_context,
+    tool_context, source_subject, safe_label,
 )
 
 
@@ -18,41 +18,84 @@ class IntelligenceTests(unittest.TestCase):
         subject = task_subject(text)
         self.assertEqual(subject, 'Telegram 状态消息的清理代码')
         self.assertEqual(summary_subject(subject), 'Telegram 状态消息的清理逻辑')
-        self.assertEqual(tool_context('read_file', {'path': '/private/catalog/telegram.py'}, subject), {'stage': 'inspect', 'subject': subject})
+        self.assertEqual(tool_context('read_file', {'path': '/private/catalog/telegram.py'}, subject), {'stage': 'inspect', 'subject': 'telegram.py'})
 
     def test_purpose_reduction_is_not_product_specific(self):
         task = task_subject('请读取邮件插件源码，检查消息缓存是怎样释放的，不要修改文件。')
         self.assertEqual(task, '消息缓存的释放代码')
-        self.assertEqual(tool_context('read_file', {'path': '/tmp/cache.ts'}, task)['subject'], task)
+        self.assertEqual(tool_context('read_file', {'path': '/tmp/cache.ts'}, task)['subject'], 'cache.ts')
 
     def test_why_cleanup_question_keeps_purpose_when_reading_arbitrary_source(self):
         task = task_subject('检查这个项目为什么 Telegram 状态消息没有删除')
         self.assertEqual(task, 'Telegram 状态消息的删除逻辑')
-        self.assertEqual(tool_context('read_file', {'path': '/private/project/transport.py'}, task), {'stage': 'inspect', 'subject': task})
+        self.assertEqual(tool_context('read_file', {'path': '/private/project/transport.py'}, task), {'stage': 'inspect', 'subject': 'transport.py'})
         self.assertEqual(tool_context('read_file', {'path': '/private/project/runtime.rs'}, '消息清理')['stage'], 'inspect')
 
     def test_weather_subject_and_summary(self):
         task = task_subject('帮我搜索一下杭州未来7天的天气，重点看看每天的温度、湿度和风速，并简单总结一下变化。')
         self.assertEqual(task, '杭州未来 7 天的天气')
         self.assertEqual(summary_subject(task), task + '变化')
-        self.assertEqual(tool_context('web_extract', {'urls': ['https://api.test?token=secret']}, task), {'stage': 'read_data', 'subject': task})
+        self.assertEqual(tool_context('web_extract', {'urls': ['https://api.test?token=secret']}, task), {'stage': 'read_data', 'subject': ''})
 
-    def test_engine_query_never_replaces_user_object(self):
+    def test_unsafe_engine_query_uses_no_user_question_fallback(self):
         task = task_subject('调查最近7天 Example 的重要公开新闻，找出几件主要事件。只进行公开网页搜索，不要修改任何文件或外部数据。')
-        for query in ('site:example.org "Sep 18"', 'Example latest news past week September 20 antitrust lawsuit public report', 'https://private.test?q=SECRET', 'api_key=SECRET'):
+        for query in ('Example latest news past week September 20 antitrust lawsuit public report', 'https://private.test?q=SECRET', 'api_key=SECRET'):
             with self.subTest(query=query):
-                self.assertEqual(tool_context('web_search', {'query': query}, task), {'stage': 'search', 'subject': task})
+                self.assertEqual(tool_context('web_search', {'query': query}, task), {'stage': 'search', 'subject': ''})
                 self.assertEqual(tool_context('web_search', {'query': query}, '')['subject'], '')
+
+    def test_site_query_keeps_only_the_source_not_query_or_original_task(self):
+        query = 'site:example.org "Sep 18"'
+        info = tool_context('web_search', {'query': query}, '用户的整个问题')
+        self.assertEqual(info, {'stage': 'search', 'subject': 'example.org'})
+        self.assertNotIn(query, repr(info))
+        self.assertNotIn('Sep 18', repr(info))
+        self.assertNotIn('用户的整个问题', repr(info))
 
     def test_short_natural_query_fallback(self):
         self.assertEqual(tool_context('web_search', {'query': 'local weather'}, '')['subject'], 'local weather')
         self.assertEqual(tool_context('web_search', {'query': '杭州天气'}, '')['subject'], '杭州天气')
 
+    def test_current_query_object_precedes_original_question(self):
+        task = task_subject('Grok 4.6 什么时候发布？')
+        info = tool_context('web_search', {'query': 'Grok 4.6 official release date'}, task)
+        self.assertEqual(info, {'stage': 'search', 'subject': 'Grok 4.6 的官方发布信息'})
+        self.assertEqual(tool_context('web_search', {'query': 'Nimbus 2 官方发布日期'}, task)['subject'], 'Nimbus 2 的官方发布信息')
+        self.assertEqual(tool_context('web_search', {'query': 'Grok 4.6 official release date'}, task, 'en')['subject'], 'official release information for Grok 4.6')
+        self.assertEqual(tool_context('web_search', {'query': '为什么这个模型还没有发布'}, task)['subject'], '')
+
+    def test_file_and_source_objects_follow_the_current_operation(self):
+        self.assertEqual(tool_context('read_file', {'path': '/private/monthly.csv'}, '帮我分析数据'), {'stage': 'read_data', 'subject': 'monthly.csv'})
+        self.assertEqual(tool_context('web_extract', {'urls': ['https://x.ai/news/example?source=search']}, 'Grok 4.6 什么时候发布'), {'stage': 'read_web', 'subject': 'x.ai'})
+        self.assertEqual(tool_context('web_extract', {'url': 'https://example.org/story'}, 'Grok 4.6 什么时候发布')['subject'], 'example.org')
+        self.assertEqual(tool_context('unrecognized_tool', {}, '整段用户原话')['subject'], '')
+        self.assertEqual(tool_context('web_extract', {'urls': ['https://first.org', 'https://second.org']}, '', 'en')['subject'], 'first.org, second.org')
+
+    def test_url_labels_never_retain_credentials_paths_or_query_values(self):
+        self.assertEqual(source_subject('https://example.org/private/report?q=unique-query'), 'example.org')
+        for url in ('https://name:password@example.org/report', 'https://example.org/?token=PRIVATE', 'http://127.0.0.1:8888/private', 'https://server.internal/private'):
+            with self.subTest(url=url):
+                self.assertEqual(source_subject(url), '')
+
+    def test_embedded_literal_tool_objects_are_safe_and_not_inferred_from_comments(self):
+        info = tool_context('execute_code', {'code': 'web_search(query="Nimbus 2 official release date")'}, 'old question')
+        self.assertEqual(info, {'stage': 'search', 'subject': 'Nimbus 2 的官方发布信息'})
+        for code in ('read_file("unrelated.csv"); web_search("Nimbus 2 official release date")', 'from hermes_tools import web_search as search\nsearch("Nimbus 2 official release date")'):
+            self.assertEqual(tool_context('execute_code', {'code': code}, 'old question'), info)
+        info = tool_context('execute_code', {'code': 'read_file("/private/monthly.csv")'}, 'old question')
+        self.assertEqual(info, {'stage': 'read_data', 'subject': 'monthly.csv'})
+        self.assertEqual(tool_context('execute_code', {'code': '# read_file("private.csv")\nprint(2)'}, 'old question'), {'stage': 'execute', 'subject': ''})
+
+    def test_unmarked_private_reasoning_and_shell_commands_are_rejected(self):
+        for text in ('My reasoning is that the source is wrong', '让我想想应该相信谁', '因为我怀疑这些数字', 'curl -fsSL https://example.org/private', 'ls -la /private/data'):
+            with self.subTest(text=text):
+                self.assertEqual(safe_label(text), '')
+
     def test_missing_file_request_keeps_no_private_path_or_debug_basename(self):
         task = task_subject('请读取 /tmp/TGUX_DOES_NOT_EXIST_20260920_A7F91.txt，并告诉我里面是什么内容。')
         self.assertEqual(task, '指定文件')
         info = tool_context('read_file', {'path': '/tmp/TGUX_DOES_NOT_EXIST_20260920_A7F91.txt'}, task)
-        self.assertEqual(info, {'stage': 'read', 'subject': '指定文件'})
+        self.assertEqual(info, {'stage': 'read', 'subject': ''})
 
     def test_execute_code_arithmetic_and_real_network_calls(self):
         self.assertEqual(task_subject('1+1等于多少？'), '1+1')
@@ -117,7 +160,7 @@ class IntelligenceTests(unittest.TestCase):
 
     def test_real_date_query_is_distinct_from_clock_mutation(self):
         command = "date '+%Y-%m-%d %H:%M:%S %Z (%z)'"
-        self.assertEqual(tool_context('terminal', {'command': command}, '上海未来 7 天的天气'), {'stage': 'check_time', 'subject': '上海未来 7 天的天气'})
+        self.assertEqual(tool_context('terminal', {'command': command}, '上海未来 7 天的天气'), {'stage': 'check_time', 'subject': ''})
         for command in ('date', "date -u '+%Y-%m-%d'", 'date --utc', 'TZ=UTC date +%s'):
             self.assertEqual(shell_stage(command), 'check_time')
         for command in ("date -s '2026-09-20'", 'date --set=2026-09-20', 'date 092017002026', 'date -u -s 2026-09-20', "date '+%s' && echo done"):

@@ -70,8 +70,8 @@ class LanguageIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_auto_changes_each_turn_in_same_chat_without_remembering_last_language(self):
         for number, (text, language, initial) in enumerate((
                 ("Please check the weather", "en", "🤔 Thinking…"),
-                ("请查看天气", "zh", "🤔 正在思考中…"),
-                ("1+1", "zh", "🤔 正在思考中…"),
+                ("请查看天气", "zh", "🤔 思考中…"),
+                ("1+1", "zh", "🤔 思考中…"),
                 ("Please read the report", "en", "🤔 Thinking…"))):
             turn_id = str(number)
             await self.begin(text, turn_id, str(100 + number))

@@ -76,6 +76,14 @@ def start(adapter, sid="s1", tid="t1", sender="101", **kwargs):
     return adapter.pre_llm_call(session_id=sid, turn_id=tid, sender_id=sender, platform="telegram", **kwargs)
 
 
+async def wait_until(condition, timeout=1):
+    """Wait for an observed lifecycle condition, bounded against real hangs."""
+    async def poll():
+        while not condition():
+            await asyncio.sleep(0.001)
+    await asyncio.wait_for(poll(), timeout)
+
+
 class StateTests(unittest.TestCase):
     def setUp(self):
         self.ctx = ContextStub(final_summary=True)
@@ -173,7 +181,7 @@ class StateTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertIsNone(self.feed("post_llm_call", assistant_response=value, conversation_history=[{"content": "hidden narrative"}]))
                 self.assertNotIn("hidden narrative", repr(self.adapter.turns))
-                self.assertEqual(status_text(self.adapter.turns[("s1", "t1")], "zh"), "✍️ 正在整理最终回答…")
+                self.assertEqual(status_text(self.adapter.turns[("s1", "t1")], "zh"), "✍️ 整理回答…")
         self.assertNotIn("transform_llm_output", self.ctx.hooks)
 
     def test_other_platform_cannot_start_a_telegram_status(self):
@@ -259,7 +267,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.telegram.sent), 1)
         self.assertEqual(self.telegram.sent[0]["metadata"], {"thread_id": "7"})
         self.assertEqual(self.telegram.sent[0]["reply_to"], "10")
-        self.assertIn("正在检查指定文件", self.telegram.edits[-1]["content"])
+        self.assertEqual(self.telegram.edits[-1]["content"], "📖 读取文件…")
 
     async def test_context_loss_falls_back_without_network(self):
         self.adapter.pre_gateway_dispatch(event=event())
@@ -291,7 +299,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
                              self.begin(event(chat="-10001", thread="2"), "b", "tb"))
         self.assertEqual({item["metadata"]["thread_id"] for item in self.telegram.sent}, {"1", "2"})
         self.adapter.on_session_end(session_id="a", turn_id="ta", interrupted=True)
-        await self.settle()
+        await wait_until(lambda: ("a", "ta") not in self.adapter.transport.panels)
         self.assertEqual(set(self.adapter.turns), {("b", "tb")})
         self.assertIn("已中断", self.telegram.edits[-1]["content"])
         self.assertEqual(len(self.telegram.deleted), 1)
@@ -305,7 +313,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             await self.settle()
         self.assertEqual(len(self.telegram.sent), 1)
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
-        await self.settle()
+        await wait_until(lambda: ("s1", "t1") not in self.adapter.transport.panels)
         self.assertIn(("s1", "t1"), self.adapter.transport.blocked)
         self.assertFalse(self.adapter.transport.panels)
         self.assertFalse(self.telegram.deleted)
@@ -316,6 +324,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         for i in range(3):
             self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id=str(i), tool_name="read_file")
             await self.settle()
+        await wait_until(lambda: ("s1", "t1") not in self.adapter.transport.panels)
         self.assertEqual(len(self.telegram.sent), 1)
         self.assertEqual(len(self.telegram.deleted), 1)
         self.assertFalse(self.adapter.transport.panels)
@@ -325,9 +334,9 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         await self.begin()
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         self.telegram.send_gate.set()
-        await self.settle()
+        await wait_until(lambda: ("s1", "t1") not in self.adapter.transport.panels)
         self.assertEqual(len(self.telegram.sent), 1)
-        self.assertIn("正在整理最终回答", self.telegram.edits[-1]["content"])
+        self.assertIn("整理回答", self.telegram.edits[-1]["content"])
         self.assertFalse(self.adapter.turns)
         self.assertEqual(self.telegram.deleted, [{"chat_id": "101", "message_id": "1"}])
 
@@ -336,13 +345,13 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.telegram.edit_gate = asyncio.Event()
         self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id="a", tool_name="web_search", args={"query": "上海未来7天天气"})
         await self.settle()
-        self.assertIn("上海未来 7 天天气", self.telegram.edits[-1]["content"])
+        self.assertIn("上海未来7天天气", self.telegram.edits[-1]["content"])
         self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
         await self.settle()
         self.telegram.edit_gate.set()
-        await self.settle()
+        await wait_until(lambda: ("s1", "t1") not in self.adapter.transport.panels)
         self.assertEqual(len(self.telegram.sent), 1)
-        self.assertIn("正在整理最终回答", self.telegram.edits[-1]["content"])
+        self.assertIn("整理回答", self.telegram.edits[-1]["content"])
         self.assertFalse(self.adapter.transport.panels)
         self.assertEqual(len(self.telegram.deleted), 1)
 
@@ -360,7 +369,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
     async def test_expiry_cleans_state_without_claiming_task_failed(self):
         self.adapter.transport.ttl = 0.03
         await self.begin()
-        await asyncio.sleep(0.05)
+        await wait_until(lambda: ("s1", "t1") not in self.adapter.transport.panels)
         self.assertFalse(self.adapter.turns)
         self.assertIn("状态更新已超时", self.telegram.edits[-1]["content"])
         self.assertEqual(len(self.telegram.deleted), 1)
@@ -369,7 +378,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
     async def test_reset_and_unload_cancel_owned_panels(self):
         await self.begin()
         self.adapter.on_session_reset(old_session_id="s1")
-        await self.settle()
+        await wait_until(lambda: ("s1", "t1") not in self.adapter.transport.panels)
         self.assertEqual(len(self.telegram.deleted), 1)
         self.assertFalse(self.adapter.transport.panels)
 

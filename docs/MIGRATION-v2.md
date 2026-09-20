@@ -4,7 +4,7 @@ v2 uses the official public Plugin API implementation as the only maintained pro
 
 The internal v2 ID remains **`hermes-telegram-ux-catalog`** for installation and configuration compatibility. Full's ID is **`hermes-interaction`**. They are not interchangeable, and installing v2 does not automatically disable or replace Full. Do not enable both in the same Gateway.
 
-Use the exact commit resolved from the official `v2.0.0` tag and compare it with the [Release notes](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.0.0). Project releases and Hermes Catalog admission are separate; follow the Catalog's reviewed pin when installing through that channel.
+Use the exact commit resolved from the official `v2.1.0` tag and compare it with the [Release notes](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.1.0). Project releases and Hermes Catalog admission are separate; follow the Catalog's reviewed pin when installing through that channel.
 
 ## Before changing an existing installation
 
@@ -27,7 +27,7 @@ The checked Hermes core accepts only a full 40-character commit in `--ref`. It d
 
 ```bash
 TGUX_REPO="https://github.com/pler1y/hermes-telegram-ux.git"
-TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.0.0' 'refs/tags/v2.0.0^{}' | awk '$2 == "refs/tags/v2.0.0^{}" { peeled=$1 } $2 == "refs/tags/v2.0.0" { direct=$1 } END { print peeled ? peeled : direct }')"
+TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.1.0' 'refs/tags/v2.1.0^{}' | awk '$2 == "refs/tags/v2.1.0^{}" { peeled=$1 } $2 == "refs/tags/v2.1.0" { direct=$1 } END { print peeled ? peeled : direct }')"
 test "${#TGUX_COMMIT}" -eq 40 || { echo "Release tag unavailable; stop here." >&2; exit 1; }
 case "$TGUX_COMMIT" in *[!0-9a-fA-F]*) echo "Invalid release SHA; stop here." >&2; exit 1 ;; esac
 printf '%s\n' "$TGUX_COMMIT"
@@ -86,7 +86,7 @@ Catalog installations use a separate Catalog sidecar and reviewed pin. A project
 
 ## Full users (`hermes-interaction`)
 
-v2 no longer requires Full's private-core fingerprint match. It still requires a compatible public Plugin API; the checked baseline is Hermes 0.21.3, commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`. Later cores require their own validation.
+v2 no longer requires Full's private-core fingerprint match. It requires Hermes >= 0.21.0 based on the public Plugin API boundary; the checked baseline is Hermes 0.21.3, commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`. Later cores require their own validation.
 
 Full changed some native display settings during installation. Disable alone leaves those settings as configured; use the matching historical management procedure where its records exist. Do not copy Full's settings or runtime files into v2.
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.0
+
+- Dynamic progress combines real tool actions, structured results and voluntary public `telegram_ux_update` milestones for comparison, verification and synthesis.
+- Specific states survive ordinary API activity; new real tools can replace them. Remove full-question fallback and time-driven synthetic stages.
+- Shorter Chinese labels, safe current tool objects, bounded time-conversion recognition, duplicate suppression and evidence-gated findings. Simple tasks need no milestone calls.
+- Preserve one temporary status and Hermes native answers, approvals and task control; no hidden reasoning, private API or core changes.
+- Requires Hermes >= 0.21.0 based on the public Plugin API boundary. Validation uses the verified baseline and current upstream in CI, not every historical release.
+- Known limitation: abnormal host termination without an end hook may defer cleanup to `status_ttl` (default 600 seconds). Lifecycle completion is not a Telegram delivery receipt.
+- See [real model acceptance](docs/LIVE-MILESTONE-ACCEPTANCE.md) and the commit-specific Release notes for final gates and smoke results.
+
 ## 2.0.0
 
 This is a product convergence: the public Plugin API implementation becomes the only maintained Hermes Telegram UX. The behaviors below describe the change from the legacy Full/earlier menu-based product lines. Task intelligence and temporary-message behavior were already accepted at `c5b8aef94d1f096fbad9ad782b2ad312e9254d33`; this release preparation does not rewrite them.
