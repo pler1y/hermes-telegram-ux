@@ -2,9 +2,9 @@
 
 项目概览：[中文](../README.zh-CN.md) · [English](../README.md)
 
-**安装使用请选择稳定版 1.8.2。** 当前开发分支是尚未发布的 1.8.3-rc.2 Full 候选；两者支持的核心基线不同。开始安装前，先确认 [1.8.2 的兼容范围](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。
+**当前完整版：1.8.3。** 安装前确认[兼容范围](COMPATIBILITY.md)。同仓库的 Hermes插件版使用独立分支和发行标签，见[版本与更新渠道](EDITIONS.md)。
 
-**For installation, use stable release 1.8.2.** The development branch is the unpublished 1.8.3-rc.2 Full candidate, with an additional supported core. Check the stable release's compatibility before installing. Both README pages cover installation and everyday use; many detailed guides below are in Chinese.
+**Current Full release: 1.8.3.** Check its compatibility table before installing. The public-API Plugin edition has an independent branch and release channel. Both README pages cover installation and everyday use; many detailed guides below are in Chinese.
 
 ## 安装与使用 · Installation and use
 
@@ -14,7 +14,7 @@
 | [ZIP 安装](INSTALLATION.md) · [English ZIP guide](INSTALLATION.en.md) | 下载包校验与手动安装；release archives and manual installation |
 | [从零开始 / Fresh environment](FRESH-INSTALL.md) | 模型登录、Telegram 与环境准备 |
 | [配置 / Configuration](CONFIGURATION.md) | 语言、显示预设和进度设置 |
-| [稳定版兼容 / Stable compatibility](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md) | 1.8.2 支持的核心与接口边界 |
+| [稳定版兼容 / Stable compatibility](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md) | 1.8.3 支持的核心与接口边界 |
 | [恢复 / Recovery](RECOVERY.md) | 备份、中断恢复和配置冲突 |
 | [更新日志 / Changelog](../CHANGELOG.md) | 各版本的用户可见变化 |
 

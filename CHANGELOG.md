@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.3 — 2026-09-20
+
+- Publish the verified rc.2 runtime fixes for cancellation, turn ownership, progress evidence and installation configuration.
+- Maintain Full on `main` and the public-API Plugin edition on `catalog-safe`, with separate release tags and installation channels.
+- Refresh installation and compatibility documentation; supported cores remain the five reviewed baselines.
+- Runtime live evidence remains the 2026-09-18 rc.2 acceptance; release checks do not expand that scope.
+
 ## 1.8.3-rc.2 — Full runtime maintenance candidate, 2026-09-18
 
 - Keep native stop reachable when child interruption or cancellation-record persistence fails.

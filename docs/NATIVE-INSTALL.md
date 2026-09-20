@@ -1,15 +1,9 @@
 # Native Hermes installation · 原生安装
 
-**Published version 1.8.2** remains available for direct installation. The local
-**1.8.3-rc.2 Full** candidate has separate [validation evidence](FULL-PROGRESS.md);
-its changes are not included in the published SHA below. No upstream action is
-part of this candidate preparation.
-Use an isolated test bot first. Use the [v1.8.2 compatibility table](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md) for the stable installation below; a Hermes version number alone is insufficient.
-The [development compatibility table](COMPATIBILITY.md) separately identifies support added in 1.8.3-rc.1.
-Linux and macOS are supported by the setup helper. Have a working Telegram adapter
-and model login before installing. Use the Python environment that runs Hermes.
+**Hermes Full 1.8.3 / Hermes完整版** uses the five reviewed cores in the [compatibility table](COMPATIBILITY.md). A Hermes version number alone is insufficient. Linux and macOS are supported by the setup helper; use the Python environment that runs your working Hermes Telegram bot.
 
-1.8.2 可直接安装；本地 1.8.3-rc.2 Full 候选尚未发布。请先在独立测试环境验证；安装 1.8.2 时以其稳定版兼容表为准。
+This page installs Full. For the public-API Plugin edition, use its [independent channel](https://github.com/pler1y/hermes-telegram-ux/tree/catalog-safe). Do not install both editions into the same Gateway.
+
 原生安装由 Hermes 管理代码和固定版本，本项目的 `configure` 只管理交互配置及其备份。
 已经通过 ZIP 安装的实例继续使用对应的安装器；迁移前先卸载受管理的 ZIP 版本，并确认没有恢复出的旧插件占用同名目录。
 
@@ -24,10 +18,11 @@ HERMES_PYTHON="$HERMES_CORE/venv/bin/python"
 export PYTHONPATH="$HERMES_CORE"
 ```
 
-The command below pins the **full 40-character commit SHA** of v1.8.2. `--ref` accepts an exact SHA, not a tag. For a later release, use its reviewed commit from [releases](https://github.com/pler1y/hermes-telegram-ux/releases).
+The command resolves the fixed `v1.8.3` release tag to its full commit SHA, then pins installation to that SHA. A missing tag stops installation. Future upgrades must resolve a reviewed Full `v*` tag; do not use the Plugin edition’s `catalog-v*` tags.
 
 ```bash
-UX_COMMIT=6197d30a994a195c37611e29f26803ac1db2d6ff
+UX_COMMIT="$(git ls-remote --refs https://github.com/pler1y/hermes-telegram-ux.git refs/tags/v1.8.3 | cut -f1)"
+test "${#UX_COMMIT}" -eq 40 || { echo "Release tag unavailable" >&2; exit 1; }
 "$HERMES_PYTHON" -m hermes_cli.main plugins install \
   https://github.com/pler1y/hermes-telegram-ux --ref "$UX_COMMIT" --no-enable
 UX_DIR="$HERMES_HOME/plugins/hermes-interaction"

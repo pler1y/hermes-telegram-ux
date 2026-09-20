@@ -2,9 +2,9 @@
 
 ## 准备
 
-安装稳定版 1.8.2 时使用[该版本支持的 Hermes 核心](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)，完成模型登录和 Telegram 接入，确认机器人可以正常回复消息。新环境可按 [从零安装指南](FRESH-INSTALL.md)配置。
+安装稳定版 1.8.3 时使用[该版本支持的 Hermes 核心](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md)，完成模型登录和 Telegram 接入，确认机器人可以正常回复消息。新环境可按 [从零安装指南](FRESH-INSTALL.md)配置。
 
-本文适用于 ZIP 安装；通过 Hermes 插件命令管理代码请看[原生安装](NATIVE-INSTALL.md)。从 [1.8.2 稳定版发行页](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.2)下载 `hermes-telegram-ux-1.8.2-zh.zip` 中文版或 `hermes-telegram-ux-1.8.2-en.zip` 英文版，以及对应的 `.zip.sha256` 文件，校验后解压。开发分支 1.8.3-rc.1 尚未发布，其新增支持见[候选兼容表](COMPATIBILITY.md)。以下命令在解压目录运行，由拥有 Hermes 配置的账号执行。
+本文适用于 ZIP 安装；通过 Hermes 插件命令管理代码请看[原生安装](NATIVE-INSTALL.md)。从 [1.8.3 稳定版发行页](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v1.8.3)下载 `hermes-telegram-ux-1.8.3-zh.zip` 中文版或 `hermes-telegram-ux-1.8.3-en.zip` 英文版，以及对应的 `.zip.sha256` 文件，校验后解压。本版仅支持[兼容表](COMPATIBILITY.md)中列出的五套核心基线。以下命令在解压目录运行，由拥有 Hermes 配置的账号执行。
 
 ```bash
 HERMES_HOME="$HOME/.hermes"
@@ -75,7 +75,7 @@ ZIP 安装使用本项目的 `install.py install/uninstall` 管理代码、显�
 
 任务进度根据工具事件和本轮回复更新。执行中追加要求后，会先显示收到补充的反馈，再由 Hermes 在后续执行中应用。发送“停一下”会请求停止前台或所属后台任务，已完成的外部操作不会自动撤销。
 
-最终回复以完整消息发送，长文仍按 Telegram 的长度限制分条。稳定版的接口边界见 [1.8.2 兼容说明](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.2/docs/COMPATIBILITY.md)。
+最终回复以完整消息发送，长文仍按 Telegram 的长度限制分条。稳定版的接口边界见 [1.8.3 兼容说明](https://github.com/pler1y/hermes-telegram-ux/blob/v1.8.3/docs/COMPATIBILITY.md)。
 
 ## 语言版本
 
