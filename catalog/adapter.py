@@ -80,7 +80,7 @@ class HermesCatalogAdapter:
                 self.transport.close()
             self.routes.clear()
             self.transport = TelegramPanels(self.ctx, adapter, self.interval, self.ttl, self.expire,
-                                             heartbeat=self.refresh, cleanup_delay=self.cleanup_delay)
+                                             cleanup_delay=self.cleanup_delay)
 
     def pre_gateway_dispatch(self, event=None, **kwargs):
         # This hook precedes auth: record only. No network, no reply, no directive.
@@ -181,8 +181,7 @@ class HermesCatalogAdapter:
         return status_text(turn, turn.language, ending, now)
 
     def refresh(self, key):
-        # Presentation aging only: no fabricated heartbeat activity, no TTL
-        # extension, no model polling and no ownership of the native response.
+        # Read-only snapshot. Time alone never changes public progress.
         with self.lock:
             turn = self.turns.get(key)
             if self.closed or turn is None or turn.finalizing:

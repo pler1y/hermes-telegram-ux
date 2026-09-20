@@ -1,21 +1,21 @@
 # Hermes Telegram UX acceptance
 
-Use only the dedicated test Bot and the fixed official core. Record exact source/runtime hashes; synthetic tests do not prove live Telegram behavior. The Progress Intelligence baseline is `77c4a11`; convergence must preserve its task inference, evidence rules and transport timing.
+Use only the dedicated test Bot and the fixed official core. Record exact source/runtime hashes; synthetic tests do not prove live Telegram behavior. For v2.1.0, preserve evidence rules and transport ownership. Historical live outcomes are summarized in [LIVE-MILESTONE-ACCEPTANCE.md](LIVE-MILESTONE-ACCEPTANCE.md). Final release smoke is limited to one complex and one simple task on the final commit.
 
 ## Real task regression
 
 | Case | Task | Required observation |
 |---|---|---|
 | A | `1+1等于多少？` | Prompt initial feedback, actual calculation if a calculation tool is used, native answer, one owned message deleted. |
-| B | Shanghai seven-day weather, temperature/humidity/wind | Task-specific retrieval; fields only when actual values exist; current-step success scope; task-related synthesis; deletion. |
+| B | Shanghai seven-day weather, temperature/humidity/wind | Task-specific retrieval; fields only when actual values exist; current-step success scope; explicit public synthesis milestones; deletion. |
 | C | Read installed telegram.py/adapter.py cleanup code, no writes | Actual read/inspect stages and the cleanup purpose; native answer and deletion. |
 | D | Read a confirmed nonexistent file | Real missing-file failure remains visible through explanation; no invented success/retry. |
-| E | OpenAI public news from the last seven days | Real search stage, actual returned counts when available, no raw query leakage, task-related long synthesis, deletion. |
+| E | OpenAI public news from the last seven days | Real search stage, actual returned counts when available, no raw query leakage, specific milestones during cross-source comparison, deletion. |
 | F | Failed public extraction followed sequentially by another actual source read | Failure appears first; recovery requires the later real pre_tool_call; success only after actual nonempty content. |
 
 Capture every NewMessage/MessageEdited/MessageDeleted event from before sending the prompt and verify final message existence. Record one owned status ID per task, exact visible versions, native answer time, deletion time and longest unchanged state. Correlate tools with the correct public session/turn/call IDs. Exclude different-turn background events and hidden reasoning.
 
-A long genuine model request can keep truthful synthesis text unchanged. Do not invent stages or require a fixed example string. Public turn completion is not a Telegram delivery receipt. Short states may be coalesced; a task finishing before the send worker starts must not leave a late bubble.
+A long genuine model request keeps the latest public action/result/milestone unchanged; elapsed time must not infer synthesis. Do not invent stages or require a fixed example string. Public turn completion is not a Telegram delivery receipt. Short states may be coalesced; a task finishing before the send worker starts must not leave a late bubble.
 
 ## Product removal checks
 
@@ -31,6 +31,10 @@ Preserve Progress Intelligence and all transport race/error tests: early/late co
 
 Correlated interim/child events remain activity signals so display TTL does not regress; their raw text and unused statistics are not retained. Unregistered stream hooks cannot affect state. No native task cancellation or background-result filtering is implemented.
 
-Run every unit and contract suite, boundary guard, official validate and doctor, and `git diff --check`. Native Git/ZIP packaging checks use committed objects and must identify the tested commit. Keep packaging output out of the source tree.
+Run every unit and contract suite, boundary guard, official validate, doctor and compat, and `git diff --check`. Native Git/ZIP packaging checks use committed objects and must identify the tested commit. Keep packaging output out of the source tree.
 
 Native approval/stop/file behavior remains Hermes-owned. Do not count native approvals as plugin buttons. Additional native stop/file/group/topic testing requires its own evidence; do not silently inherit old tests as new live acceptance. The separate `tests/fixtures/approval_gate` may be used only for its reviewed harmless fixture and removed afterward; it never ships in the package.
+
+## Dynamic milestone development
+
+Run `python scripts/check_milestones.py --write-doc` for four reproducible public-event timelines and `python scripts/probe_progress_host.py --core /path/to/hermes-agent` for real host discovery, guidance injection and deferred tool execution. These are distinct from model-behavior acceptance: neither is evidence that Hermes voluntarily calls milestones. Record actual model prompts, active tool path, call counts, redundancy and unsupported findings when a configured model is available. Keep fixtures and model results clearly separated.

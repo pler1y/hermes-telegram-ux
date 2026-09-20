@@ -19,6 +19,7 @@ export HERMES_HOME="$(mktemp -d)"
 "$CATALOG_PYTHON" scripts/check_boundary.py
 "$CATALOG_PYTHON" -m hermes_cli.main plugins validate . --json
 "$CATALOG_PYTHON" -m hermes_cli.main plugins doctor . --ci
+"$CATALOG_PYTHON" -m hermes_cli.main plugins compat . --json
 "$CATALOG_PYTHON" scripts/check_native.py --core /tmp/catalog-core --ref HEAD
 "$CATALOG_PYTHON" scripts/check_upgrade.py --core /tmp/catalog-core --ref HEAD
 "$CATALOG_PYTHON" scripts/build_release.py --ref HEAD

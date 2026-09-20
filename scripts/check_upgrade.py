@@ -107,7 +107,7 @@ async def probe(mode, version):
             assert not sent, "Old disabled preference fixture must be effective before upgrade"
         else:
             assert len(sent) == 1, sent
-            assert "正在" in sent[0]["content"] and sent[0]["content"].startswith("🤔"), sent
+            assert sent[0]["content"] == "🤔 思考中…", sent
             assert sent[0]["metadata"] == {"thread_id": "42"}
             assert manager.invoke_hook("pre_tool_call", session_id="upgrade", turn_id="turn",
                                        tool_call_id="read", tool_name="read_file", args={"path": "/tmp/missing"}) == []
@@ -183,7 +183,7 @@ def main():
     new_commit = git("rev-parse", "--verify", args.ref + "^{commit}").decode().strip()
     old, new = manifest_at(old_commit), manifest_at(new_commit)
     assert old["name"] == new["name"] == NAME
-    assert old["version"] == "1.9.0-catalog.1" and new["version"] == "2.0.0", (old, new)
+    assert old["version"] == "1.9.0-catalog.1" and new["version"] == "2.1.0", (old, new)
     reports = {"old_commit": old_commit, "old_version": old["version"], "new_commit": new_commit,
                "new_version": new["version"], "plugin_id": NAME,
                "core_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=core, text=True).strip(),

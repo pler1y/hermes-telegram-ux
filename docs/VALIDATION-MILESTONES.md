@@ -1,0 +1,5 @@
+# Dynamic milestone validation
+
+The accepted development implementation passed **240 unit and 7 real-host contract tests** on each of Python 3.11.15 and 3.12.13 against Hermes `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f` (0.21.3). Boundary and whitespace checks, official validate (10 checks, no warnings), doctor (1 tool / 16 hooks), four event replays, deferred-host discovery, native Git/ZIP lifecycle, historical Git/ZIP upgrade paths and reproducible package verification passed. All 13,490 tracked host files remained unchanged.
+
+These are development results, not retroactively labeled final-release checks. Follow [TESTING.md](TESTING.md) to reproduce the existing gate. The exact formal source SHA, final CI, compat result, package and two-task smoke are recorded in the [v2.1.0 Release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.1.0). Real model/Telegram evidence is summarized in [LIVE-MILESTONE-ACCEPTANCE.md](LIVE-MILESTONE-ACCEPTANCE.md); synthetic transport and host probes are not counted as voluntary model behavior.

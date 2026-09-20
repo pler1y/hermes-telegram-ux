@@ -38,6 +38,32 @@ def safe_text(value, limit=72):
     return value[:limit].rstrip()
 
 
+def verified_finding(value, info):
+    """Accept only a whole claim whose meaning is covered by structural facts.
+
+    Public model prose is not evidence. In particular, source agreement, dates
+    and bug diagnoses cannot be checked from the bounded facts retained here.
+    Do not retain that prose or try to infer truth from a successful tool exit.
+    """
+    if not value:
+        return ""
+    facts = info.get("facts", {})
+    claim = value.strip(" 。.!…")
+    missing = r"(?:未找到指定文件|指定文件不存在|(?:The )?requested file (?:was not found|does not exist))"
+    if facts.get("missing_file") and re.fullmatch(missing, claim, re.I):
+        return claim
+    if info.get("status") != "ok":
+        return ""
+    count = re.fullmatch(r"(?:已)?找到\s*(\d+)\s*条(?:搜索)?结果|Found\s+(\d+)\s+(?:search )?results?", claim, re.I)
+    if count and type(facts.get("search_count")) is int and int(count.group(1) or count.group(2)) == facts["search_count"]:
+        return claim
+    if info.get("stage") in {"read", "read_data", "read_web", "read_guide", "inspect"} and facts.get("read_completed") and re.fullmatch(r"(?:已读取(?:所需资料|资料|文件|数据)|(?:Requested )?(?:material|file|data) (?:has been |was )?read)", claim, re.I):
+        return claim
+    if facts.get("test_completed") and re.fullmatch(r"测试命令已执行完|Test command completed", claim, re.I):
+        return claim
+    return ""
+
+
 
 @dataclass
 class Turn:
@@ -59,9 +85,8 @@ class Turn:
     current_call: str = ""
     current_request: str = ""
     current_kind: str = "initial"
+    display_kind: str = "initial"
     finalizing: bool = False
-    result_at: float = 0.0
-    model_since: float = 0.0
     last_failure: dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -85,16 +110,16 @@ class Turn:
     def merge_source_batch(self):
         """Summarize mixed source outcomes without changing any tool outcome.
 
-        Only the just-finished public API batch and the same safe task object
-        participate. A successful clock/process call is not successful research.
+        Only source operations in the just-finished public API batch participate.
+        The resulting warning names no specific source. A successful clock or
+        process call is not successful research.
         """
-        subject = self.progress.get("subject")
-        if not subject or self.progress.get("batch") != self.current_request:
+        if self.display_kind != "result" or self.progress.get("batch") != self.current_request:
             return
         sources = {"search", "read_web", "read_data", "read", "inspect"}
         outcomes = [item for item in self.observations.values()
                     if item.get("batch") == self.current_request
-                    and item.get("subject") == subject and item.get("stage") in sources]
+                    and item.get("stage") in sources]
         succeeded = any(item.get("status") == "ok"
                         and (item.get("facts", {}).get("read_completed")
                              or (item.get("stage") == "search"
@@ -118,12 +143,33 @@ class Turn:
             if event == "pre_tool_call" and note_call not in self.note_calls:
                 self.put(self.note_calls, note_call, self.revision)
             expected = self.note_calls.get(note_call)
-            if event == "post_tool_call" and data.get("status") == "ok" and (expected == self.revision or (expected is None and self.current_kind == "initial")):
-                self.put(self.note_calls, note_call, -1)
+            if event == "post_tool_call" and expected is not None and expected >= 0:
+                if not self.put(self.note_calls, note_call, -1):
+                    return
+                if expected != self.revision or data.get("status") != "ok":
+                    return
+                # A still-running observed action owns the bubble. A late note
+                # cannot rewind a newer action/result, even across API events.
+                if self.tools.get(self.current_call, ("", ""))[1] == "running":
+                    return
+                from .presentation import meaningful_note, note_fingerprint
                 note = normalize_note(data.get("args"))
-                self.note = {key: text for key in ("goal", "action", "finding", "next") if (text := safe_text(note.get(key)))}
-                if self.note and self.current_kind != "tool":
-                    self.current_kind = "note"
+                note = {key: text for key in ("goal", "action", "finding", "next") if (text := safe_text(note.get(key)))}
+                if "finding" in note:
+                    finding = verified_finding(note["finding"], self.observations.get(self.current_call, {}))
+                    if finding:
+                        note["finding"] = finding
+                    else:
+                        note.pop("finding")
+                note = meaningful_note(note, self.user_task)
+                if set(note) == {"finding"} and self.display_kind == "result":
+                    # Matching the fact already on screen adds no information.
+                    # A new action/next can still accompany verified evidence.
+                    return
+                if note and (self.display_kind != "note" or note_fingerprint(note) != note_fingerprint(self.note)):
+                    self.note = note
+                    self.revision += 1
+                    self.current_kind, self.display_kind, self.last = "note", "note", "working"
             return
         if event in {"subagent_start", "subagent_stop", "on_interim_message"}:
             # Preserve correlated activity/TTL without a second task tree,
@@ -134,7 +180,7 @@ class Turn:
             if call in self.tools or not self.put(self.tools, call, (tool_label(data.get("tool_name")), "running")):
                 return
             name = tool_label(data.get("tool_name"))
-            info = tool_context(name, data.get("args"), self.user_task or task_subject(self.note.get("goal")))
+            info = tool_context(name, data.get("args"), self.user_task, self.language)
             info = dict(info, tool=name, batch=self.current_request)
             previous = self.last_failure
             # A recovery label is permitted only once a real subsequent action
@@ -144,16 +190,20 @@ class Turn:
                 info["recovery"] = "alternative" if previous.get("tool") != name else "retry"
             self.last_failure = {}
             self.observations[call] = info
-            self.progress = info
-            self.note = {}
             self.revision += 1
             self.current_call, self.current_kind, self.last = call, "tool", "working"
+            # A new recognizable execution stage is fresh information. An
+            # opaque helper with no safe object must not erase a concrete note.
+            if info.get("stage") != "execute" or info.get("subject") or self.display_kind == "initial":
+                self.progress = info
+                self.note = {}
+                self.display_kind = "tool"
         elif event == "post_tool_call":
             old = self.tools.get(call)
             if old and old[1] != "running":
                 return
             name = old[0] if old else tool_label(data.get("tool_name"))
-            info = self.observations.get(call) or tool_context(name, data.get("args"), self.user_task)
+            info = self.observations.get(call) or tool_context(name, data.get("args"), self.user_task, self.language)
             facts = result_facts(data.get("result"), info["stage"])
             status = data.get("status")
             status = status if status in ("ok", "error", "blocked", "cancelled") else "returned"
@@ -169,10 +219,16 @@ class Turn:
             if status in {"error", "blocked"} and info.get("batch", "") == self.current_request:
                 self.last_failure = info
             self.observations[call] = info
-            if (call == self.current_call and self.current_kind == "tool") or self.current_kind == "initial":
+            if call == self.current_call or self.display_kind == "initial":
+                self.current_kind = "result"
+                opaque_success = info.get("stage") == "execute" and not info.get("subject") and not (set(facts) - {"success"})
+                if (opaque_success or not facts) and status not in {"error", "blocked", "cancelled"} and self.display_kind in {"note", "result"}:
+                    return
                 self.progress = info
-                self.result_at = now
+                self.note = {}
+                self.revision += 1
                 self.current_call, self.current_kind = call, "result"
+                self.display_kind = "result"
                 self.last = "tool_error" if status in {"error", "blocked"} else "tool_cancelled" if status == "cancelled" else "working"
         elif event == "pre_api_request":
             retry = data.get("retry_count", 0)
@@ -182,17 +238,11 @@ class Turn:
             if not self.put(self.apis, request, "running"):
                 return
             self.api_attempts[request] = retry
-            if self.current_kind == "tool":
-                # A new model cycle without a matching result cannot prove the
-                # old operation completed. Late callbacks must not rewind it.
-                self.progress = {}
-            else:
-                self.merge_source_batch()
-            self.revision += 1
-            self.model_since = now
+            self.merge_source_batch()
             self.current_request, self.current_kind = request, "api"
             if self.last not in {"tool_error", "tool_cancelled"}:
-                self.last = "working"
+                status = self.progress.get("status") if self.display_kind == "result" else ""
+                self.last = "tool_error" if status in {"error", "blocked"} else "tool_cancelled" if status == "cancelled" else "working"
         elif event in {"post_api_request", "api_request_error"}:
             retry = data.get("retry_count")
             if type(retry) is int and retry < self.api_attempts.get(request, 0):

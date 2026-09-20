@@ -4,38 +4,42 @@
 
 在 Telegram 等待 Hermes 工作时，用一条临时气泡显示当前任务进度。状态随真实工具动作和结果更新，任务结束后自动清理。安装、启用，然后正常聊天即可。
 
-**Hermes Telegram UX v2.0.0** 只维护这一套官方公开 Plugin API 实现。正式版本身份以 [v2.0.0 Tag](https://github.com/pler1y/hermes-telegram-ux/tree/v2.0.0) 和 [GitHub Release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.0.0) 指向的准确提交为准。
+**Hermes Telegram UX v2.1.0** 只维护这一套官方公开 Plugin API 实现。正式版本身份以 [v2.1.0 Tag](https://github.com/pler1y/hermes-telegram-ux/tree/v2.1.0) 和 [GitHub Release](https://github.com/pler1y/hermes-telegram-ux/releases/tag/v2.1.0) 指向的准确提交为准。
 
 ## 使用体验
 
-下列状态都在同一个消息上编辑，并结合当前任务生成：
+v2.1.0 将真实工具动作、结果与模型主动公开的阶段汇报合并到同一条消息中：
 
 ```text
-🤔 正在思考中…
-🔎 正在搜索最近 7 天 OpenAI 的重要公开新闻…
-📊 已找到 10 条搜索结果，正在整理最近 7 天 OpenAI 的重要公开新闻…
-✍️ 正在汇总最近 7 天 OpenAI 的重要公开新闻…
+🤔 思考中…
+🔎 搜索官方发布信息…
+📊 找到 8 条结果，继续核对…
+🕒 核对不同来源中的发布日期…
+✍️ 整理回答…
 Hermes 原生最终回答 → 临时状态自动清理
 ```
 
 - 工具实际开始后，显示对应动作与任务对象。
 - 有可靠结果才展示搜索数量、天气数据字段、文件不存在或工具失败。
 - 真正发生后续调用才显示恢复；部分失败不会被说成全部成功。
-- 长时间模型汇总显示任务相关总结，不让旧搜索 Query 一直停留。
+- 复杂任务进入工具事件无法表达的阶段时，Hermes 可通过 `telegram_ux_update` 汇报比较来源、核对异常、整理时间线等具体工作。
+- 普通模型调用和等待时间不会改写最后一个有意义的状态；简单回答无需主动进度调用。
 - 单一消息、编辑节流、去重、归属隔离和有限清理。
 - 按本轮消息自动使用中文或英文。
 
+具体 milestone 不会被普通 API 活动覆盖；新的真实工具动作可以接替它。没有新信息时不靠计时器编造阶段，也不会用完整用户问题填充缺失的任务对象。详见[真实模型与 Telegram 验收摘要](docs/LIVE-MILESTONE-ACCEPTANCE.md)。
+
 没有完成卡、按钮、欢迎页、个人设置面板或 `/tgux`。不需要进度时，直接通过 Hermes 禁用插件。
 
-## 安装 v2.0.0
+## 安装 v2.1.0
 
-需要已经正常使用 Telegram 的 Hermes。已验证基线为 **Hermes 0.21.3**，commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`。CI 也检查 Hermes 当前 main 的 Python 3.11／3.12；请查看要安装的准确发布提交的验证结果。
+需要 **Hermes >= 0.21.0** 且 Telegram 已正常连接。最低版本基于公开 Plugin API 边界，不代表逐一完整测试过所有兼容版本。已验证基线为 **Hermes 0.21.3**，commit `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`。CI 也检查 Hermes 当前 main 的 Python 3.11／3.12；请查看要安装的准确发布提交的验证结果。
 
 原生安装器的 `--ref` 接受 **40 位 commit SHA**，不接受分支名。从正式 Tag 解析提交（兼容 annotated tag），与 Release notes 中的 SHA 核对后安装。Tag 不可用时停止，不回退到移动分支：
 
 ```bash
 TGUX_REPO="https://github.com/pler1y/hermes-telegram-ux.git"
-TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.0.0' 'refs/tags/v2.0.0^{}' | awk '$2 == "refs/tags/v2.0.0^{}" { peeled=$1 } $2 == "refs/tags/v2.0.0" { direct=$1 } END { print peeled ? peeled : direct }')"
+TGUX_COMMIT="$(git ls-remote --exit-code "$TGUX_REPO" 'refs/tags/v2.1.0' 'refs/tags/v2.1.0^{}' | awk '$2 == "refs/tags/v2.1.0^{}" { peeled=$1 } $2 == "refs/tags/v2.1.0" { direct=$1 } END { print peeled ? peeled : direct }')"
 test "${#TGUX_COMMIT}" -eq 40 || { echo "Release tag unavailable; stop here." >&2; exit 1; }
 case "$TGUX_COMMIT" in *[!0-9a-fA-F]*) echo "Invalid release SHA; stop here." >&2; exit 1 ;; esac
 printf '%s\n' "$TGUX_COMMIT"
@@ -49,7 +53,7 @@ hermes plugins enable hermes-telegram-ux-catalog
 
 内部 ID **`hermes-telegram-ux-catalog` 保持不变**，用于兼容安装、配置和状态身份；它不再代表第二个产品版本。详见 [ID 决策与源码依据](docs/PLUGIN-ID.md)。
 
-也可用 `scripts/build_release.py --ref <40位SHA>` 从已审阅提交构建可复现 ZIP，包内有文件哈希和 `PROVENANCE.json`。Hermes 原生安装器不直接接收 ZIP；验证后手工部署和完整替换方法见迁移说明。正式 ZIP 和校验文件以 v2.0.0 Release 附件为准，详见 [发布完整性说明](docs/RELEASE.md)。
+也可用 `scripts/build_release.py --ref <40位SHA>` 从已审阅提交构建可复现 ZIP，包内有文件哈希和 `PROVENANCE.json`。Hermes 原生安装器不直接接收 ZIP；验证后手工部署和完整替换方法见迁移说明。正式 ZIP 和校验文件以 v2.1.0 Release 附件为准，详见 [发布完整性说明](docs/RELEASE.md)。
 
 ## 配置
 
@@ -75,12 +79,12 @@ cleanup_delay: 1.0
 
 运行代码只依赖标准库、官方公开插件接口及提供的公开 adapter。路由不确定时不输出状态，不猜测聊天归属、不读取私有任务状态补充信息。初始反馈发生在可安全关联的公开回合事件之后，鉴权前不发消息。
 
-回合结束不是 Telegram 最终投递回执。清理采用有限尝试，删除失败可能留下状态，原生投递较慢时也可能晚于清理。长模型请求可以保持同一条真实汇总状态。官方验证通过不代表已进入官方 Catalog。
+Agent 生命周期结束不是 Telegram 投递回执；部分异常宿主结束路径可能缺少结束 hook，需等待配置的 status_ttl（默认 600 秒）清理。清理采用有限尝试，删除失败可能留下状态，原生投递较慢时也可能晚于清理。长模型请求保留最近的公开进展，直到新进展或显示超时。官方验证通过不代表已进入官方 Catalog。
 
 ## Legacy Full 历史实现
 
 v1.8.3 及以前的 Full 使用较深的 Hermes 内部接入，现已停止维护。历史保留在 [legacy/full-1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/legacy/full-1.8.3) 和 [v1.8.3](https://github.com/pler1y/hermes-telegram-ux/tree/v1.8.3)。它们只作历史参考，不是推荐安装选项。不要在同一 Gateway 同时启用 Full 和 v2。
 
-[迁移](docs/MIGRATION-v2.md) · [更新记录](CHANGELOG.md) · [v2 验证](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION-v2.md) · [历史真实验收](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION.md) · [测试方法](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/TESTING.md) · [公开 API](docs/PUBLIC-API.md)
+[迁移](docs/MIGRATION-v2.md) · [更新记录](CHANGELOG.md) · [v2 验证](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION-v2.md) · [历史真实验收](https://github.com/pler1y/hermes-telegram-ux/blob/v2.0.0/docs/VALIDATION.md) · [测试方法](https://github.com/pler1y/hermes-telegram-ux/blob/v2.1.0/docs/TESTING.md) · [公开 API](docs/PUBLIC-API.md)
 
 MIT License。

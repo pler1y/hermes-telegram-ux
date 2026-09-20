@@ -107,7 +107,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.invoke("post_llm_call", session_id="s", turn_id="t", platform="telegram", assistant_response="Final answer"), [])
         self.invoke("on_session_end", session_id="s", turn_id="t", completed=True)
         await asyncio.sleep(0.04)
-        self.assertIn("正在整理最终回答", self.edits[-1]["content"])
+        self.assertIn("整理回答", self.edits[-1]["content"])
         self.assertEqual(self.deleted, [{"chat_id": "10", "message_id": "77"}])
         self.assertEqual(len(self.sent), 1)
         self.assertFalse(any("reply_markup" in item for item in self.sent + self.edits))
