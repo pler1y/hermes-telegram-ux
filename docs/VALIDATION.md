@@ -5,7 +5,7 @@ Baseline: official Hermes `3c3ab69abb9b08683b5eb15b4e2b8be1198c875f`, Python 3.1
 - Official plugin validate: all 10 checks passed, zero warnings.
 - Official doctor: discovery/import/registration passed; 17 hooks, one tool, no middleware.
 - Real-host contracts: six passed, including the registered progress tool, authenticated command-context menu path, SDK callback cleanup, native reply preservation and disabled/unloaded behavior.
-- Unit/boundary: 53 tests passed, including cross-user/topic isolation, expired/mismatched callbacks, preference persistence/failure, native command keyboards, live-card dismiss, subagent correlation and SDK import boundaries.
+- Unit/boundary: 54 tests passed, including cross-user/topic isolation, expired/mismatched callbacks, preference persistence/failure, native command keyboards, live-card dismiss, subagent correlation and SDK import boundaries and atomic text/button edits.
 - Native install lifecycle and Telegram acceptance results are recorded after candidate packaging; prior release evidence below does not validate this candidate.
 
 ## Prior release validation (1.8.3-catalog.1)

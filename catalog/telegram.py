@@ -97,10 +97,14 @@ class TelegramPanels:
                         await asyncio.sleep(delay)
                         continue
                     text = panel.text
-                    result = await asyncio.wait_for(self.adapter.edit_message(
-                        chat_id=panel.route.chat_id, message_id=panel.message_id, content=text,
-                        finalize=panel.terminal,
-                    ), timeout=5)
+                    result = None
+                    if self.interface and panel.token:
+                        result = await asyncio.wait_for(self.interface.edit_status(panel.token, text, panel.view), timeout=5)
+                    if result is None:
+                        result = await asyncio.wait_for(self.adapter.edit_message(
+                            chat_id=panel.route.chat_id, message_id=panel.message_id, content=text,
+                            finalize=panel.terminal,
+                        ), timeout=5)
                     if not result.success:
                         # An edit cannot duplicate a message. Honor bounded explicit rate limits.
                         retry = getattr(result, "retry_after", None)

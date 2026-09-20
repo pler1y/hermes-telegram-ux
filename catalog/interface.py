@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import logging
 import secrets
 import time
+from types import SimpleNamespace
 
 from .preferences import CHOICES
 
@@ -111,6 +112,23 @@ class TelegramInterface:
                     reply_markup=self.status_markup(card))
             except Exception as exc:
                 LOG.warning("Catalog ending controls unavailable (%s)", type(exc).__name__)
+
+    async def edit_status(self, token, text, view):
+        card = self.cards.get(token)
+        if not card or self.closed:
+            return None
+        card.view = dict(view)
+        try:
+            # Native adapter text edits omit reply_markup. Edit this owned card's
+            # plain text and controls atomically through the documented SDK.
+            await self.native.bot.edit_message_text(chat_id=card.route.chat_id,
+                message_id=card.message_id, text=text, reply_markup=self.status_markup(card), parse_mode=None)
+            return SimpleNamespace(success=True)
+        except Exception as exc:
+            retry = getattr(exc, "retry_after", None)
+            if hasattr(retry, "total_seconds"):
+                retry = retry.total_seconds()
+            return SimpleNamespace(success=False, retry_after=retry)
 
     def page(self, card, page):
         prefs, zh = self.preferences.read(card.route), self.words(card.route)

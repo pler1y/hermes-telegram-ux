@@ -30,7 +30,7 @@ class MemoryState:
 class Native:
     def __init__(self):
         self.bot = self
-        self.handlers, self.messages, self.markups = [], [], []
+        self.handlers, self.messages, self.markups, self.edits = [], [], [], []
 
     def add_handler(self, handler):
         self.handlers.append(handler)
@@ -44,6 +44,9 @@ class Native:
 
     async def edit_message_reply_markup(self, **kwargs):
         self.markups.append(kwargs)
+
+    async def edit_message_text(self, **kwargs):
+        self.edits.append(kwargs)
 
 
 class Query:
@@ -228,7 +231,7 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         self.adapter.observe("subagent_stop", parent_session_id="s1", parent_turn_id="t1", child_session_id="child", child_status="completed", child_summary="not copied")
         self.adapter.observe("subagent_start", parent_session_id="other", parent_turn_id="t1", child_session_id="wrong")
         await self.settle()
-        text = self.telegram.edits[-1]["content"]
+        text = self.native.edits[-1]["text"]
         self.assertIn("整理报告", text)
         self.assertIn("确认两项结果", text)
         self.assertIn("完成 1", text)
@@ -249,6 +252,19 @@ class ExperienceTests(unittest.IsolatedAsyncioTestCase):
         self.adapter.observe("post_tool_call", session_id="s1", turn_id="t1", tool_name=TOOL,
                              tool_call_id="p", args={"finding": "should not appear"}, status="blocked")
         self.assertFalse(self.adapter.turns[("s1", "t1")].note)
+
+    async def test_progress_edits_keep_buttons_and_terminal_controls_atomically(self):
+        await self.begin()
+        self.adapter.observe("pre_tool_call", session_id="s1", turn_id="t1", tool_call_id="a", tool_name="read_file")
+        await self.settle()
+        edit = self.native.edits[-1]
+        self.assertIn("正在阅读文件", edit["text"])
+        self.assertIn("关闭提示", [b.text for row in edit["reply_markup"].inline_keyboard for b in row])
+        self.assertFalse(self.telegram.edits)
+        self.adapter.on_session_end(session_id="s1", turn_id="t1", completed=True)
+        await self.settle()
+        edit = self.native.edits[-1]
+        self.assertIn("继续处理", [b.text for row in edit["reply_markup"].inline_keyboard for b in row])
 
     async def test_final_reply_default_is_unchanged(self):
         await self.begin()
